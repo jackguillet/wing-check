@@ -1,36 +1,84 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Wing Check
+
+A personal weather alert dashboard for wing foil enthusiasts. Track wind conditions at your favorite spots with go/no-go forecasts, rideable window detection, and email alerts.
+
+## Features
+
+- **Spot Management** — Save spots with lat/lng, preferred wind conditions, and NOAA station IDs for tide data
+- **Live Forecasts** — 7-day hourly wind speed, gusts, direction, temperature, swell, and wave data via Open-Meteo
+- **Go/No-Go Scoring** — Configurable evaluator scores each hour (0-100) based on wind range, gust factor, direction, and wave height, then finds rideable windows
+- **Wind Charts** — Visual wind speed + gust band charts with min/max reference lines
+- **Email Alerts** — Scheduled checks via Resend that notify you when conditions look good
+- **Forecast Caching** — SQLite-backed cache avoids redundant API calls
+
+## Tech Stack
+
+| Layer | Choice |
+|-------|--------|
+| Framework | Next.js 15 (App Router) |
+| Language | TypeScript |
+| Database | SQLite via Drizzle ORM |
+| UI | Tailwind CSS + shadcn/ui |
+| Charts | Recharts |
+| Weather API | Open-Meteo (free, no key) |
+| Tides | NOAA Tides & Currents |
+| Email | Resend |
+
+**Total cost: $0** — every component has a free tier.
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
+# Clone and install
+git clone <your-repo-url>
+cd wing-check
+npm install
+
+# Set up environment (optional, for email alerts)
+cp .env.example .env.local
+# Edit .env.local with your Resend API key
+
+# Seed the database with example spots
+npm run db:seed
+
+# Start development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) to see the dashboard.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start development server |
+| `npm run build` | Production build |
+| `npm run db:seed` | Seed database with example spots |
+| `npm test` | Run evaluator unit tests |
 
-## Learn More
+## How the Evaluator Works
 
-To learn more about Next.js, take a look at the following resources:
+Each forecast hour is scored on four dimensions:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. **Wind Speed (0-40 pts)** — Must be within your configured min/max range. Peak score at the midpoint.
+2. **Gust Factor (0-25 pts)** — Gusts must be below `wind_speed × max_gust_factor`. Steadier = higher score.
+3. **Wind Direction (0-25 pts)** — Must be within tolerance of your preferred directions. Closer = higher score.
+4. **Wave Height (0-10 pts)** — Optional. Must be below your max threshold.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Consecutive hours scoring 50+ form **rideable windows**. The best window's average determines the overall go/no-go:
+- **GO** (≥70): Conditions look great
+- **MARGINAL** (40-69): Rideable but not ideal
+- **NO-GO** (<40): Not worth it
 
-## Deploy on Vercel
+## Deploy to Vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npm i -g vercel
+vercel
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The `vercel.json` includes a cron job that checks alerts every 6 hours.
+
+## License
+
+MIT
