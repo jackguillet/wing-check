@@ -21,7 +21,7 @@ export async function fetchWeatherForecast(
       "temperature_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,weather_code",
     wind_speed_unit: "kmh",
     timezone: "auto",
-    forecast_days: "7",
+    forecast_days: "14",
   });
 
   const res = await fetch(`${WEATHER_BASE}?${params}`);
@@ -41,7 +41,7 @@ export async function fetchMarineForecast(
     longitude: longitude.toString(),
     hourly:
       "wave_height,wave_direction,wave_period,swell_wave_height,swell_wave_direction,swell_wave_period",
-    forecast_days: "7",
+    forecast_days: "14",
   });
 
   try {

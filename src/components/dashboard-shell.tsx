@@ -5,8 +5,7 @@ import { SpotCard } from "@/components/spot-card";
 import { haversineDistance } from "@/lib/geo";
 import type { Spot } from "@/lib/db/schema";
 import type { SpotEvaluation } from "@/lib/alerts/evaluator";
-import { MapPin, Search } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { MapPin, TrendingUp } from "lucide-react";
 
 interface SpotData {
   spot: Spot;
@@ -23,7 +22,6 @@ export function DashboardShell({ spotData }: DashboardShellProps) {
     lat: number;
     lon: number;
   } | null>(null);
-  const [search, setSearch] = useState("");
 
   useEffect(() => {
     if (!navigator.geolocation) return;
@@ -35,16 +33,7 @@ export function DashboardShell({ spotData }: DashboardShellProps) {
     );
   }, []);
 
-  const { searchResults, favorites, nearYou, allSpots } = useMemo(() => {
-    const query = search.trim().toLowerCase();
-
-    if (query) {
-      const searchResults = spotData.filter((item) =>
-        item.spot.name.toLowerCase().includes(query),
-      );
-      return { searchResults, favorites: [], nearYou: [], allSpots: [] };
-    }
-
+  const { favorites, nearYou, bestForecast } = useMemo(() => {
     const favorites: SpotData[] = [];
     const rest: SpotData[] = [];
 
@@ -57,7 +46,7 @@ export function DashboardShell({ spotData }: DashboardShellProps) {
     }
 
     let nearYou: SpotData[] = [];
-    let allSpots = rest;
+    let remaining = rest;
 
     if (userLocation) {
       const sorted = [...rest].sort(
@@ -67,39 +56,18 @@ export function DashboardShell({ spotData }: DashboardShellProps) {
       );
       nearYou = sorted.slice(0, 3);
       const nearIds = new Set(nearYou.map((s) => s.spot.id));
-      allSpots = sorted.filter((s) => !nearIds.has(s.spot.id));
+      remaining = sorted.filter((s) => !nearIds.has(s.spot.id));
     }
 
-    return { searchResults: [], favorites, nearYou, allSpots };
-  }, [spotData, userLocation, search]);
+    const bestForecast = [...remaining]
+      .sort((a, b) => (b.evaluation?.overallScore ?? 0) - (a.evaluation?.overallScore ?? 0))
+      .slice(0, 3);
+
+    return { favorites, nearYou, bestForecast };
+  }, [spotData, userLocation]);
 
   return (
     <div className="space-y-8">
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Search spots..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9"
-        />
-      </div>
-
-      {searchResults.length > 0 && (
-        <section>
-          <h2 className="text-xl font-semibold mb-3">Results</h2>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {searchResults.map(({ spot, evaluation, isFavorite }) => (
-              <SpotCard key={spot.id} spot={spot} evaluation={evaluation} isFavorite={isFavorite} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {search.trim() && searchResults.length === 0 && (
-        <p className="text-center text-muted-foreground py-8">No spots found</p>
-      )}
-
       {favorites.length > 0 && (
         <section>
           <h2 className="text-xl font-semibold mb-3">Favorites</h2>
@@ -125,11 +93,14 @@ export function DashboardShell({ spotData }: DashboardShellProps) {
         </section>
       )}
 
-      {allSpots.length > 0 && (
+      {bestForecast.length > 0 && (
         <section>
-          <h2 className="text-xl font-semibold mb-3">All Spots</h2>
+          <h2 className="text-xl font-semibold mb-3 flex items-center gap-1.5">
+            <TrendingUp className="h-5 w-5" />
+            Best Forecast
+          </h2>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {allSpots.map(({ spot, evaluation, isFavorite }) => (
+            {bestForecast.map(({ spot, evaluation, isFavorite }) => (
               <SpotCard key={spot.id} spot={spot} evaluation={evaluation} isFavorite={isFavorite} />
             ))}
           </div>
