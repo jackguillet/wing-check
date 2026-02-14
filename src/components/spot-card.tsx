@@ -4,10 +4,12 @@ import { Badge } from "@/components/ui/badge";
 import type { Spot } from "@/lib/db/schema";
 import type { SpotEvaluation } from "@/lib/alerts/evaluator";
 import { degreesToCardinal } from "@/lib/weather/types";
+import { Heart } from "lucide-react";
 
 interface SpotCardProps {
   spot: Spot;
   evaluation: SpotEvaluation | null;
+  isFavorite?: boolean;
 }
 
 function GoNoGoBadge({ status }: { status: "go" | "marginal" | "no-go" }) {
@@ -21,12 +23,15 @@ function GoNoGoBadge({ status }: { status: "go" | "marginal" | "no-go" }) {
   }
 }
 
-export function SpotCard({ spot, evaluation }: SpotCardProps) {
+export function SpotCard({ spot, evaluation, isFavorite }: SpotCardProps) {
   return (
     <Link href={`/spots/${spot.id}`}>
       <Card className="transition-colors hover:bg-accent/50">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-lg">{spot.name}</CardTitle>
+          <CardTitle className="text-lg flex items-center gap-1.5">
+            {isFavorite && <Heart className="h-4 w-4 fill-red-500 text-red-500 shrink-0" />}
+            {spot.name}
+          </CardTitle>
           {evaluation && <GoNoGoBadge status={evaluation.goNoGo} />}
         </CardHeader>
         <CardContent>

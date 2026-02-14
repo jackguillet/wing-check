@@ -1,4 +1,4 @@
-import { getSpots } from "@/lib/actions/spots";
+import { getSpotsWithFavorites } from "@/lib/actions/spots";
 import { getSpotForecast } from "@/lib/actions/forecasts";
 import { getSpotWithCriteria } from "@/lib/actions/spots";
 import { evaluateSpot, defaultCriteria } from "@/lib/alerts/evaluator";
@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage() {
   const session = await getSession();
   const isAuthenticated = !!session?.user;
-  const spots = await getSpots();
+  const { spots, favoriteIds } = await getSpotsWithFavorites();
 
   if (spots.length === 0) {
     return (
@@ -69,7 +69,7 @@ export default async function DashboardPage() {
       </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {spotEvaluations.map(({ spot, evaluation }) => (
-          <SpotCard key={spot.id} spot={spot} evaluation={evaluation} />
+          <SpotCard key={spot.id} spot={spot} evaluation={evaluation} isFavorite={favoriteIds.has(spot.id)} />
         ))}
       </div>
     </div>

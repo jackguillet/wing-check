@@ -1,11 +1,12 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { spots, alertCriteria } from "@/lib/db/schema";
+import { spots, alertCriteria, userSpots } from "@/lib/db/schema";
+import type { Spot } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireSession } from "@/lib/auth-session";
+import { getSession, requireSession } from "@/lib/auth-session";
 
 export async function getSpots() {
   return db.select().from(spots);
@@ -79,6 +80,13 @@ export async function createSpot(formData: FormData) {
       maxWaveHeight: maxWave,
     });
 
+  await db.insert(userSpots).values({
+    userId: user.id,
+    spotId: inserted.id,
+    isFavorite: true,
+    alertsEnabled: true,
+  });
+
   revalidatePath("/");
   revalidatePath("/spots");
   redirect("/spots");
@@ -141,4 +149,95 @@ export async function updateSpotCriteria(spotId: number, formData: FormData) {
 
   revalidatePath(`/spots/${spotId}`);
   revalidatePath("/");
+}
+
+export async function getUserSpotPrefs(spotId: number) {
+  const session = await getSession();
+  if (!session?.user) return null;
+  const rows = await db
+    .select()
+    .from(userSpots)
+    .where(and(eq(userSpots.userId, session.user.id), eq(userSpots.spotId, spotId)));
+  return rows[0] ?? null;
+}
+
+export async function toggleFavorite(spotId: number) {
+  const { user } = await requireSession();
+
+  const existing = await db
+    .select()
+    .from(userSpots)
+    .where(and(eq(userSpots.userId, user.id), eq(userSpots.spotId, spotId)));
+
+  if (existing[0]) {
+    await db
+      .update(userSpots)
+      .set({ isFavorite: !existing[0].isFavorite })
+      .where(eq(userSpots.id, existing[0].id));
+  } else {
+    await db.insert(userSpots).values({
+      userId: user.id,
+      spotId,
+      isFavorite: true,
+      alertsEnabled: false,
+    });
+  }
+
+  revalidatePath("/");
+  revalidatePath("/spots");
+  revalidatePath(`/spots/${spotId}`);
+}
+
+export async function toggleSpotAlerts(spotId: number) {
+  const { user } = await requireSession();
+
+  const existing = await db
+    .select()
+    .from(userSpots)
+    .where(and(eq(userSpots.userId, user.id), eq(userSpots.spotId, spotId)));
+
+  if (existing[0]) {
+    await db
+      .update(userSpots)
+      .set({ alertsEnabled: !existing[0].alertsEnabled })
+      .where(eq(userSpots.id, existing[0].id));
+  } else {
+    await db.insert(userSpots).values({
+      userId: user.id,
+      spotId,
+      isFavorite: false,
+      alertsEnabled: true,
+    });
+  }
+
+  revalidatePath(`/spots/${spotId}`);
+}
+
+export async function getUserFavoriteSpotIds(): Promise<Set<number>> {
+  const session = await getSession();
+  if (!session?.user) return new Set();
+  const rows = await db
+    .select({ spotId: userSpots.spotId })
+    .from(userSpots)
+    .where(and(eq(userSpots.userId, session.user.id), eq(userSpots.isFavorite, true)));
+  return new Set(rows.map((r) => r.spotId));
+}
+
+export async function getSpotsWithFavorites(): Promise<{
+  spots: Spot[];
+  favoriteIds: Set<number>;
+}> {
+  const [allSpots, favoriteIds] = await Promise.all([
+    db.select().from(spots),
+    getUserFavoriteSpotIds(),
+  ]);
+
+  // Sort favorites first
+  allSpots.sort((a, b) => {
+    const aFav = favoriteIds.has(a.id) ? 0 : 1;
+    const bFav = favoriteIds.has(b.id) ? 0 : 1;
+    return aFav - bFav;
+  });
+
+  return { spots: allSpots, favoriteIds };
 }

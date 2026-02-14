@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
+import { index, uniqueIndex, sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
 
 // ── Better Auth tables ──────────────────────────────────────────────
 
@@ -106,6 +106,33 @@ export const spots = sqliteTable("spots", {
     .$defaultFn(() => new Date()),
 });
 
+export const userSpots = sqliteTable(
+  "user_spots",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    spotId: integer("spot_id")
+      .notNull()
+      .references(() => spots.id, { onDelete: "cascade" }),
+    isFavorite: integer("is_favorite", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    alertsEnabled: integer("alerts_enabled", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    index("user_spots_userId_idx").on(table.userId),
+    index("user_spots_spotId_idx").on(table.spotId),
+    uniqueIndex("user_spots_userId_spotId_uniq").on(table.userId, table.spotId),
+  ],
+);
+
 export const alertCriteria = sqliteTable("alert_criteria", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   spotId: integer("spot_id")
@@ -137,6 +164,7 @@ export const alertHistory = sqliteTable("alert_history", {
   spotId: integer("spot_id")
     .notNull()
     .references(() => spots.id, { onDelete: "cascade" }),
+  userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
   sentAt: integer("sent_at", { mode: "timestamp" }).notNull(),
   alertType: text("alert_type").notNull(),
   forecastSummary: text("forecast_summary").notNull(),
@@ -158,6 +186,8 @@ export const preferences = sqliteTable("preferences", {
 
 export type Spot = typeof spots.$inferSelect;
 export type NewSpot = typeof spots.$inferInsert;
+export type UserSpot = typeof userSpots.$inferSelect;
+export type NewUserSpot = typeof userSpots.$inferInsert;
 export type AlertCriteria = typeof alertCriteria.$inferSelect;
 export type NewAlertCriteria = typeof alertCriteria.$inferInsert;
 export type ForecastCache = typeof forecastCache.$inferSelect;

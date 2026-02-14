@@ -1,7 +1,8 @@
-import { getSpots } from "@/lib/actions/spots";
+import { getSpotsWithFavorites } from "@/lib/actions/spots";
 import { getSession } from "@/lib/auth-session";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { Heart } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -16,7 +17,7 @@ export const dynamic = "force-dynamic";
 export default async function SpotsPage() {
   const session = await getSession();
   const isAuthenticated = !!session?.user;
-  const spots = await getSpots();
+  const { spots, favoriteIds } = await getSpotsWithFavorites();
 
   return (
     <div className="space-y-6">
@@ -38,6 +39,7 @@ export default async function SpotsPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-8"></TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Latitude</TableHead>
                 <TableHead>Longitude</TableHead>
@@ -48,6 +50,11 @@ export default async function SpotsPage() {
             <TableBody>
               {spots.map((spot) => (
                 <TableRow key={spot.id}>
+                  <TableCell className="w-8 px-2">
+                    {favoriteIds.has(spot.id) && (
+                      <Heart className="h-4 w-4 fill-red-500 text-red-500" />
+                    )}
+                  </TableCell>
                   <TableCell>
                     <Link
                       href={`/spots/${spot.id}`}

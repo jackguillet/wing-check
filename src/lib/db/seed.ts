@@ -99,9 +99,23 @@ async function seed() {
       tide_data TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS user_spots (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+      spot_id INTEGER NOT NULL REFERENCES spots(id) ON DELETE CASCADE,
+      is_favorite INTEGER NOT NULL DEFAULT 0,
+      alerts_enabled INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
+    CREATE INDEX IF NOT EXISTS user_spots_userId_idx ON user_spots(user_id);
+    CREATE INDEX IF NOT EXISTS user_spots_spotId_idx ON user_spots(spot_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS user_spots_userId_spotId_uniq ON user_spots(user_id, spot_id);
+
     CREATE TABLE IF NOT EXISTS alert_history (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       spot_id INTEGER NOT NULL REFERENCES spots(id) ON DELETE CASCADE,
+      user_id TEXT REFERENCES user(id) ON DELETE CASCADE,
       sent_at INTEGER NOT NULL,
       alert_type TEXT NOT NULL,
       forecast_summary TEXT NOT NULL
@@ -184,6 +198,22 @@ async function seed() {
         minConsecutiveHours: 3,
         maxWaveHeight: 2.5,
       });
+
+    // Create userSpots rows for demo user (favorite + alerts on)
+    await db.insert(schema.userSpots).values([
+      {
+        userId: DEMO_USER_ID,
+        spotId: crissy.id,
+        isFavorite: true,
+        alertsEnabled: true,
+      },
+      {
+        userId: DEMO_USER_ID,
+        spotId: hookipa.id,
+        isFavorite: true,
+        alertsEnabled: true,
+      },
+    ]);
 
     // Create default preferences for demo user
     await db.insert(schema.preferences)

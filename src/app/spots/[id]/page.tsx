@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getSpotWithCriteria, deleteSpot, updateSpotCriteria } from "@/lib/actions/spots";
+import { getSpotWithCriteria, deleteSpot, updateSpotCriteria, getUserSpotPrefs, toggleFavorite, toggleSpotAlerts } from "@/lib/actions/spots";
 import { getSpotForecast } from "@/lib/actions/forecasts";
 import { getSession } from "@/lib/auth-session";
 import { evaluateSpot, defaultCriteria } from "@/lib/alerts/evaluator";
@@ -15,6 +15,8 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { AlertCriteria } from "@/lib/db/schema";
 import { degreesToCardinal } from "@/lib/weather/types";
+import { Heart, Bell } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +56,8 @@ export default async function SpotDetailPage({
 
   const { spot, criteria: rawCriteria } = spotData;
   const isOwner = session?.user?.id === spot.userId;
+  const isAuthenticated = !!session?.user;
+  const userSpotPrefs = isAuthenticated ? await getUserSpotPrefs(spotId) : null;
   const criteria: AlertCriteria = rawCriteria ?? {
     id: 0,
     spotId: spot.id,
@@ -73,6 +77,8 @@ export default async function SpotDetailPage({
 
   const deleteAction = deleteSpot.bind(null, spot.id);
   const updateCriteriaAction = updateSpotCriteria.bind(null, spot.id);
+  const toggleFavoriteAction = toggleFavorite.bind(null, spot.id);
+  const toggleAlertsAction = toggleSpotAlerts.bind(null, spot.id);
 
   return (
     <div className="space-y-6">
@@ -84,13 +90,43 @@ export default async function SpotDetailPage({
             {spot.notes && ` — ${spot.notes}`}
           </p>
         </div>
-        {isOwner && (
-          <form action={deleteAction}>
-            <Button variant="destructive" size="sm">
-              Delete Spot
-            </Button>
-          </form>
-        )}
+        <div className="flex items-center gap-2">
+          {isAuthenticated && (
+            <>
+              <form action={toggleFavoriteAction}>
+                <Button variant="ghost" size="icon" title={userSpotPrefs?.isFavorite ? "Remove from favorites" : "Add to favorites"}>
+                  <Heart
+                    className={cn(
+                      "h-5 w-5",
+                      userSpotPrefs?.isFavorite
+                        ? "fill-red-500 text-red-500"
+                        : "text-muted-foreground",
+                    )}
+                  />
+                </Button>
+              </form>
+              <form action={toggleAlertsAction}>
+                <Button variant="ghost" size="icon" title={userSpotPrefs?.alertsEnabled ? "Disable alerts" : "Enable alerts"}>
+                  <Bell
+                    className={cn(
+                      "h-5 w-5",
+                      userSpotPrefs?.alertsEnabled
+                        ? "fill-blue-500 text-blue-500"
+                        : "text-muted-foreground",
+                    )}
+                  />
+                </Button>
+              </form>
+            </>
+          )}
+          {isOwner && (
+            <form action={deleteAction}>
+              <Button variant="destructive" size="sm">
+                Delete Spot
+              </Button>
+            </form>
+          )}
+        </div>
       </div>
 
       {evaluation && (

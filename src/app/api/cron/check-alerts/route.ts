@@ -6,8 +6,9 @@ import {
   alertCriteria,
   alertHistory,
   preferences,
+  userSpots,
 } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { evaluateSpot } from "@/lib/alerts/evaluator";
 import { sendAlert } from "@/lib/alerts/notifier";
 import {
@@ -35,13 +36,19 @@ export async function GET(request: Request) {
   const results = [];
 
   for (const prefs of enabledPrefs) {
-    // Get this user's spots
-    const userSpots = await db
-      .select()
-      .from(spots)
-      .where(eq(spots.userId, prefs.userId));
+    // Get spots this user has opted in for alerts
+    const subscribedSpots = await db
+      .select({ spot: spots })
+      .from(userSpots)
+      .innerJoin(spots, eq(userSpots.spotId, spots.id))
+      .where(
+        and(
+          eq(userSpots.userId, prefs.userId),
+          eq(userSpots.alertsEnabled, true),
+        ),
+      );
 
-    for (const spot of userSpots) {
+    for (const { spot } of subscribedSpots) {
       const criteriaRows = await db
         .select()
         .from(alertCriteria)
@@ -63,11 +70,16 @@ export async function GET(request: Request) {
         evaluation.goNoGo === "go" &&
         evaluation.rideableWindows.length > 0
       ) {
-        // Check if we already sent an alert recently
+        // Check if we already sent an alert recently (per user + spot)
         const allHistory = await db
           .select()
           .from(alertHistory)
-          .where(eq(alertHistory.spotId, spot.id));
+          .where(
+            and(
+              eq(alertHistory.spotId, spot.id),
+              eq(alertHistory.userId, prefs.userId),
+            ),
+          );
         const recent = allHistory.filter((h) => {
           const hoursSince =
             (Date.now() - h.sentAt.getTime()) / (1000 * 60 * 60);
@@ -84,6 +96,7 @@ export async function GET(request: Request) {
 
         await db.insert(alertHistory).values({
           spotId: spot.id,
+          userId: prefs.userId,
           sentAt: new Date(),
           alertType: "go",
           forecastSummary: JSON.stringify({
