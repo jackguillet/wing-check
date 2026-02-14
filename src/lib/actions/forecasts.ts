@@ -15,18 +15,19 @@ const CACHE_DURATION_MS = 60 * 60 * 1000; // 1 hour
 export async function getSpotForecast(
   spotId: number
 ): Promise<SpotForecast | null> {
-  const spot = db.select().from(spots).where(eq(spots.id, spotId)).get();
+  const spotRows = await db.select().from(spots).where(eq(spots.id, spotId));
+  const spot = spotRows[0];
   if (!spot) return null;
 
   // Check cache
   const now = new Date();
-  const cached = db
+  const cachedRows = await db
     .select()
     .from(forecastCache)
     .where(
       and(eq(forecastCache.spotId, spotId), gt(forecastCache.expiresAt, now))
-    )
-    .get();
+    );
+  const cached = cachedRows[0];
 
   if (cached) {
     const weatherData = JSON.parse(cached.weatherData);
@@ -53,19 +54,17 @@ export async function getSpotForecast(
   const expiresAt = new Date(fetchedAt.getTime() + CACHE_DURATION_MS);
 
   // Delete old cache entries for this spot
-  db.delete(forecastCache)
-    .where(eq(forecastCache.spotId, spotId))
-    .run();
+  await db.delete(forecastCache)
+    .where(eq(forecastCache.spotId, spotId));
 
-  db.insert(forecastCache)
+  await db.insert(forecastCache)
     .values({
       spotId,
       fetchedAt,
       expiresAt,
       weatherData: JSON.stringify(weather),
       marineData: marine ? JSON.stringify(marine) : null,
-    })
-    .run();
+    });
 
   return {
     spotId: spot.id,

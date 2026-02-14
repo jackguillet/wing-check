@@ -7,23 +7,23 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 export async function getSpots() {
-  return db.select().from(spots).all();
+  return db.select().from(spots);
 }
 
 export async function getSpot(id: number) {
-  const result = db.select().from(spots).where(eq(spots.id, id)).get();
-  return result ?? null;
+  const rows = await db.select().from(spots).where(eq(spots.id, id));
+  return rows[0] ?? null;
 }
 
 export async function getSpotWithCriteria(id: number) {
-  const spot = db.select().from(spots).where(eq(spots.id, id)).get();
+  const spotRows = await db.select().from(spots).where(eq(spots.id, id));
+  const spot = spotRows[0];
   if (!spot) return null;
-  const criteria = db
+  const criteriaRows = await db
     .select()
     .from(alertCriteria)
-    .where(eq(alertCriteria.spotId, id))
-    .get();
-  return { spot, criteria: criteria ?? null };
+    .where(eq(alertCriteria.spotId, id));
+  return { spot, criteria: criteriaRows[0] ?? null };
 }
 
 export async function createSpot(formData: FormData) {
@@ -52,14 +52,13 @@ export async function createSpot(formData: FormData) {
   const maxWaveStr = formData.get("maxWaveHeight") as string;
   const maxWave = maxWaveStr ? parseFloat(maxWaveStr) : null;
 
-  const insertResult = db
+  const insertResult = await db
     .insert(spots)
     .values({ name, latitude, longitude, noaaStationId, notes })
-    .returning()
-    .all();
+    .returning();
   const inserted = insertResult[0];
 
-  db.insert(alertCriteria)
+  await db.insert(alertCriteria)
     .values({
       spotId: inserted.id,
       minWindSpeed: minWind,
@@ -69,8 +68,7 @@ export async function createSpot(formData: FormData) {
       directionTolerance: dirTolerance,
       minConsecutiveHours: minHours,
       maxWaveHeight: maxWave,
-    })
-    .run();
+    });
 
   revalidatePath("/");
   revalidatePath("/spots");
@@ -78,18 +76,18 @@ export async function createSpot(formData: FormData) {
 }
 
 export async function deleteSpot(id: number) {
-  db.delete(spots).where(eq(spots.id, id)).run();
+  await db.delete(spots).where(eq(spots.id, id));
   revalidatePath("/");
   revalidatePath("/spots");
   redirect("/spots");
 }
 
 export async function updateSpotCriteria(spotId: number, formData: FormData) {
-  const existing = db
+  const existingRows = await db
     .select()
     .from(alertCriteria)
-    .where(eq(alertCriteria.spotId, spotId))
-    .get();
+    .where(eq(alertCriteria.spotId, spotId));
+  const existing = existingRows[0];
 
   const values = {
     spotId,
@@ -115,12 +113,11 @@ export async function updateSpotCriteria(spotId: number, formData: FormData) {
   };
 
   if (existing) {
-    db.update(alertCriteria)
+    await db.update(alertCriteria)
       .set(values)
-      .where(eq(alertCriteria.id, existing.id))
-      .run();
+      .where(eq(alertCriteria.id, existing.id));
   } else {
-    db.insert(alertCriteria).values(values).run();
+    await db.insert(alertCriteria).values(values);
   }
 
   revalidatePath(`/spots/${spotId}`);

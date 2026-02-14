@@ -1,11 +1,25 @@
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
+import { createClient, type Client } from "@libsql/client";
+import { drizzle, type LibSQLDatabase } from "drizzle-orm/libsql";
 import * as schema from "./schema";
-import path from "path";
 
-const dbPath = path.join(process.cwd(), "wing-check.db");
-const sqlite = new Database(dbPath);
-sqlite.pragma("journal_mode = WAL");
-sqlite.pragma("foreign_keys = ON");
+let client: Client | null = null;
+let database: LibSQLDatabase<typeof schema> | null = null;
 
-export const db = drizzle(sqlite, { schema });
+function getClient(): Client {
+  if (!client) {
+    client = createClient({
+      url: process.env.TURSO_DATABASE_URL!,
+      authToken: process.env.TURSO_AUTH_TOKEN,
+    });
+  }
+  return client;
+}
+
+export const db = new Proxy({} as LibSQLDatabase<typeof schema>, {
+  get(_target, prop) {
+    if (!database) {
+      database = drizzle(getClient(), { schema });
+    }
+    return (database as unknown as Record<string | symbol, unknown>)[prop];
+  },
+});

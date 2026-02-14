@@ -14,20 +14,21 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const prefs = db.select().from(preferences).get();
+  const prefsRows = await db.select().from(preferences);
+  const prefs = prefsRows[0];
   if (!prefs?.alertsEnabled || !prefs.email) {
     return NextResponse.json({ message: "Alerts disabled or no email" });
   }
 
-  const allSpots = db.select().from(spots).all();
+  const allSpots = await db.select().from(spots);
   const results = [];
 
   for (const spot of allSpots) {
-    const criteria = db
+    const criteriaRows = await db
       .select()
       .from(alertCriteria)
-      .where(eq(alertCriteria.spotId, spot.id))
-      .get();
+      .where(eq(alertCriteria.spotId, spot.id));
+    const criteria = criteriaRows[0];
 
     if (!criteria) continue;
 
@@ -38,16 +39,15 @@ export async function GET(request: Request) {
 
     if (evaluation.goNoGo === "go" && evaluation.rideableWindows.length > 0) {
       // Check if we already sent an alert recently
-      const recent = db
+      const allHistory = await db
         .select()
         .from(alertHistory)
-        .where(eq(alertHistory.spotId, spot.id))
-        .all()
-        .filter((h) => {
-          const hoursSince =
-            (Date.now() - h.sentAt.getTime()) / (1000 * 60 * 60);
-          return hoursSince < prefs.checkIntervalHours;
-        });
+        .where(eq(alertHistory.spotId, spot.id));
+      const recent = allHistory.filter((h) => {
+        const hoursSince =
+          (Date.now() - h.sentAt.getTime()) / (1000 * 60 * 60);
+        return hoursSince < prefs.checkIntervalHours;
+      });
 
       if (recent.length > 0) continue;
 
@@ -57,7 +57,7 @@ export async function GET(request: Request) {
         email: prefs.email,
       });
 
-      db.insert(alertHistory)
+      await db.insert(alertHistory)
         .values({
           spotId: spot.id,
           sentAt: new Date(),
@@ -67,8 +67,7 @@ export async function GET(request: Request) {
             windows: evaluation.rideableWindows.length,
             bestWindow: evaluation.bestWindow,
           }),
-        })
-        .run();
+        });
 
       results.push({ spot: spot.name, sent: true, result });
     } else {
