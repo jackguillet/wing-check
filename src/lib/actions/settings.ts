@@ -4,15 +4,22 @@ import { db } from "@/lib/db";
 import { preferences } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { requireSession } from "@/lib/auth-session";
 
 export async function getPreferences() {
-  const rows = await db.select().from(preferences);
+  const { user } = await requireSession();
+
+  const rows = await db
+    .select()
+    .from(preferences)
+    .where(eq(preferences.userId, user.id));
+
   if (rows.length === 0) {
-    // Create default preferences
     const result = await db
       .insert(preferences)
       .values({
-        email: null,
+        userId: user.id,
+        email: user.email,
         alertsEnabled: false,
         checkIntervalHours: 6,
         windSpeedUnit: "knots",
@@ -25,6 +32,7 @@ export async function getPreferences() {
 }
 
 export async function updatePreferences(formData: FormData) {
+  const { user } = await requireSession();
   const prefs = await getPreferences();
 
   await db.update(preferences)

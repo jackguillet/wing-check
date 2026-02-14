@@ -2,21 +2,28 @@
 
 import { db } from "@/lib/db";
 import { spots, alertCriteria } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { requireSession } from "@/lib/auth-session";
 
 export async function getSpots() {
   return db.select().from(spots);
 }
 
 export async function getSpot(id: number) {
-  const rows = await db.select().from(spots).where(eq(spots.id, id));
+  const rows = await db
+    .select()
+    .from(spots)
+    .where(eq(spots.id, id));
   return rows[0] ?? null;
 }
 
 export async function getSpotWithCriteria(id: number) {
-  const spotRows = await db.select().from(spots).where(eq(spots.id, id));
+  const spotRows = await db
+    .select()
+    .from(spots)
+    .where(eq(spots.id, id));
   const spot = spotRows[0];
   if (!spot) return null;
   const criteriaRows = await db
@@ -27,6 +34,8 @@ export async function getSpotWithCriteria(id: number) {
 }
 
 export async function createSpot(formData: FormData) {
+  const { user } = await requireSession();
+
   const name = formData.get("name") as string;
   const latitude = parseFloat(formData.get("latitude") as string);
   const longitude = parseFloat(formData.get("longitude") as string);
@@ -54,7 +63,7 @@ export async function createSpot(formData: FormData) {
 
   const insertResult = await db
     .insert(spots)
-    .values({ name, latitude, longitude, noaaStationId, notes })
+    .values({ name, latitude, longitude, noaaStationId, notes, userId: user.id })
     .returning();
   const inserted = insertResult[0];
 
@@ -76,13 +85,23 @@ export async function createSpot(formData: FormData) {
 }
 
 export async function deleteSpot(id: number) {
-  await db.delete(spots).where(eq(spots.id, id));
+  const { user } = await requireSession();
+  await db.delete(spots).where(and(eq(spots.id, id), eq(spots.userId, user.id)));
   revalidatePath("/");
   revalidatePath("/spots");
   redirect("/spots");
 }
 
 export async function updateSpotCriteria(spotId: number, formData: FormData) {
+  const { user } = await requireSession();
+
+  // Verify ownership
+  const spotRows = await db
+    .select()
+    .from(spots)
+    .where(and(eq(spots.id, spotId), eq(spots.userId, user.id)));
+  if (spotRows.length === 0) throw new Error("Spot not found");
+
   const existingRows = await db
     .select()
     .from(alertCriteria)

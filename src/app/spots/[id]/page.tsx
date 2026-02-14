@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getSpotWithCriteria, deleteSpot, updateSpotCriteria } from "@/lib/actions/spots";
 import { getSpotForecast } from "@/lib/actions/forecasts";
+import { getSession } from "@/lib/auth-session";
 import { evaluateSpot, defaultCriteria } from "@/lib/alerts/evaluator";
 import { WindChart } from "@/components/wind-chart";
 import { SwellCard } from "@/components/swell-card";
@@ -47,10 +48,12 @@ export default async function SpotDetailPage({
   const spotId = parseInt(id);
   if (isNaN(spotId)) notFound();
 
+  const session = await getSession();
   const spotData = await getSpotWithCriteria(spotId);
   if (!spotData) notFound();
 
   const { spot, criteria: rawCriteria } = spotData;
+  const isOwner = session?.user?.id === spot.userId;
   const criteria: AlertCriteria = rawCriteria ?? {
     id: 0,
     spotId: spot.id,
@@ -81,11 +84,13 @@ export default async function SpotDetailPage({
             {spot.notes && ` — ${spot.notes}`}
           </p>
         </div>
-        <form action={deleteAction}>
-          <Button variant="destructive" size="sm">
-            Delete Spot
-          </Button>
-        </form>
+        {isOwner && (
+          <form action={deleteAction}>
+            <Button variant="destructive" size="sm">
+              Delete Spot
+            </Button>
+          </form>
+        )}
       </div>
 
       {evaluation && (
@@ -150,7 +155,7 @@ export default async function SpotDetailPage({
         <TabsList>
           <TabsTrigger value="chart">Wind Chart</TabsTrigger>
           <TabsTrigger value="table">Forecast Table</TabsTrigger>
-          <TabsTrigger value="criteria">Alert Criteria</TabsTrigger>
+          {isOwner && <TabsTrigger value="criteria">Alert Criteria</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="chart" className="space-y-4">
@@ -179,93 +184,95 @@ export default async function SpotDetailPage({
           )}
         </TabsContent>
 
-        <TabsContent value="criteria">
-          <Card>
-            <CardHeader>
-              <CardTitle>Alert Criteria</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form action={updateCriteriaAction} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+        {isOwner && (
+          <TabsContent value="criteria">
+            <Card>
+              <CardHeader>
+                <CardTitle>Alert Criteria</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form action={updateCriteriaAction} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="minWindSpeed">Min Wind Speed (kt)</Label>
+                      <Input
+                        id="minWindSpeed"
+                        name="minWindSpeed"
+                        type="number"
+                        step="0.5"
+                        defaultValue={criteria.minWindSpeed}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="maxWindSpeed">Max Wind Speed (kt)</Label>
+                      <Input
+                        id="maxWindSpeed"
+                        name="maxWindSpeed"
+                        type="number"
+                        step="0.5"
+                        defaultValue={criteria.maxWindSpeed}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="maxGustFactor">Max Gust Factor</Label>
+                      <Input
+                        id="maxGustFactor"
+                        name="maxGustFactor"
+                        type="number"
+                        step="0.1"
+                        defaultValue={criteria.maxGustFactor}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="minConsecutiveHours">Min Hours</Label>
+                      <Input
+                        id="minConsecutiveHours"
+                        name="minConsecutiveHours"
+                        type="number"
+                        defaultValue={criteria.minConsecutiveHours}
+                      />
+                    </div>
+                  </div>
+                  <Separator />
                   <div className="space-y-2">
-                    <Label htmlFor="minWindSpeed">Min Wind Speed (kt)</Label>
+                    <Label htmlFor="preferredDirections">
+                      Preferred Directions (JSON array of degrees)
+                    </Label>
                     <Input
-                      id="minWindSpeed"
-                      name="minWindSpeed"
-                      type="number"
-                      step="0.5"
-                      defaultValue={criteria.minWindSpeed}
+                      id="preferredDirections"
+                      name="preferredDirections"
+                      defaultValue={criteria.preferredDirections}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="maxWindSpeed">Max Wind Speed (kt)</Label>
+                    <Label htmlFor="directionTolerance">
+                      Direction Tolerance (°)
+                    </Label>
                     <Input
-                      id="maxWindSpeed"
-                      name="maxWindSpeed"
+                      id="directionTolerance"
+                      name="directionTolerance"
                       type="number"
-                      step="0.5"
-                      defaultValue={criteria.maxWindSpeed}
+                      defaultValue={criteria.directionTolerance}
                     />
                   </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="maxGustFactor">Max Gust Factor</Label>
+                    <Label htmlFor="maxWaveHeight">Max Wave Height (m)</Label>
                     <Input
-                      id="maxGustFactor"
-                      name="maxGustFactor"
+                      id="maxWaveHeight"
+                      name="maxWaveHeight"
                       type="number"
                       step="0.1"
-                      defaultValue={criteria.maxGustFactor}
+                      defaultValue={criteria.maxWaveHeight ?? ""}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="minConsecutiveHours">Min Hours</Label>
-                    <Input
-                      id="minConsecutiveHours"
-                      name="minConsecutiveHours"
-                      type="number"
-                      defaultValue={criteria.minConsecutiveHours}
-                    />
-                  </div>
-                </div>
-                <Separator />
-                <div className="space-y-2">
-                  <Label htmlFor="preferredDirections">
-                    Preferred Directions (JSON array of degrees)
-                  </Label>
-                  <Input
-                    id="preferredDirections"
-                    name="preferredDirections"
-                    defaultValue={criteria.preferredDirections}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="directionTolerance">
-                    Direction Tolerance (°)
-                  </Label>
-                  <Input
-                    id="directionTolerance"
-                    name="directionTolerance"
-                    type="number"
-                    defaultValue={criteria.directionTolerance}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="maxWaveHeight">Max Wave Height (m)</Label>
-                  <Input
-                    id="maxWaveHeight"
-                    name="maxWaveHeight"
-                    type="number"
-                    step="0.1"
-                    defaultValue={criteria.maxWaveHeight ?? ""}
-                  />
-                </div>
-                <Button type="submit">Update Criteria</Button>
-              </form>
-            </CardContent>
-          </Card>
-        </TabsContent>
+                  <Button type="submit">Update Criteria</Button>
+                </form>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
       </Tabs>
 
       {forecast && (

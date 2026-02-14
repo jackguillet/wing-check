@@ -15,7 +15,10 @@ const CACHE_DURATION_MS = 60 * 60 * 1000; // 1 hour
 export async function getSpotForecast(
   spotId: number
 ): Promise<SpotForecast | null> {
-  const spotRows = await db.select().from(spots).where(eq(spots.id, spotId));
+  const spotRows = await db
+    .select()
+    .from(spots)
+    .where(eq(spots.id, spotId));
   const spot = spotRows[0];
   if (!spot) return null;
 

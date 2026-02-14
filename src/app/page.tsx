@@ -3,6 +3,7 @@ import { getSpotForecast } from "@/lib/actions/forecasts";
 import { getSpotWithCriteria } from "@/lib/actions/spots";
 import { evaluateSpot, defaultCriteria } from "@/lib/alerts/evaluator";
 import { SpotCard } from "@/components/spot-card";
+import { getSession } from "@/lib/auth-session";
 import type { AlertCriteria } from "@/lib/db/schema";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,8 @@ import { Button } from "@/components/ui/button";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
+  const session = await getSession();
+  const isAuthenticated = !!session?.user;
   const spots = await getSpots();
 
   if (spots.length === 0) {
@@ -17,10 +20,14 @@ export default async function DashboardPage() {
       <div className="flex flex-col items-center justify-center py-20 space-y-4">
         <h1 className="text-3xl font-bold">Welcome to Wing Check</h1>
         <p className="text-muted-foreground text-lg">
-          Add your first wing foil spot to get started.
+          {isAuthenticated
+            ? "Add your first wing foil spot to get started."
+            : "Sign up to add your own spots and get alerts."}
         </p>
-        <Link href="/spots/new">
-          <Button size="lg">Add Your First Spot</Button>
+        <Link href={isAuthenticated ? "/spots/new" : "/sign-up"}>
+          <Button size="lg">
+            {isAuthenticated ? "Add Your First Spot" : "Sign Up to Add Spots"}
+          </Button>
         </Link>
       </div>
     );
@@ -54,9 +61,11 @@ export default async function DashboardPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Dashboard</h1>
-        <Link href="/spots/new">
-          <Button>Add Spot</Button>
-        </Link>
+        {isAuthenticated && (
+          <Link href="/spots/new">
+            <Button>Add Spot</Button>
+          </Link>
+        )}
       </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {spotEvaluations.map(({ spot, evaluation }) => (

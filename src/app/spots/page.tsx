@@ -1,4 +1,5 @@
 import { getSpots } from "@/lib/actions/spots";
+import { getSession } from "@/lib/auth-session";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,15 +14,19 @@ import {
 export const dynamic = "force-dynamic";
 
 export default async function SpotsPage() {
+  const session = await getSession();
+  const isAuthenticated = !!session?.user;
   const spots = await getSpots();
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Spots</h1>
-        <Link href="/spots/new">
-          <Button>Add Spot</Button>
-        </Link>
+        {isAuthenticated && (
+          <Link href="/spots/new">
+            <Button>Add Spot</Button>
+          </Link>
+        )}
       </div>
 
       {spots.length === 0 ? (
