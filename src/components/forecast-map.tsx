@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Play, Pause } from "lucide-react";
 import { interpolateForecasts } from "@/lib/weather/interpolate";
 import { degreesToCardinal } from "@/lib/weather/types";
 import type { ForecastHour } from "@/lib/weather/types";
@@ -79,6 +80,7 @@ export function ForecastMap({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [sliderIndex, setSliderIndex] = useState(0);
+  const [playing, setPlaying] = useState(true);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const imgRef = useRef<HTMLImageElement | null>(null);
@@ -162,6 +164,15 @@ export function ForecastMap({
     return () => ro.disconnect();
   }, [draw]);
 
+  // Auto-play interval
+  useEffect(() => {
+    if (!playing || maxIndex === 0) return;
+    const id = setInterval(() => {
+      setSliderIndex((i) => (i >= maxIndex ? 0 : i + 1));
+    }, 200);
+    return () => clearInterval(id);
+  }, [playing, maxIndex]);
+
   const current = interpolated[Math.min(sliderIndex, maxIndex)] ?? null;
 
   return (
@@ -195,14 +206,27 @@ export function ForecastMap({
         )}
 
         <div className="max-w-[600px] mx-auto space-y-1">
-          <input
-            type="range"
-            min={0}
-            max={maxIndex}
-            value={sliderIndex}
-            onChange={(e) => setSliderIndex(Number(e.target.value))}
-            className="w-full accent-primary"
-          />
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPlaying((p) => !p)}
+              className="shrink-0 p-1 rounded-md hover:bg-muted transition-colors"
+              aria-label={playing ? "Pause" : "Play"}
+            >
+              {playing ? <Pause className="size-4" /> : <Play className="size-4" />}
+            </button>
+            <input
+              type="range"
+              min={0}
+              max={maxIndex}
+              value={sliderIndex}
+              onChange={(e) => {
+                setPlaying(false);
+                setSliderIndex(Number(e.target.value));
+              }}
+              className="w-full accent-primary"
+            />
+          </div>
           {current && (
             <p className="text-xs text-center text-muted-foreground">
               {format(current.time, "EEE HH:mm")}
