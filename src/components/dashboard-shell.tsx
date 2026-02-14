@@ -5,7 +5,8 @@ import { SpotCard } from "@/components/spot-card";
 import { haversineDistance } from "@/lib/geo";
 import type { Spot } from "@/lib/db/schema";
 import type { SpotEvaluation } from "@/lib/alerts/evaluator";
-import { MapPin } from "lucide-react";
+import { MapPin, Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
 
 interface SpotData {
   spot: Spot;
@@ -22,6 +23,7 @@ export function DashboardShell({ spotData }: DashboardShellProps) {
     lat: number;
     lon: number;
   } | null>(null);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     if (!navigator.geolocation) return;
@@ -33,7 +35,16 @@ export function DashboardShell({ spotData }: DashboardShellProps) {
     );
   }, []);
 
-  const { favorites, nearYou, allSpots } = useMemo(() => {
+  const { searchResults, favorites, nearYou, allSpots } = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    if (query) {
+      const searchResults = spotData.filter((item) =>
+        item.spot.name.toLowerCase().includes(query),
+      );
+      return { searchResults, favorites: [], nearYou: [], allSpots: [] };
+    }
+
     const favorites: SpotData[] = [];
     const rest: SpotData[] = [];
 
@@ -59,11 +70,36 @@ export function DashboardShell({ spotData }: DashboardShellProps) {
       allSpots = sorted.filter((s) => !nearIds.has(s.spot.id));
     }
 
-    return { favorites, nearYou, allSpots };
-  }, [spotData, userLocation]);
+    return { searchResults: [], favorites, nearYou, allSpots };
+  }, [spotData, userLocation, search]);
 
   return (
     <div className="space-y-8">
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          placeholder="Search spots..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="pl-9"
+        />
+      </div>
+
+      {searchResults.length > 0 && (
+        <section>
+          <h2 className="text-xl font-semibold mb-3">Results</h2>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {searchResults.map(({ spot, evaluation, isFavorite }) => (
+              <SpotCard key={spot.id} spot={spot} evaluation={evaluation} isFavorite={isFavorite} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {search.trim() && searchResults.length === 0 && (
+        <p className="text-center text-muted-foreground py-8">No spots found</p>
+      )}
+
       {favorites.length > 0 && (
         <section>
           <h2 className="text-xl font-semibold mb-3">Favorites</h2>
