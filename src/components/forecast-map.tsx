@@ -25,7 +25,7 @@ function drawArrow(
   minWind: number,
   maxWind: number,
 ) {
-  const size = 40 + Math.min(speed / 35, 1) * 40;
+  const size = 24 + Math.min(speed / 35, 1) * 24;
   const rad = ((direction + 180) * Math.PI) / 180; // rotate: arrow points where wind blows TO
 
   // Color based on speed thresholds
@@ -130,18 +130,22 @@ export function ForecastMap({
       ctx.fillRect(0, 0, rect.width, rect.height);
     }
 
-    // Draw wind arrow at center
+    // Draw 3×3 grid of wind arrows
     if (interpolated.length > 0) {
       const point = interpolated[Math.min(sliderIndex, maxIndex)];
-      drawArrow(
-        ctx,
-        rect.width / 2,
-        rect.height / 2,
-        point.windDirection,
-        point.windSpeed,
-        minWind,
-        maxWind,
-      );
+      for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < 3; col++) {
+          drawArrow(
+            ctx,
+            (rect.width * (col + 1)) / 4,
+            (rect.height * (row + 1)) / 4,
+            point.windDirection,
+            point.windSpeed,
+            minWind,
+            maxWind,
+          );
+        }
+      }
     }
   }, [imageLoaded, interpolated, sliderIndex, maxIndex, minWind, maxWind]);
 
