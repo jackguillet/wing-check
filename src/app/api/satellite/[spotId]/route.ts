@@ -26,7 +26,7 @@ export async function GET(
     return NextResponse.json({ error: "Spot not found" }, { status: 404 });
   }
 
-  const url = `https://api.mapbox.com/styles/v1/mapbox/satellite-v9/static/${spot.longitude},${spot.latitude},14,0,0/600x400@2x?access_token=${token}`;
+  const url = `https://api.mapbox.com/styles/v1/mapbox/satellite-v9/static/${spot.longitude},${spot.latitude},12,0,0/600x400@2x?access_token=${token}`;
 
   try {
     const res = await fetch(url);
