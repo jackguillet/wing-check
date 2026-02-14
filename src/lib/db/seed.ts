@@ -1,6 +1,8 @@
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
+import { eq } from "drizzle-orm";
 import * as schema from "./schema";
+import { SYSTEM_USER_ID, TOP_SPOTS } from "../data/top-spots";
 
 const client = createClient({
   url: process.env.TURSO_DATABASE_URL!,
@@ -228,8 +230,66 @@ async function seed() {
 
     console.log("Seeded demo user, 2 example spots, and default preferences.");
   } else {
-    console.log(`Database already has ${existingUsers.length} users. Skipping seed.`);
+    console.log(`Database already has ${existingUsers.length} users. Skipping demo seed.`);
   }
+
+  // ── Seed system user + curated spots (always idempotent) ──
+  const existingSystem = await db
+    .select()
+    .from(schema.user)
+    .where(eq(schema.user.id, SYSTEM_USER_ID));
+
+  if (existingSystem.length === 0) {
+    const now = new Date();
+    await db.insert(schema.user).values({
+      id: SYSTEM_USER_ID,
+      name: "Wing Check",
+      email: "system@wingcheck.dev",
+      emailVerified: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+    console.log("Created system user.");
+  }
+
+  // Fetch existing spot names to avoid duplicates
+  const existingSpots = await db
+    .select({ name: schema.spots.name })
+    .from(schema.spots);
+  const existingNames = new Set(existingSpots.map((s) => s.name));
+
+  let seededCount = 0;
+  for (const topSpot of TOP_SPOTS) {
+    if (existingNames.has(topSpot.name)) continue;
+
+    const insertResult = await db
+      .insert(schema.spots)
+      .values({
+        userId: SYSTEM_USER_ID,
+        name: topSpot.name,
+        latitude: topSpot.latitude,
+        longitude: topSpot.longitude,
+        noaaStationId: topSpot.noaaStationId ?? null,
+        notes: topSpot.notes,
+      })
+      .returning();
+    const inserted = insertResult[0];
+
+    await db.insert(schema.alertCriteria).values({
+      spotId: inserted.id,
+      minWindSpeed: topSpot.alertCriteria?.minWindSpeed ?? 15,
+      maxWindSpeed: topSpot.alertCriteria?.maxWindSpeed ?? 25,
+      maxGustFactor: topSpot.alertCriteria?.maxGustFactor ?? 1.5,
+      preferredDirections: topSpot.alertCriteria?.preferredDirections ?? "[]",
+      directionTolerance: topSpot.alertCriteria?.directionTolerance ?? 45,
+      minConsecutiveHours: topSpot.alertCriteria?.minConsecutiveHours ?? 2,
+      maxWaveHeight: topSpot.alertCriteria?.maxWaveHeight ?? null,
+    });
+
+    seededCount++;
+  }
+
+  console.log(`Seeded ${seededCount} curated spots (${TOP_SPOTS.length - seededCount} already existed).`);
 }
 
 seed().catch(console.error);

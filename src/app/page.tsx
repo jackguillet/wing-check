@@ -2,7 +2,7 @@ import { getSpotsWithFavorites } from "@/lib/actions/spots";
 import { getSpotForecast } from "@/lib/actions/forecasts";
 import { getSpotWithCriteria } from "@/lib/actions/spots";
 import { evaluateSpot, defaultCriteria } from "@/lib/alerts/evaluator";
-import { SpotCard } from "@/components/spot-card";
+import { DashboardShell } from "@/components/dashboard-shell";
 import { getSession } from "@/lib/auth-session";
 import type { AlertCriteria } from "@/lib/db/schema";
 import Link from "next/link";
@@ -33,26 +33,26 @@ export default async function DashboardPage() {
     );
   }
 
-  const spotEvaluations = await Promise.all(
+  const spotData = await Promise.all(
     spots.map(async (spot) => {
       try {
-        const [forecast, spotData] = await Promise.all([
+        const [forecast, spotWithCriteria] = await Promise.all([
           getSpotForecast(spot.id),
           getSpotWithCriteria(spot.id),
         ]);
 
-        if (!forecast) return { spot, evaluation: null };
+        if (!forecast) return { spot, evaluation: null, isFavorite: favoriteIds.has(spot.id) };
 
-        const criteria: AlertCriteria = spotData?.criteria ?? {
+        const criteria: AlertCriteria = spotWithCriteria?.criteria ?? {
           id: 0,
           spotId: spot.id,
           ...defaultCriteria,
         };
 
         const evaluation = evaluateSpot(forecast.hours, criteria);
-        return { spot, evaluation };
+        return { spot, evaluation, isFavorite: favoriteIds.has(spot.id) };
       } catch {
-        return { spot, evaluation: null };
+        return { spot, evaluation: null, isFavorite: favoriteIds.has(spot.id) };
       }
     })
   );
@@ -67,11 +67,7 @@ export default async function DashboardPage() {
           </Link>
         )}
       </div>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {spotEvaluations.map(({ spot, evaluation }) => (
-          <SpotCard key={spot.id} spot={spot} evaluation={evaluation} isFavorite={favoriteIds.has(spot.id)} />
-        ))}
-      </div>
+      <DashboardShell spotData={spotData} />
     </div>
   );
 }
