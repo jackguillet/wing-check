@@ -15,6 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { AlertCriteria } from "@/lib/db/schema";
 import { degreesToCardinal } from "@/lib/weather/types";
+import { ForecastMap } from "@/components/forecast-map";
 import { Heart, Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -185,6 +186,17 @@ export default async function SpotDetailPage({
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {forecast && (
+        <ForecastMap
+          spotId={spot.id}
+          lat={spot.latitude}
+          lng={spot.longitude}
+          hours={forecast.hours}
+          minWind={criteria.minWindSpeed}
+          maxWind={criteria.maxWindSpeed}
+        />
       )}
 
       <Tabs defaultValue="chart">
