@@ -83,6 +83,13 @@ export const TOP_SPOTS: TopSpot[] = [
     notes: "Columbia River Gorge. Slightly less wind than Hood River, more beginner friendly.",
     alertCriteria: { preferredDirections: "[270, 280]" },
   },
+  {
+    name: "Quartermaster Harbor",
+    latitude: 47.3950,
+    longitude: -122.4630,
+    notes: "South Vashon Island, Puget Sound. Sheltered harbor with S-SW wind exposure. Flat water.",
+    alertCriteria: { preferredDirections: "[180, 200, 220]" },
+  },
 
   // ── US East Coast ──
   {

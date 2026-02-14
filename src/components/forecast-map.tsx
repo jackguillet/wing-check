@@ -73,6 +73,8 @@ function drawArrow(
 
 export function ForecastMap({
   spotId,
+  lat,
+  lng,
   hours,
   minWind = 12,
   maxWind = 25,
@@ -97,7 +99,7 @@ export function ForecastMap({
   useEffect(() => {
     const img = new Image();
     img.crossOrigin = "anonymous";
-    img.src = `/api/satellite/${spotId}`;
+    img.src = `/api/satellite/${spotId}?v=${lat},${lng}`;
     img.onload = () => {
       imgRef.current = img;
       setImageLoaded(true);
@@ -105,7 +107,7 @@ export function ForecastMap({
     img.onerror = () => {
       setImageError(true);
     };
-  }, [spotId]);
+  }, [spotId, lat, lng]);
 
   // Draw canvas
   const draw = useCallback(() => {

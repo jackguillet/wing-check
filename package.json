@@ -9,6 +9,7 @@
     "lint": "eslint",
     "db:seed": "npx tsx --env-file=.env.local src/lib/db/seed.ts",
     "db:push": "npx drizzle-kit push",
+    "db:sync-coords": "npx tsx --env-file=.env.local src/lib/db/sync-coords.ts",
     "db:studio": "npx drizzle-kit studio",
     "test": "vitest run",
     "test:watch": "vitest"
