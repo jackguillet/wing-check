@@ -45,13 +45,13 @@ export async function createSpot(formData: FormData) {
 
   const preferredDirs = formData.get("preferredDirections") as string;
   const minWind = parseFloat(
-    (formData.get("minWindSpeed") as string) || "15"
+    (formData.get("minWindSpeed") as string) || "10"
   );
   const maxWind = parseFloat(
     (formData.get("maxWindSpeed") as string) || "25"
   );
   const maxGust = parseFloat(
-    (formData.get("maxGustFactor") as string) || "1.5"
+    (formData.get("maxGustFactor") as string) || "2.5"
   );
   const dirTolerance = parseFloat(
     (formData.get("directionTolerance") as string) || "45"
@@ -119,13 +119,13 @@ export async function updateSpotCriteria(spotId: number, formData: FormData) {
   const values = {
     spotId,
     minWindSpeed: parseFloat(
-      (formData.get("minWindSpeed") as string) || "15"
+      (formData.get("minWindSpeed") as string) || "10"
     ),
     maxWindSpeed: parseFloat(
       (formData.get("maxWindSpeed") as string) || "25"
     ),
     maxGustFactor: parseFloat(
-      (formData.get("maxGustFactor") as string) || "1.5"
+      (formData.get("maxGustFactor") as string) || "2.5"
     ),
     preferredDirections: (formData.get("preferredDirections") as string) || "[]",
     directionTolerance: parseFloat(

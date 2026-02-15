@@ -138,9 +138,9 @@ export const alertCriteria = sqliteTable("alert_criteria", {
   spotId: integer("spot_id")
     .notNull()
     .references(() => spots.id, { onDelete: "cascade" }),
-  minWindSpeed: real("min_wind_speed").notNull().default(15),
+  minWindSpeed: real("min_wind_speed").notNull().default(10),
   maxWindSpeed: real("max_wind_speed").notNull().default(25),
-  maxGustFactor: real("max_gust_factor").notNull().default(1.5),
+  maxGustFactor: real("max_gust_factor").notNull().default(2.5),
   preferredDirections: text("preferred_directions").notNull().default("[]"),
   directionTolerance: real("direction_tolerance").notNull().default(45),
   minConsecutiveHours: integer("min_consecutive_hours").notNull().default(2),

@@ -82,9 +82,9 @@ async function seed() {
     CREATE TABLE IF NOT EXISTS alert_criteria (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       spot_id INTEGER NOT NULL REFERENCES spots(id) ON DELETE CASCADE,
-      min_wind_speed REAL NOT NULL DEFAULT 15,
+      min_wind_speed REAL NOT NULL DEFAULT 10,
       max_wind_speed REAL NOT NULL DEFAULT 25,
-      max_gust_factor REAL NOT NULL DEFAULT 1.5,
+      max_gust_factor REAL NOT NULL DEFAULT 2.5,
       preferred_directions TEXT NOT NULL DEFAULT '[]',
       direction_tolerance REAL NOT NULL DEFAULT 45,
       min_consecutive_hours INTEGER NOT NULL DEFAULT 2,
@@ -277,9 +277,9 @@ async function seed() {
 
     await db.insert(schema.alertCriteria).values({
       spotId: inserted.id,
-      minWindSpeed: topSpot.alertCriteria?.minWindSpeed ?? 15,
+      minWindSpeed: topSpot.alertCriteria?.minWindSpeed ?? 10,
       maxWindSpeed: topSpot.alertCriteria?.maxWindSpeed ?? 25,
-      maxGustFactor: topSpot.alertCriteria?.maxGustFactor ?? 1.5,
+      maxGustFactor: topSpot.alertCriteria?.maxGustFactor ?? 2.5,
       preferredDirections: topSpot.alertCriteria?.preferredDirections ?? "[]",
       directionTolerance: topSpot.alertCriteria?.directionTolerance ?? 45,
       minConsecutiveHours: topSpot.alertCriteria?.minConsecutiveHours ?? 2,
@@ -290,6 +290,47 @@ async function seed() {
   }
 
   console.log(`Seeded ${seededCount} curated spots (${TOP_SPOTS.length - seededCount} already existed).`);
+
+  // ── Reseed criteria for existing system-owned spots ──
+  const systemSpots = await db
+    .select({ id: schema.spots.id, name: schema.spots.name })
+    .from(schema.spots)
+    .where(eq(schema.spots.userId, SYSTEM_USER_ID));
+
+  let updatedCriteriaCount = 0;
+  for (const sysSpot of systemSpots) {
+    const topSpot = TOP_SPOTS.find((t) => t.name === sysSpot.name);
+    if (!topSpot?.alertCriteria) continue;
+
+    const criteriaValues = {
+      minWindSpeed: topSpot.alertCriteria.minWindSpeed ?? 10,
+      maxWindSpeed: topSpot.alertCriteria.maxWindSpeed ?? 25,
+      maxGustFactor: topSpot.alertCriteria.maxGustFactor ?? 2.5,
+      preferredDirections: topSpot.alertCriteria.preferredDirections ?? "[]",
+      directionTolerance: topSpot.alertCriteria.directionTolerance ?? 45,
+      minConsecutiveHours: topSpot.alertCriteria.minConsecutiveHours ?? 2,
+      maxWaveHeight: topSpot.alertCriteria.maxWaveHeight ?? null,
+    };
+
+    const existingCriteria = await db
+      .select()
+      .from(schema.alertCriteria)
+      .where(eq(schema.alertCriteria.spotId, sysSpot.id));
+
+    if (existingCriteria.length > 0) {
+      await db
+        .update(schema.alertCriteria)
+        .set(criteriaValues)
+        .where(eq(schema.alertCriteria.spotId, sysSpot.id));
+    } else {
+      await db.insert(schema.alertCriteria).values({
+        spotId: sysSpot.id,
+        ...criteriaValues,
+      });
+    }
+    updatedCriteriaCount++;
+  }
+  console.log(`Updated criteria for ${updatedCriteriaCount} existing system spots.`);
 }
 
 seed().catch(console.error);

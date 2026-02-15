@@ -45,7 +45,7 @@ function angleDifference(a: number, b: number): number {
 }
 
 const THUNDERSTORM_CODES = new Set([95, 96, 99]);
-const MAX_GUST_SPREAD_KT = 10;
+const MAX_GUST_ABSOLUTE_KT = 50;
 
 function scoreHour(hour: ForecastHour, criteria: AlertCriteria): HourScore {
   const preferredDirs: number[] = JSON.parse(criteria.preferredDirections);
@@ -54,9 +54,7 @@ function scoreHour(hour: ForecastHour, criteria: AlertCriteria): HourScore {
     hour.windSpeed >= criteria.minWindSpeed &&
     hour.windSpeed <= criteria.maxWindSpeed;
 
-  const gustOk =
-    hour.windGusts <= hour.windSpeed * criteria.maxGustFactor &&
-    (hour.windGusts - hour.windSpeed) <= MAX_GUST_SPREAD_KT;
+  const gustOk = hour.windGusts <= MAX_GUST_ABSOLUTE_KT;
 
   const directionOk =
     preferredDirs.length === 0 ||
@@ -86,7 +84,7 @@ function scoreHour(hour: ForecastHour, criteria: AlertCriteria): HourScore {
   const midpoint = (criteria.minWindSpeed + criteria.maxWindSpeed) / 2;
   const range = (criteria.maxWindSpeed - criteria.minWindSpeed) / 2;
   const deviation = Math.abs(hour.windSpeed - midpoint) / range;
-  score += 40 * (1 - deviation);
+  score += 40 * (1 - deviation ** 2);
 
   // Gust scoring (0-25 points) — clamped to [0, 25]
   const gustRatio = hour.windGusts / hour.windSpeed;
@@ -279,9 +277,9 @@ export function evaluateSpot(
 }
 
 export const defaultCriteria: Omit<AlertCriteria, "id" | "spotId"> = {
-  minWindSpeed: 15,
+  minWindSpeed: 10,
   maxWindSpeed: 25,
-  maxGustFactor: 1.5,
+  maxGustFactor: 2.5,
   preferredDirections: "[]",
   directionTolerance: 45,
   minConsecutiveHours: 2,

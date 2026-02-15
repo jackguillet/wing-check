@@ -36,9 +36,9 @@ function makeHours(
 const defaultCriteria: AlertCriteria = {
   id: 1,
   spotId: 1,
-  minWindSpeed: 15,
+  minWindSpeed: 10,
   maxWindSpeed: 25,
-  maxGustFactor: 1.5,
+  maxGustFactor: 2.5,
   preferredDirections: "[270]",
   directionTolerance: 45,
   minConsecutiveHours: 2,
@@ -94,9 +94,8 @@ describe("evaluateSpot", () => {
     }
   });
 
-  it("fails gust gate when absolute spread exceeds 10 kt", () => {
-    // 25 kt wind, 36 kt gusts: ratio 1.44 (under 1.5), but spread = 11 kt
-    const hours = makeHours(3, { windSpeed: 25, windGusts: 36, windDirection: 270 });
+  it("fails gust gate when gusts exceed 50 kt absolute ceiling", () => {
+    const hours = makeHours(3, { windSpeed: 25, windGusts: 55, windDirection: 270 });
     const result = evaluateSpot(hours, defaultCriteria);
 
     for (const s of result.hourScores) {
@@ -105,9 +104,8 @@ describe("evaluateSpot", () => {
     }
   });
 
-  it("passes gust gate when spread is exactly 10 kt", () => {
-    // 25 kt wind, 35 kt gusts: ratio 1.4, spread = 10 kt
-    const hours = makeHours(3, { windSpeed: 25, windGusts: 35, windDirection: 270 });
+  it("passes gust gate when gusts are at exactly 50 kt", () => {
+    const hours = makeHours(3, { windSpeed: 25, windGusts: 50, windDirection: 270 });
     const result = evaluateSpot(hours, defaultCriteria);
 
     for (const s of result.hourScores) {
@@ -116,13 +114,12 @@ describe("evaluateSpot", () => {
     }
   });
 
-  it("passes gust gate when ratio and spread are both within limits", () => {
-    // 15 kt wind, 22 kt gusts: ratio 1.47, spread = 7 kt
-    const hours = makeHours(3, { windSpeed: 15, windGusts: 22, windDirection: 270 });
+  it("passes gust gate with high ratio but below absolute ceiling", () => {
+    // 15 kt wind, 40 kt gusts: ratio 2.67, but under 50 kt ceiling
+    const hours = makeHours(3, { windSpeed: 15, windGusts: 40, windDirection: 270 });
     const result = evaluateSpot(hours, defaultCriteria);
 
     for (const s of result.hourScores) {
-      expect(s.score).toBeGreaterThan(0);
       expect(s.gustOk).toBe(true);
     }
   });
@@ -283,5 +280,37 @@ describe("evaluateSpot", () => {
       // But day 2 should still be go
       expect(result.dayEvaluations[1].goNoGo).toBe("go");
     });
+  });
+
+  it("regression: Kanaha-like gusty conditions are not no-go", () => {
+    // 11 kt wind, 32 kt gusts, NE direction (44°) — rideable for wing foiling
+    const kanahaCriteria: AlertCriteria = {
+      id: 1,
+      spotId: 1,
+      minWindSpeed: 10,
+      maxWindSpeed: 30,
+      maxGustFactor: 2.5,
+      preferredDirections: "[45, 60, 75, 90]",
+      directionTolerance: 45,
+      minConsecutiveHours: 2,
+      maxWaveHeight: null,
+    };
+
+    const hours = makeHours(4, {
+      windSpeed: 11,
+      windGusts: 32,
+      windDirection: 44,
+    });
+
+    const result = evaluateSpot(hours, kanahaCriteria);
+
+    // Should score > 0 per hour (not zeroed out by hard gate)
+    for (const s of result.hourScores) {
+      expect(s.score).toBeGreaterThan(0);
+      expect(s.gustOk).toBe(true);
+      expect(s.windOk).toBe(true);
+    }
+    // Should NOT be no-go
+    expect(result.goNoGo).not.toBe("no-go");
   });
 });

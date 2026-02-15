@@ -84,7 +84,7 @@ export default function NewSpotPage() {
                   name="minWindSpeed"
                   type="number"
                   step="0.5"
-                  defaultValue="15"
+                  defaultValue="10"
                 />
               </div>
               <div className="space-y-2">
@@ -106,10 +106,10 @@ export default function NewSpotPage() {
                   name="maxGustFactor"
                   type="number"
                   step="0.1"
-                  defaultValue="1.5"
+                  defaultValue="2.5"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Gusts must be below wind speed x this factor
+                  Higher ratios score lower; gusts at this ratio score 0 points
                 </p>
               </div>
               <div className="space-y-2">
