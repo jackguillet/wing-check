@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment } from "react";
 import {
   Table,
   TableBody,
@@ -13,7 +14,7 @@ import type { ForecastHour } from "@/lib/weather/types";
 import type { HourScore } from "@/lib/alerts/evaluator";
 import { degreesToCardinal, weatherCodeToDescription } from "@/lib/weather/types";
 import { getWindColor, getGustColor } from "@/lib/weather/colors";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, isSameDay } from "date-fns";
 
 interface ForecastTableProps {
   hours: ForecastHour[];
@@ -30,6 +31,7 @@ export function ForecastTable({ hours, hourScores }: ForecastTableProps) {
   const now = new Date().toISOString();
   const upcoming = hours.filter((h) => h.time >= now).slice(0, 48);
   const scoreMap = new Map(hourScores?.map((s) => [s.time, s]));
+  const colCount = hourScores ? 8 : 7;
 
   return (
     <div className="overflow-x-auto rounded-md border">
@@ -47,37 +49,49 @@ export function ForecastTable({ hours, hourScores }: ForecastTableProps) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {upcoming.map((h) => {
+          {upcoming.map((h, i) => {
+            const parsed = parseISO(h.time);
+            const prevParsed = i > 0 ? parseISO(upcoming[i - 1].time) : null;
+            const isNewDay = i === 0 || !isSameDay(parsed, prevParsed!);
             const score = scoreMap.get(h.time);
             return (
-              <TableRow key={h.time}>
-                <TableCell className="whitespace-nowrap text-sm">
-                  {format(parseISO(h.time), "EEE HH:mm")}
-                </TableCell>
-                <TableCell className="font-bold" style={{ color: getWindColor(h.windSpeed) }}>
-                  {h.windSpeed.toFixed(1)}
-                </TableCell>
-                <TableCell className="font-bold" style={{ color: getGustColor(h.windSpeed, h.windGusts) }}>
-                  {h.windGusts.toFixed(1)}
-                </TableCell>
-                <TableCell>
-                  {degreesToCardinal(h.windDirection)} ({Math.round(h.windDirection)}°)
-                </TableCell>
-                <TableCell>{Math.round(h.temperature)}°C</TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {weatherCodeToDescription(h.weatherCode)}
-                </TableCell>
-                <TableCell>
-                  {h.waveHeight != null
-                    ? `${h.waveHeight.toFixed(1)}m`
-                    : "—"}
-                </TableCell>
-                {hourScores && (
-                  <TableCell>
-                    {score ? scoreBadge(score.score) : "—"}
-                  </TableCell>
+              <Fragment key={h.time}>
+                {isNewDay && (
+                  <TableRow className="bg-muted/50 border-t-2 hover:bg-muted/50">
+                    <TableCell colSpan={colCount} className="py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      {format(parsed, "EEEE, d MMMM")}
+                    </TableCell>
+                  </TableRow>
                 )}
-              </TableRow>
+                <TableRow>
+                  <TableCell className="whitespace-nowrap text-sm">
+                    {format(parsed, "HH:mm")}
+                  </TableCell>
+                  <TableCell className="font-bold" style={{ color: getWindColor(h.windSpeed) }}>
+                    {h.windSpeed.toFixed(1)}
+                  </TableCell>
+                  <TableCell className="font-bold" style={{ color: getGustColor(h.windSpeed, h.windGusts) }}>
+                    {h.windGusts.toFixed(1)}
+                  </TableCell>
+                  <TableCell>
+                    {degreesToCardinal(h.windDirection)} ({Math.round(h.windDirection)}°)
+                  </TableCell>
+                  <TableCell>{Math.round(h.temperature)}°C</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {weatherCodeToDescription(h.weatherCode)}
+                  </TableCell>
+                  <TableCell>
+                    {h.waveHeight != null
+                      ? `${h.waveHeight.toFixed(1)}m`
+                      : "—"}
+                  </TableCell>
+                  {hourScores && (
+                    <TableCell>
+                      {score ? scoreBadge(score.score) : "—"}
+                    </TableCell>
+                  )}
+                </TableRow>
+              </Fragment>
             );
           })}
         </TableBody>

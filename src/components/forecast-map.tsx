@@ -229,9 +229,14 @@ export function ForecastMap({
             />
           </div>
           {current && (
-            <p className="text-xs text-center text-muted-foreground">
-              {format(current.time, "EEE HH:mm")}
-            </p>
+            <div className="text-center">
+              <p className="text-xs text-muted-foreground">
+                {format(current.time, "EEEE d MMM")}
+              </p>
+              <p className="text-lg font-semibold tabular-nums">
+                {format(current.time, "HH:mm")}
+              </p>
+            </div>
           )}
         </div>
       </CardContent>
