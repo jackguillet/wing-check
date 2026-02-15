@@ -12,14 +12,17 @@ import { Badge } from "@/components/ui/badge";
 import { ForecastMap } from "@/components/forecast-map";
 import { WindChart } from "@/components/wind-chart";
 import { SwellCard } from "@/components/swell-card";
+import { PressureChart } from "@/components/pressure-chart";
+import { TideChart } from "@/components/tide-chart";
 import { ForecastTable } from "@/components/forecast-table";
-import type { ForecastHour } from "@/lib/weather/types";
+import type { ForecastHour, TidePoint } from "@/lib/weather/types";
 import { degreesToCardinal } from "@/lib/weather/types";
 import type { AlertCriteria } from "@/lib/db/schema";
 import type { HourScore, RideableWindow } from "@/lib/alerts/evaluator";
 
 interface ForecastSectionProps {
   hours: ForecastHour[];
+  tides: TidePoint[];
   sunrise: string[];
   sunset: string[];
   criteria: AlertCriteria | null;
@@ -98,8 +101,53 @@ function filterDaylightScores(
   return scores.filter((s) => daylightTimes.has(s.time));
 }
 
+/** Filter tide points by day range from the first hour. */
+function filterTidesByDayRange(tides: TidePoint[], hours: ForecastHour[], days: number): TidePoint[] {
+  if (hours.length === 0 || tides.length === 0) return tides;
+  const firstDate = hours[0].time.substring(0, 10);
+  const cutoff = new Date(firstDate + "T00:00");
+  cutoff.setDate(cutoff.getDate() + days);
+  const cutoffStr = cutoff.toISOString().substring(0, 10);
+  return tides.filter((t) => t.time.substring(0, 10) < cutoffStr);
+}
+
+/** Filter tide points to daylight hours only. */
+function filterDaylightTides(
+  tides: TidePoint[],
+  sunrise: string[],
+  sunset: string[],
+): TidePoint[] {
+  const dayBounds = new Map<string, { rise: number; set: number }>();
+  for (const sr of sunrise) {
+    const date = sr.substring(0, 10);
+    const h = parseInt(sr.substring(11, 13), 10);
+    dayBounds.set(date, { rise: h, set: dayBounds.get(date)?.set ?? 21 });
+  }
+  for (const ss of sunset) {
+    const date = ss.substring(0, 10);
+    const h = parseInt(ss.substring(11, 13), 10);
+    const m = parseInt(ss.substring(14, 16), 10);
+    const ceilH = m > 0 ? h + 1 : h;
+    const existing = dayBounds.get(date);
+    if (existing) {
+      existing.set = ceilH;
+    } else {
+      dayBounds.set(date, { rise: 5, set: ceilH });
+    }
+  }
+
+  return tides.filter((t) => {
+    const date = t.time.substring(0, 10);
+    const hour = parseInt(t.time.substring(11, 13), 10);
+    const bounds = dayBounds.get(date);
+    if (!bounds) return true;
+    return hour >= bounds.rise && hour <= bounds.set;
+  });
+}
+
 export function ForecastSection({
   hours,
+  tides,
   sunrise,
   sunset,
   criteria,
@@ -140,6 +188,13 @@ export function ForecastSection({
       ? filterDaylightScores(byRange, sunrise, sunset)
       : byRange;
   }, [hourScores, dayRange, sunrise, sunset, daylightOnly]);
+
+  const filteredTides = useMemo(() => {
+    const byRange = filterTidesByDayRange(tides, hours, dayRange);
+    return daylightOnly
+      ? filterDaylightTides(byRange, sunrise, sunset)
+      : byRange;
+  }, [tides, hours, dayRange, daylightOnly, sunrise, sunset]);
 
   const filteredWindows = useMemo(() => {
     if (!rideableWindows) return undefined;
@@ -283,6 +338,8 @@ export function ForecastSection({
         <TabsContent value="chart" className="space-y-4">
           <WindChart hours={filteredHours} criteria={rawCriteria} />
           <SwellCard hours={filteredHours} />
+          <PressureChart hours={filteredHours} />
+          <TideChart tides={filteredTides} />
         </TabsContent>
 
         <TabsContent value="table">

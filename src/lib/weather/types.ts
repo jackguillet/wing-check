@@ -7,6 +7,7 @@ export const HourlyWeatherSchema = z.object({
   wind_direction_10m: z.array(z.number()),
   wind_gusts_10m: z.array(z.number()),
   weather_code: z.array(z.number()),
+  pressure_msl: z.array(z.number()).optional(),
 });
 
 export const DailyWeatherSchema = z.object({
@@ -58,12 +59,14 @@ export interface ForecastHour {
   swellHeight: number | null;
   swellDirection: number | null;
   swellPeriod: number | null;
+  pressureMsl: number | null;
 }
 
 export interface SpotForecast {
   spotId: number;
   spotName: string;
   hours: ForecastHour[];
+  tides: TidePoint[];
   fetchedAt: string;
   timezone: string;
   utcOffsetSeconds: number;

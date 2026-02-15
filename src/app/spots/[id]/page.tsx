@@ -249,6 +249,7 @@ export default async function SpotDetailPage({
       {forecast && (
         <ForecastSection
           hours={forecast.hours}
+          tides={forecast.tides}
           sunrise={forecast.sunrise}
           sunset={forecast.sunset}
           criteria={criteria}

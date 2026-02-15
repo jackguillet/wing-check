@@ -8,8 +8,9 @@ import {
   fetchMarineForecast,
   mergeForecasts,
 } from "@/lib/weather/open-meteo";
+import { fetchTidePredictions } from "@/lib/weather/noaa-tides";
 import { OpenMeteoWeatherResponseSchema } from "@/lib/weather/types";
-import type { ForecastHour, SpotForecast } from "@/lib/weather/types";
+import type { ForecastHour, SpotForecast, TidePoint } from "@/lib/weather/types";
 
 const CACHE_DURATION_MS = 60 * 60 * 1000; // 1 hour
 
@@ -37,10 +38,12 @@ export async function getSpotForecast(
     const weatherData = OpenMeteoWeatherResponseSchema.parse(JSON.parse(cached.weatherData));
     const marineData = cached.marineData ? JSON.parse(cached.marineData) : null;
     const hours: ForecastHour[] = mergeForecasts(weatherData, marineData);
+    const tides: TidePoint[] = cached.tideData ? JSON.parse(cached.tideData) : [];
     return {
       spotId: spot.id,
       spotName: spot.name,
       hours,
+      tides,
       fetchedAt: cached.fetchedAt.toISOString(),
       timezone: weatherData.timezone,
       utcOffsetSeconds: weatherData.utc_offset_seconds,
@@ -50,10 +53,25 @@ export async function getSpotForecast(
   }
 
   // Fetch fresh data
-  const [weather, marine] = await Promise.all([
+  const fetches: [
+    Promise<Awaited<ReturnType<typeof fetchWeatherForecast>>>,
+    Promise<Awaited<ReturnType<typeof fetchMarineForecast>>>,
+    Promise<TidePoint[]>,
+  ] = [
     fetchWeatherForecast(spot.latitude, spot.longitude),
     fetchMarineForecast(spot.latitude, spot.longitude),
-  ]);
+    (async () => {
+      if (!spot.noaaStationId) return [];
+      const today = new Date();
+      const end = new Date(today);
+      end.setDate(end.getDate() + 14);
+      const fmt = (d: Date) =>
+        `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+      return fetchTidePredictions(spot.noaaStationId, fmt(today), fmt(end));
+    })(),
+  ];
+
+  const [weather, marine, tides] = await Promise.all(fetches);
 
   const hours = mergeForecasts(weather, marine);
 
@@ -72,12 +90,14 @@ export async function getSpotForecast(
       expiresAt,
       weatherData: JSON.stringify(weather),
       marineData: marine ? JSON.stringify(marine) : null,
+      tideData: tides.length > 0 ? JSON.stringify(tides) : null,
     });
 
   return {
     spotId: spot.id,
     spotName: spot.name,
     hours,
+    tides,
     fetchedAt: fetchedAt.toISOString(),
     timezone: weather.timezone,
     utcOffsetSeconds: weather.utc_offset_seconds,

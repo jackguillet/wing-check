@@ -17,7 +17,7 @@ export async function fetchTidePredictions(
     time_zone: "lst_ldt",
     application: "wing-check",
     format: "json",
-    interval: "hilo",
+    interval: "h",
   });
 
   try {
@@ -26,7 +26,7 @@ export async function fetchTidePredictions(
     const data = await res.json();
     const parsed = NOAATidePredictionSchema.parse(data);
     return parsed.predictions.map((p) => ({
-      time: p.t,
+      time: p.t.replace(" ", "T"),
       height: parseFloat(p.v),
       type: p.type as "H" | "L" | undefined,
     }));

@@ -18,7 +18,7 @@ export async function fetchWeatherForecast(
     latitude: latitude.toString(),
     longitude: longitude.toString(),
     hourly:
-      "temperature_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,weather_code",
+      "temperature_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,weather_code,pressure_msl",
     daily: "sunrise,sunset",
     wind_speed_unit: "kmh",
     timezone: "auto",
@@ -72,5 +72,6 @@ export function mergeForecasts(
     swellHeight: marine?.hourly.swell_wave_height[i] ?? null,
     swellDirection: marine?.hourly.swell_wave_direction[i] ?? null,
     swellPeriod: marine?.hourly.swell_wave_period[i] ?? null,
+    pressureMsl: weather.hourly.pressure_msl?.[i] ?? null,
   }));
 }
