@@ -257,7 +257,7 @@ export function ForecastMap({
           </div>
           {current && (
             <div className="flex items-center justify-center gap-2">
-              <span className="text-sm font-semibold">
+              <span className="text-base font-semibold">
                 {format(current.time, "EEEE")}
               </span>
               {(() => {
@@ -273,7 +273,7 @@ export function ForecastMap({
                   />
                 );
               })()}
-              <span className="text-lg font-semibold tabular-nums">
+              <span className="text-base font-semibold tabular-nums">
                 {format(current.time, "HH:mm")}
               </span>
               <span className="text-xs text-muted-foreground">

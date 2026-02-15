@@ -30,7 +30,7 @@ export function SolarPosition({
   return (
     <svg
       viewBox="0 0 80 24"
-      className="w-16 h-5 shrink-0"
+      className="w-24 h-7 shrink-0"
       aria-hidden="true"
     >
       {/* Horizon line */}
@@ -41,7 +41,7 @@ export function SolarPosition({
         y2="20"
         stroke="currentColor"
         strokeOpacity="0.2"
-        strokeWidth="0.8"
+        strokeWidth="1"
       />
       {/* Sky arc */}
       <path
@@ -49,17 +49,17 @@ export function SolarPosition({
         fill="none"
         stroke="currentColor"
         strokeOpacity="0.15"
-        strokeWidth="0.8"
+        strokeWidth="1"
         strokeDasharray="2 2"
       />
       {/* Sun dot */}
       {isDaytime ? (
         <>
-          <circle cx={dotX} cy={dotY} r="4" fill="#f59e0b" opacity="0.25" />
-          <circle cx={dotX} cy={dotY} r="2.5" fill="#f59e0b" />
+          <circle cx={dotX} cy={dotY} r="6" fill="#f59e0b" opacity="0.25" />
+          <circle cx={dotX} cy={dotY} r="3.5" fill="#f59e0b" />
         </>
       ) : (
-        <circle cx={dotX} cy={dotY} r="2.5" fill="#78350f" opacity="0.4" />
+        <circle cx={dotX} cy={dotY} r="3.5" fill="#78350f" opacity="0.4" />
       )}
     </svg>
   );
