@@ -29,6 +29,7 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-hook-form": "^7.71.1",
+    "react-markdown": "^10.1.0",
     "recharts": "^2.15.4",
     "resend": "^6.9.2",
     "tailwind-merge": "^3.4.0",

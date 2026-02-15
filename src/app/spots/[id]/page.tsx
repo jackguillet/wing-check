@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { AlertCriteria } from "@/lib/db/schema";
 import { degreesToCardinal } from "@/lib/weather/types";
 import { ForecastSection } from "@/components/forecast-section";
+import ReactMarkdown from "react-markdown";
 import { Heart, Bell, Sparkles, Clock, Sunrise, Sunset } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -189,8 +190,8 @@ export default async function SpotDetailPage({
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-sm leading-relaxed whitespace-pre-line">
-              {overview.overview}
+            <div className="text-sm leading-relaxed">
+              <ReactMarkdown>{overview.overview}</ReactMarkdown>
             </div>
           </CardContent>
         </Card>

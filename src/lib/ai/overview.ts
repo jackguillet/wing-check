@@ -140,8 +140,8 @@ async function generateSpotOverview(
 
   const response = await client.messages.create({
     model: MODEL,
-    max_tokens: 1024,
-    system: `You are a concise wing foiling weather analyst. Write a daily spot overview in 3-5 short paragraphs (~200 words total). Be casual but informative. Reference specific times, wind speeds, and directions. Call out the best windows for riding and any hazards (gusty conditions, storms, unfavorable swell). If you find local session reports from your web searches, mention relevant insights. End with a "**Bottom line:**" one-sentence verdict on whether it's worth going out.`,
+    max_tokens: 300,
+    system: `You are a concise wing foiling weather analyst. Write a single short paragraph (50-80 words max) summarizing today's conditions: wind range, direction, best window, and swell if relevant. Only mention web search findings if they reveal something genuinely noteworthy (storm warnings, unusual conditions, local hazard reports). End with a bold **Bottom line:** one-sentence go/no-go verdict.`,
     tools: [
       {
         type: "web_search_20250305",
