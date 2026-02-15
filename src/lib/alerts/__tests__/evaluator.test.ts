@@ -149,6 +149,18 @@ describe("evaluateSpot", () => {
     expect(result.rideableWindows.length).toBe(2);
   });
 
+  it("scores zero when wind is below minimum", () => {
+    const hours = makeHours(3, { windSpeed: 6, windGusts: 3, windDirection: 270 });
+    const result = evaluateSpot(hours, defaultCriteria);
+
+    for (const s of result.hourScores) {
+      expect(s.score).toBe(0);
+      expect(s.windOk).toBe(false);
+    }
+    expect(result.rideableWindows).toHaveLength(0);
+    expect(result.goNoGo).toBe("no-go");
+  });
+
   it("returns scores between 0 and 100", () => {
     const hours = makeHours(5, { windSpeed: 20, windGusts: 24 });
     const result = evaluateSpot(hours, defaultCriteria);

@@ -55,21 +55,27 @@ function scoreHour(hour: ForecastHour, criteria: AlertCriteria): HourScore {
     hour.waveHeight == null ||
     hour.waveHeight <= criteria.maxWaveHeight;
 
+  // Early exit: wind and gusts are hard prerequisites
+  if (!windOk || !gustOk) {
+    return {
+      time: hour.time,
+      score: 0,
+      windOk, gustOk, directionOk, waveOk,
+    };
+  }
+
   let score = 0;
 
   // Wind speed scoring (0-40 points)
-  if (windOk) {
-    const midpoint = (criteria.minWindSpeed + criteria.maxWindSpeed) / 2;
-    const range = (criteria.maxWindSpeed - criteria.minWindSpeed) / 2;
-    const deviation = Math.abs(hour.windSpeed - midpoint) / range;
-    score += 40 * (1 - deviation * 0.5);
-  }
+  const midpoint = (criteria.minWindSpeed + criteria.maxWindSpeed) / 2;
+  const range = (criteria.maxWindSpeed - criteria.minWindSpeed) / 2;
+  const deviation = Math.abs(hour.windSpeed - midpoint) / range;
+  score += 40 * (1 - deviation * 0.5);
 
-  // Gust scoring (0-25 points)
-  if (gustOk) {
-    const gustRatio = hour.windGusts / hour.windSpeed;
-    score += 25 * (1 - (gustRatio - 1) / (criteria.maxGustFactor - 1));
-  }
+  // Gust scoring (0-25 points) — clamped to [0, 25]
+  const gustRatio = hour.windGusts / hour.windSpeed;
+  const gustScore = Math.max(0, Math.min(25, 25 * (1 - (gustRatio - 1) / (criteria.maxGustFactor - 1))));
+  score += gustScore;
 
   // Direction scoring (0-25 points)
   if (directionOk && preferredDirs.length > 0) {
