@@ -151,6 +151,24 @@ export async function updateSpotCriteria(spotId: number, formData: FormData) {
   revalidatePath("/");
 }
 
+export async function updateSpotNotes(spotId: number, notes: string) {
+  const { user } = await requireSession();
+
+  const spotRows = await db
+    .select()
+    .from(spots)
+    .where(and(eq(spots.id, spotId), eq(spots.userId, user.id)));
+  if (spotRows.length === 0) throw new Error("Spot not found");
+
+  await db
+    .update(spots)
+    .set({ notes: notes.trim() || null })
+    .where(eq(spots.id, spotId));
+
+  revalidatePath(`/spots/${spotId}`);
+  revalidatePath("/");
+}
+
 export async function getUserSpotPrefs(spotId: number) {
   const session = await getSession();
   if (!session?.user) return null;

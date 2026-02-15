@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
-import { getSpotWithCriteria, deleteSpot, updateSpotCriteria, getUserSpotPrefs, toggleFavorite, toggleSpotAlerts } from "@/lib/actions/spots";
+import { getSpotWithCriteria, deleteSpot, updateSpotCriteria, updateSpotNotes, getUserSpotPrefs, toggleFavorite, toggleSpotAlerts } from "@/lib/actions/spots";
 import { getSpotForecast } from "@/lib/actions/forecasts";
 import { getSession } from "@/lib/auth-session";
 import { evaluateSpot, defaultCriteria } from "@/lib/alerts/evaluator";
@@ -12,6 +12,7 @@ import type { AlertCriteria, Spot } from "@/lib/db/schema";
 import { degreesToCardinal } from "@/lib/weather/types";
 import type { ForecastHour } from "@/lib/weather/types";
 import { ForecastSection } from "@/components/forecast-section";
+import { SpotNotes } from "@/components/spot-notes";
 import ReactMarkdown from "react-markdown";
 import { Heart, Bell, Sparkles, Clock, Sunrise, Sunset } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -166,7 +167,6 @@ export default async function SpotDetailPage({
           <h1 className="text-3xl font-bold">{spot.name}</h1>
           <p className="text-muted-foreground">
             {spot.latitude.toFixed(4)}°, {spot.longitude.toFixed(4)}°
-            {spot.notes && ` — ${spot.notes}`}
           </p>
           {forecast && (() => {
             const now = new Date();
@@ -229,6 +229,13 @@ export default async function SpotDetailPage({
           )}
         </div>
       </div>
+
+      <SpotNotes
+        spotId={spot.id}
+        notes={spot.notes}
+        isOwner={isOwner}
+        updateAction={updateSpotNotes}
+      />
 
       {evaluation && evaluation.dayEvaluations.length > 0 && (
         <ThreeDayBanner days={evaluation.dayEvaluations} />
