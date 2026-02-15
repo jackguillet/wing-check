@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { AlertCriteria, Spot } from "@/lib/db/schema";
 import type { ForecastHour } from "@/lib/weather/types";
 import { ForecastSection } from "@/components/forecast-section";
+import { ForecastControlsProvider, ForecastToggles } from "@/components/forecast-controls";
 import { SpotNotes } from "@/components/spot-notes";
 import ReactMarkdown from "react-markdown";
 import { Heart, Bell, Sparkles, Clock, Sunrise, Sunset } from "lucide-react";
@@ -159,6 +160,7 @@ export default async function SpotDetailPage({
   const toggleAlertsAction = toggleSpotAlerts.bind(null, spot.id);
 
   return (
+    <ForecastControlsProvider>
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -185,6 +187,7 @@ export default async function SpotDetailPage({
           })()}
         </div>
         <div className="flex items-center gap-2">
+          <ForecastToggles />
           {isAuthenticated && (
             <>
               <form action={toggleFavoriteAction}>
@@ -275,5 +278,6 @@ export default async function SpotDetailPage({
         </p>
       )}
     </div>
+    </ForecastControlsProvider>
   );
 }
