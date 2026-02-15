@@ -230,13 +230,15 @@ export function ForecastSection({
                             day: "numeric",
                           })}{" "}
                           {start.toLocaleTimeString("en-US", {
-                            hour: "numeric",
+                            hour: "2-digit",
                             minute: "2-digit",
+                            hour12: false,
                           })}{" "}
                           –{" "}
                           {end.toLocaleTimeString("en-US", {
-                            hour: "numeric",
+                            hour: "2-digit",
                             minute: "2-digit",
+                            hour12: false,
                           })}
                         </p>
                         <p className="text-sm text-muted-foreground">

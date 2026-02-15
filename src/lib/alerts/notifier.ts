@@ -20,10 +20,14 @@ export async function sendAlert({ spotName, windows, email }: AlertPayload) {
         weekday: "short",
         month: "short",
         day: "numeric",
-        hour: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
       });
       const end = new Date(w.end).toLocaleString("en-US", {
-        hour: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
       });
       return `${start} – ${end}: ${w.avgWind}kt avg (gusts ${w.avgGusts}kt), ${degreesToCardinal(w.dominantDirection)}, score ${w.avgScore}/100`;
     })

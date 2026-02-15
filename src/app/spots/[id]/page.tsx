@@ -83,7 +83,7 @@ async function OverviewSection({
             Daily Overview
           </CardTitle>
           <span className="text-xs text-muted-foreground">
-            {overview.generatedAt.toLocaleString()}
+            {overview.generatedAt.toLocaleString("en-US", { hour12: false })}
           </span>
         </div>
       </CardHeader>
@@ -170,16 +170,11 @@ export default async function SpotDetailPage({
             const now = new Date();
             const localMs = now.getTime() + (now.getTimezoneOffset() * 60_000) + (forecast.utcOffsetSeconds * 1000);
             const localDate = new Date(localMs);
-            const localTimeStr = localDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+            const localTimeStr = localDate.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
             const todayStr = localDate.toISOString().slice(0, 10);
             const todaySunrise = forecast.sunrise.find(s => s.startsWith(todayStr));
             const todaySunset = forecast.sunset.find(s => s.startsWith(todayStr));
-            const fmtSun = (iso: string) => {
-              const h = parseInt(iso.substring(11, 13), 10);
-              const m = iso.substring(14, 16);
-              const ampm = h >= 12 ? "PM" : "AM";
-              return `${h % 12 || 12}:${m} ${ampm}`;
-            };
+            const fmtSun = (iso: string) => iso.substring(11, 16);
             return (
               <p className="text-sm text-muted-foreground flex items-center gap-3 mt-1">
                 <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{localTimeStr}</span>
@@ -274,6 +269,7 @@ export default async function SpotDetailPage({
             timeZone: forecast.timezone,
             dateStyle: "medium",
             timeStyle: "short",
+            hour12: false,
           })}
         </p>
       )}
