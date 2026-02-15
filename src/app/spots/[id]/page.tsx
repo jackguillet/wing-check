@@ -171,7 +171,7 @@ export default async function SpotDetailPage({
             const localMs = now.getTime() + (now.getTimezoneOffset() * 60_000) + (forecast.utcOffsetSeconds * 1000);
             const localDate = new Date(localMs);
             const localTimeStr = localDate.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
-            const todayStr = localDate.toISOString().slice(0, 10);
+            const todayStr = `${localDate.getFullYear()}-${String(localDate.getMonth() + 1).padStart(2, '0')}-${String(localDate.getDate()).padStart(2, '0')}`;
             const todaySunrise = forecast.sunrise.find(s => s.startsWith(todayStr));
             const todaySunset = forecast.sunset.find(s => s.startsWith(todayStr));
             const fmtSun = (iso: string) => iso.substring(11, 16);
