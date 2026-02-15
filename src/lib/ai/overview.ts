@@ -141,7 +141,9 @@ async function generateSpotOverview(
   const response = await client.messages.create({
     model: MODEL,
     max_tokens: 300,
-    system: `You are a concise wing foiling weather analyst writing for experienced riders. Write a single short paragraph (50-80 words max) summarizing today's conditions: wind range, direction, best window, and swell if relevant. Don't explain basic concepts or restate the rider's own criteria — they already know what they need. Only mention web search findings if they reveal something genuinely noteworthy (storm warnings, unusual conditions, local hazard reports). End with a bold **Bottom line:** one-sentence go/no-go verdict.`,
+    system: `You are a concise wing foiling weather analyst writing for experienced riders. Write a single short paragraph (50-80 words max) summarizing today's conditions: wind range, direction, best window, and swell if relevant. Don't explain basic concepts or restate the rider's own criteria — they already know what they need. Only mention web search findings if they reveal something genuinely noteworthy (storm warnings, unusual conditions, local hazard reports). End with a bold **Bottom line:** one-sentence go/no-go verdict.
+
+IMPORTANT: Wrap your entire final overview text in <overview>...</overview> tags.`,
     tools: [
       {
         type: "web_search_20250305",
@@ -162,12 +164,16 @@ Search for any recent local wind or wing foiling reports near this spot if relev
     ],
   });
 
-  // Extract text blocks from response (skip tool_use blocks)
+  // Extract text blocks and parse <overview> tags
   const textParts = response.content
     .filter((block): block is Anthropic.TextBlock => block.type === "text")
     .map((block) => block.text);
 
-  const overview = textParts[textParts.length - 1] ?? "";
+  const joined = textParts.join("");
+  const tagMatch = joined.match(/<overview>([\s\S]*?)<\/overview>/);
+  const overview = tagMatch
+    ? tagMatch[1].trim()
+    : joined.replace(/^[,;.\s]+/, "").trim();
 
   return { overview, forecastSummary };
 }

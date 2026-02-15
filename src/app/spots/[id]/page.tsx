@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { getSpotWithCriteria, deleteSpot, updateSpotCriteria, getUserSpotPrefs, toggleFavorite, toggleSpotAlerts } from "@/lib/actions/spots";
 import { getSpotForecast } from "@/lib/actions/forecasts";
@@ -7,8 +8,9 @@ import { getOrGenerateOverview } from "@/lib/ai/overview";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { AlertCriteria } from "@/lib/db/schema";
+import type { AlertCriteria, Spot } from "@/lib/db/schema";
 import { degreesToCardinal } from "@/lib/weather/types";
+import type { ForecastHour } from "@/lib/weather/types";
 import { ForecastSection } from "@/components/forecast-section";
 import ReactMarkdown from "react-markdown";
 import { Heart, Bell, Sparkles, Clock, Sunrise, Sunset } from "lucide-react";
@@ -28,6 +30,71 @@ function dayLabel(dateStr: string, index: number): string {
   if (index === 0) return "Today";
   const d = new Date(dateStr + "T00:00");
   return d.toLocaleDateString("en-US", { weekday: "short" });
+}
+
+function OverviewSkeleton() {
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5" />
+            Daily Overview
+          </CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-2 animate-pulse">
+          <div className="h-4 bg-muted rounded w-full" />
+          <div className="h-4 bg-muted rounded w-5/6" />
+          <div className="h-4 bg-muted rounded w-4/6" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+async function OverviewSection({
+  spot,
+  hours,
+  criteria,
+  sunrise,
+  sunset,
+}: {
+  spot: Spot;
+  hours: ForecastHour[];
+  criteria: AlertCriteria;
+  sunrise?: string[];
+  sunset?: string[];
+}) {
+  let overview = null;
+  try {
+    overview = await getOrGenerateOverview(spot, hours, criteria, sunrise, sunset);
+  } catch (e) {
+    console.error("Failed to load overview:", e);
+  }
+  if (!overview) return null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5" />
+            Daily Overview
+          </CardTitle>
+          <span className="text-xs text-muted-foreground">
+            {overview.generatedAt.toLocaleString()}
+          </span>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="text-sm leading-relaxed">
+          <ReactMarkdown>{overview.overview}</ReactMarkdown>
+        </div>
+      </CardContent>
+    </Card>
+  );
 }
 
 function ThreeDayBanner({ days }: { days: DayEvaluation[] }) {
@@ -85,15 +152,6 @@ export default async function SpotDetailPage({
     }
   } catch (e) {
     console.error("Failed to load forecast:", e);
-  }
-
-  let overview = null;
-  if (forecast) {
-    try {
-      overview = await getOrGenerateOverview(spot, forecast.hours, criteria, forecast.sunrise, forecast.sunset);
-    } catch (e) {
-      console.error("Failed to load overview:", e);
-    }
   }
 
   const deleteAction = deleteSpot.bind(null, spot.id);
@@ -176,25 +234,16 @@ export default async function SpotDetailPage({
         <ThreeDayBanner days={evaluation.dayEvaluations} />
       )}
 
-      {overview && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5" />
-                Daily Overview
-              </CardTitle>
-              <span className="text-xs text-muted-foreground">
-                {overview.generatedAt.toLocaleString()}
-              </span>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-sm leading-relaxed">
-              <ReactMarkdown>{overview.overview}</ReactMarkdown>
-            </div>
-          </CardContent>
-        </Card>
+      {forecast && (
+        <Suspense fallback={<OverviewSkeleton />}>
+          <OverviewSection
+            spot={spot}
+            hours={forecast.hours}
+            criteria={criteria}
+            sunrise={forecast.sunrise}
+            sunset={forecast.sunset}
+          />
+        </Suspense>
       )}
 
       {evaluation && evaluation.rideableWindows.length > 0 && (
