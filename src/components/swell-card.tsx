@@ -117,7 +117,7 @@ export function SwellCard({ hours }: SwellCardProps) {
                 textAnchor="end"
                 height={60}
               />
-              <YAxis tick={{ fontSize: 11 }} width={40} />
+              <YAxis tick={{ fontSize: 11 }} width={44} unit=" m" />
               <ChartTooltip content={<ChartTooltipContent />} />
               <Area
                 type="monotone"

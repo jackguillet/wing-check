@@ -62,7 +62,7 @@ export function WindChart({ hours, criteria }: WindChartProps) {
               textAnchor="end"
               height={60}
             />
-            <YAxis tick={{ fontSize: 11 }} width={40} />
+            <YAxis tick={{ fontSize: 11 }} width={48} unit=" kt" />
             <ChartTooltip content={<ChartTooltipContent />} />
             {criteria && (
               <>

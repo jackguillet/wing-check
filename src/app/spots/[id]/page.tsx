@@ -270,7 +270,11 @@ export default async function SpotDetailPage({
 
       {forecast && (
         <p className="text-xs text-muted-foreground text-right">
-          Forecast fetched: {new Date(forecast.fetchedAt).toLocaleString()}
+          Forecast fetched: {new Date(forecast.fetchedAt).toLocaleString("en-US", {
+            timeZone: forecast.timezone,
+            dateStyle: "medium",
+            timeStyle: "short",
+          })}
         </p>
       )}
     </div>
