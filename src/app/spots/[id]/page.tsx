@@ -5,11 +5,9 @@ import { getSpotForecast } from "@/lib/actions/forecasts";
 import { getSession } from "@/lib/auth-session";
 import { evaluateSpot, defaultCriteria } from "@/lib/alerts/evaluator";
 import { getOrGenerateOverview } from "@/lib/ai/overview";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { AlertCriteria, Spot } from "@/lib/db/schema";
-import { degreesToCardinal } from "@/lib/weather/types";
 import type { ForecastHour } from "@/lib/weather/types";
 import { ForecastSection } from "@/components/forecast-section";
 import { SpotNotes } from "@/components/spot-notes";
@@ -253,60 +251,6 @@ export default async function SpotDetailPage({
         </Suspense>
       )}
 
-      {evaluation && evaluation.rideableWindows.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Rideable Windows</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {evaluation.rideableWindows.map((w, i) => {
-                const start = new Date(w.start);
-                const end = new Date(w.end);
-                return (
-                  <div
-                    key={i}
-                    className="flex items-center justify-between rounded-md border p-3"
-                  >
-                    <div>
-                      <p className="font-medium">
-                        {start.toLocaleDateString("en-US", {
-                          weekday: "short",
-                          month: "short",
-                          day: "numeric",
-                        })}{" "}
-                        {start.toLocaleTimeString("en-US", {
-                          hour: "numeric",
-                          minute: "2-digit",
-                        })}{" "}
-                        –{" "}
-                        {end.toLocaleTimeString("en-US", {
-                          hour: "numeric",
-                          minute: "2-digit",
-                        })}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {w.hours}h · {w.avgWind}kt avg · gusts {w.avgGusts}kt ·{" "}
-                        {degreesToCardinal(w.dominantDirection)}
-                      </p>
-                    </div>
-                    <Badge
-                      className={
-                        w.avgScore >= 70
-                          ? "bg-green-600 text-white"
-                          : "bg-yellow-500 text-black"
-                      }
-                    >
-                      {w.avgScore}/100
-                    </Badge>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {forecast && (
         <ForecastSection
           hours={forecast.hours}
@@ -315,6 +259,7 @@ export default async function SpotDetailPage({
           criteria={criteria}
           rawCriteria={rawCriteria}
           hourScores={evaluation?.hourScores}
+          rideableWindows={evaluation?.rideableWindows}
           spotId={spot.id}
           lat={spot.latitude}
           lng={spot.longitude}

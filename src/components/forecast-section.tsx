@@ -8,13 +8,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
 import { ForecastMap } from "@/components/forecast-map";
 import { WindChart } from "@/components/wind-chart";
 import { SwellCard } from "@/components/swell-card";
 import { ForecastTable } from "@/components/forecast-table";
 import type { ForecastHour } from "@/lib/weather/types";
+import { degreesToCardinal } from "@/lib/weather/types";
 import type { AlertCriteria } from "@/lib/db/schema";
-import type { HourScore } from "@/lib/alerts/evaluator";
+import type { HourScore, RideableWindow } from "@/lib/alerts/evaluator";
 
 interface ForecastSectionProps {
   hours: ForecastHour[];
@@ -23,6 +25,7 @@ interface ForecastSectionProps {
   criteria: AlertCriteria | null;
   rawCriteria: AlertCriteria | null;
   hourScores?: HourScore[];
+  rideableWindows?: RideableWindow[];
   spotId: number;
   lat: number;
   lng: number;
@@ -92,6 +95,7 @@ export function ForecastSection({
   criteria,
   rawCriteria,
   hourScores,
+  rideableWindows,
   spotId,
   lat,
   lng,
@@ -144,12 +148,74 @@ export function ForecastSection({
         </button>
       </div>
 
-      <ForecastMap
-        spotId={spotId}
-        lat={lat}
-        lng={lng}
-        hours={filteredHours}
-      />
+      {rideableWindows && rideableWindows.length > 0 ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <ForecastMap
+            spotId={spotId}
+            lat={lat}
+            lng={lng}
+            hours={filteredHours}
+          />
+          <Card>
+            <CardHeader>
+              <CardTitle>Rideable Windows</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {rideableWindows.map((w, i) => {
+                  const start = new Date(w.start);
+                  const end = new Date(w.end);
+                  return (
+                    <div
+                      key={i}
+                      className="flex items-center justify-between rounded-md border p-3"
+                    >
+                      <div>
+                        <p className="font-medium">
+                          {start.toLocaleDateString("en-US", {
+                            weekday: "short",
+                            month: "short",
+                            day: "numeric",
+                          })}{" "}
+                          {start.toLocaleTimeString("en-US", {
+                            hour: "numeric",
+                            minute: "2-digit",
+                          })}{" "}
+                          –{" "}
+                          {end.toLocaleTimeString("en-US", {
+                            hour: "numeric",
+                            minute: "2-digit",
+                          })}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {w.hours}h · {w.avgWind}kt avg · gusts {w.avgGusts}kt ·{" "}
+                          {degreesToCardinal(w.dominantDirection)}
+                        </p>
+                      </div>
+                      <Badge
+                        className={
+                          w.avgScore >= 70
+                            ? "bg-green-600 text-white"
+                            : "bg-yellow-500 text-black"
+                        }
+                      >
+                        {w.avgScore}/100
+                      </Badge>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      ) : (
+        <ForecastMap
+          spotId={spotId}
+          lat={lat}
+          lng={lng}
+          hours={filteredHours}
+        />
+      )}
 
       <Tabs defaultValue="chart">
         <TabsList>

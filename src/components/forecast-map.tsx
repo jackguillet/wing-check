@@ -184,7 +184,7 @@ export function ForecastMap({
       <CardContent className="space-y-3">
         <div
           ref={containerRef}
-          className="relative w-full max-w-[600px] mx-auto aspect-[3/2] rounded-md overflow-hidden"
+          className="relative w-full aspect-[3/2] rounded-md overflow-hidden"
         >
           {!imageLoaded && !imageError && (
             <div className="absolute inset-0 bg-muted animate-pulse rounded-md" />
@@ -206,7 +206,7 @@ export function ForecastMap({
           </p>
         )}
 
-        <div className="max-w-[600px] mx-auto space-y-1">
+        <div className="space-y-1">
           <div className="flex items-center gap-2">
             <button
               type="button"
