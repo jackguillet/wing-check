@@ -50,17 +50,6 @@ export default function NewSpotPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="noaaStationId">NOAA Station ID (optional)</Label>
-              <Input
-                id="noaaStationId"
-                name="noaaStationId"
-                placeholder="e.g. 9414290"
-              />
-              <p className="text-xs text-muted-foreground">
-                For US coastal spots — provides tide data
-              </p>
-            </div>
-            <div className="space-y-2">
               <Label htmlFor="notes">Notes</Label>
               <Textarea
                 id="notes"

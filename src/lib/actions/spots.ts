@@ -7,6 +7,7 @@ import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getSession, requireSession } from "@/lib/auth-session";
+import { findNearestStation } from "@/lib/weather/noaa-stations";
 
 export async function getSpots() {
   return db.select().from(spots);
@@ -40,8 +41,12 @@ export async function createSpot(formData: FormData) {
   const name = formData.get("name") as string;
   const latitude = parseFloat(formData.get("latitude") as string);
   const longitude = parseFloat(formData.get("longitude") as string);
-  const noaaStationId = (formData.get("noaaStationId") as string) || null;
+  let noaaStationId = (formData.get("noaaStationId") as string) || null;
   const notes = (formData.get("notes") as string) || null;
+
+  if (!noaaStationId) {
+    noaaStationId = await findNearestStation(latitude, longitude);
+  }
 
   const preferredDirs = formData.get("preferredDirections") as string;
   const minWind = parseFloat(

@@ -61,7 +61,6 @@ export function SpotsTable({ spots, favoriteIds }: SpotsTableProps) {
                 <TableHead>Name</TableHead>
                 <TableHead>Latitude</TableHead>
                 <TableHead>Longitude</TableHead>
-                <TableHead>NOAA Station</TableHead>
                 <TableHead>Notes</TableHead>
               </TableRow>
             </TableHeader>
@@ -83,7 +82,6 @@ export function SpotsTable({ spots, favoriteIds }: SpotsTableProps) {
                   </TableCell>
                   <TableCell>{spot.latitude.toFixed(4)}</TableCell>
                   <TableCell>{spot.longitude.toFixed(4)}</TableCell>
-                  <TableCell>{spot.noaaStationId ?? "—"}</TableCell>
                   <TableCell className="text-muted-foreground text-sm">
                     {spot.notes ?? "—"}
                   </TableCell>

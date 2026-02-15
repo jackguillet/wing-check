@@ -1,8 +1,9 @@
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
-import { eq } from "drizzle-orm";
+import { eq, isNull } from "drizzle-orm";
 import * as schema from "./schema";
 import { SYSTEM_USER_ID, TOP_SPOTS } from "../data/top-spots";
+import { findNearestStation } from "../weather/noaa-stations";
 
 const client = createClient({
   url: process.env.TURSO_DATABASE_URL!,
@@ -331,6 +332,26 @@ async function seed() {
     updatedCriteriaCount++;
   }
   console.log(`Updated criteria for ${updatedCriteriaCount} existing system spots.`);
+
+  // ── Backfill NOAA station IDs for spots missing them ──
+  const spotsWithoutStation = await db
+    .select({ id: schema.spots.id, name: schema.spots.name, latitude: schema.spots.latitude, longitude: schema.spots.longitude })
+    .from(schema.spots)
+    .where(isNull(schema.spots.noaaStationId));
+
+  let backfilledCount = 0;
+  for (const spot of spotsWithoutStation) {
+    const stationId = await findNearestStation(spot.latitude, spot.longitude);
+    if (stationId) {
+      await db
+        .update(schema.spots)
+        .set({ noaaStationId: stationId })
+        .where(eq(schema.spots.id, spot.id));
+      backfilledCount++;
+      console.log(`  ${spot.name} → station ${stationId}`);
+    }
+  }
+  console.log(`Backfilled NOAA station for ${backfilledCount}/${spotsWithoutStation.length} spots.`);
 }
 
 seed().catch(console.error);
