@@ -261,8 +261,8 @@ export function ForecastMap({
                 {format(current.time, "EEEE")}
               </span>
               {(() => {
-                const t = current.time instanceof Date ? current.time : new Date(current.time);
-                const dateKey = t.toISOString().substring(0, 10);
+                const timeStr = current.time instanceof Date ? current.time.toISOString() : current.time;
+                const dateKey = timeStr.substring(0, 10);
                 const sun = sunTimesMap.get(dateKey);
                 if (!sun) return null;
                 return (

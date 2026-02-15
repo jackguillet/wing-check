@@ -9,8 +9,10 @@ export function SolarPosition({
   sunrise,
   sunset,
 }: SolarPositionProps) {
-  const totalHours = Math.round((sunset.getTime() - sunrise.getTime()) / 3_600_000);
-  const elapsedHours = Math.floor((currentTime.getTime() - sunrise.getTime()) / 3_600_000);
+  const sunriseHourMs = Math.ceil(sunrise.getTime() / 3_600_000) * 3_600_000;
+  const sunsetHourMs = Math.floor(sunset.getTime() / 3_600_000) * 3_600_000;
+  const totalHours = (sunsetHourMs - sunriseHourMs) / 3_600_000;
+  const elapsedHours = Math.floor((currentTime.getTime() - sunriseHourMs) / 3_600_000);
   const isDaytime = elapsedHours >= 0 && elapsedHours <= totalHours;
   const progress = isDaytime
     ? Math.max(0, Math.min(1, elapsedHours / totalHours))
