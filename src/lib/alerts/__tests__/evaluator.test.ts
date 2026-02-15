@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { evaluateSpot, type HourScore, type RideableWindow } from "../evaluator";
+import { evaluateSpot, type HourScore, type RideableWindow, type DayEvaluation } from "../evaluator";
 import type { ForecastHour } from "@/lib/weather/types";
 import type { AlertCriteria } from "@/lib/db/schema";
 
@@ -169,5 +169,65 @@ describe("evaluateSpot", () => {
       expect(score.score).toBeGreaterThanOrEqual(0);
       expect(score.score).toBeLessThanOrEqual(100);
     }
+  });
+
+  describe("dayEvaluations", () => {
+    it("groups hours by date into separate day evaluations", () => {
+      const hours = [
+        // Day 1: Feb 14
+        makeHour({ time: "2026-02-14T10:00", windSpeed: 20, windGusts: 24 }),
+        makeHour({ time: "2026-02-14T11:00", windSpeed: 20, windGusts: 24 }),
+        makeHour({ time: "2026-02-14T12:00", windSpeed: 20, windGusts: 24 }),
+        // Day 2: Feb 15
+        makeHour({ time: "2026-02-15T10:00", windSpeed: 20, windGusts: 24 }),
+        makeHour({ time: "2026-02-15T11:00", windSpeed: 20, windGusts: 24 }),
+        // Day 3: Feb 16
+        makeHour({ time: "2026-02-16T10:00", windSpeed: 5, windGusts: 7 }),
+      ];
+
+      const result = evaluateSpot(hours, defaultCriteria);
+      expect(result.dayEvaluations).toHaveLength(3);
+      expect(result.dayEvaluations[0].date).toBe("2026-02-14");
+      expect(result.dayEvaluations[1].date).toBe("2026-02-15");
+      expect(result.dayEvaluations[2].date).toBe("2026-02-16");
+    });
+
+    it("computes independent score and goNoGo per day", () => {
+      const hours = [
+        // Day 1: great conditions
+        makeHour({ time: "2026-02-14T10:00", windSpeed: 20, windGusts: 24, windDirection: 270 }),
+        makeHour({ time: "2026-02-14T11:00", windSpeed: 20, windGusts: 24, windDirection: 270 }),
+        makeHour({ time: "2026-02-14T12:00", windSpeed: 20, windGusts: 24, windDirection: 270 }),
+        // Day 2: no wind
+        makeHour({ time: "2026-02-15T10:00", windSpeed: 5, windGusts: 7, windDirection: 270 }),
+        makeHour({ time: "2026-02-15T11:00", windSpeed: 5, windGusts: 7, windDirection: 270 }),
+        makeHour({ time: "2026-02-15T12:00", windSpeed: 5, windGusts: 7, windDirection: 270 }),
+      ];
+
+      const result = evaluateSpot(hours, defaultCriteria);
+      expect(result.dayEvaluations[0].goNoGo).toBe("go");
+      expect(result.dayEvaluations[0].score).toBeGreaterThanOrEqual(70);
+      expect(result.dayEvaluations[1].goNoGo).toBe("no-go");
+      expect(result.dayEvaluations[1].score).toBe(0);
+    });
+
+    it("sets overallScore and goNoGo from first day", () => {
+      const hours = [
+        // Day 1: no wind
+        makeHour({ time: "2026-02-14T10:00", windSpeed: 5, windGusts: 7 }),
+        makeHour({ time: "2026-02-14T11:00", windSpeed: 5, windGusts: 7 }),
+        // Day 2: great conditions
+        makeHour({ time: "2026-02-15T10:00", windSpeed: 20, windGusts: 24, windDirection: 270 }),
+        makeHour({ time: "2026-02-15T11:00", windSpeed: 20, windGusts: 24, windDirection: 270 }),
+        makeHour({ time: "2026-02-15T12:00", windSpeed: 20, windGusts: 24, windDirection: 270 }),
+      ];
+
+      const result = evaluateSpot(hours, defaultCriteria);
+      // Overall should reflect day 1 (no-go), not day 2 (go)
+      expect(result.overallScore).toBe(result.dayEvaluations[0].score);
+      expect(result.goNoGo).toBe("no-go");
+      // But day 2 should still be go
+      expect(result.dayEvaluations[1].goNoGo).toBe("go");
+    });
   });
 });

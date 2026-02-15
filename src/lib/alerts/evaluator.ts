@@ -20,12 +20,21 @@ export interface RideableWindow {
   dominantDirection: number;
 }
 
+export interface DayEvaluation {
+  date: string;              // "2026-02-14"
+  score: number;
+  goNoGo: "go" | "marginal" | "no-go";
+  rideableWindows: RideableWindow[];
+  bestWindow: RideableWindow | null;
+}
+
 export interface SpotEvaluation {
   overallScore: number;
   goNoGo: "go" | "marginal" | "no-go";
   hourScores: HourScore[];
   rideableWindows: RideableWindow[];
   bestWindow: RideableWindow | null;
+  dayEvaluations: DayEvaluation[];
 }
 
 function angleDifference(a: number, b: number): number {
@@ -199,19 +208,57 @@ export function evaluateSpot(
         )
       : null;
 
-  // Overall score: best window score, or max hour score if no windows
-  const overallScore = bestWindow
-    ? bestWindow.avgScore
-    : hourScores.length > 0
-      ? Math.max(...hourScores.map((h) => h.score))
-      : 0;
+  // Group hours by date for per-day evaluations
+  const dateGroups = new Map<string, { scores: HourScore[]; forecast: ForecastHour[] }>();
+  for (let i = 0; i < hourScores.length; i++) {
+    const date = hourScores[i].time.slice(0, 10);
+    let group = dateGroups.get(date);
+    if (!group) {
+      group = { scores: [], forecast: [] };
+      dateGroups.set(date, group);
+    }
+    group.scores.push(hourScores[i]);
+    group.forecast.push(hours[i]);
+  }
 
-  const goNoGo: "go" | "marginal" | "no-go" =
-    bestWindow && bestWindow.avgScore >= 70
-      ? "go"
-      : bestWindow || overallScore >= 40
-        ? "marginal"
-        : "no-go";
+  const dayEvaluations: DayEvaluation[] = [];
+  for (const [date, group] of dateGroups) {
+    const dayWindows = findRideableWindows(
+      group.scores,
+      group.forecast,
+      criteria.minConsecutiveHours,
+      50,
+      sunrise,
+      sunset,
+    );
+    const dayBest = dayWindows.length > 0
+      ? dayWindows.reduce((best, w) => w.avgScore > best.avgScore ? w : best)
+      : null;
+    const dayScore = dayBest
+      ? dayBest.avgScore
+      : group.scores.length > 0
+        ? Math.max(...group.scores.map((h) => h.score))
+        : 0;
+    const dayGoNoGo: "go" | "marginal" | "no-go" =
+      dayBest && dayBest.avgScore >= 70
+        ? "go"
+        : dayBest || dayScore >= 40
+          ? "marginal"
+          : "no-go";
+
+    dayEvaluations.push({
+      date,
+      score: dayScore,
+      goNoGo: dayGoNoGo,
+      rideableWindows: dayWindows,
+      bestWindow: dayBest,
+    });
+  }
+
+  // Overall score and goNoGo reflect today (first day)
+  const todayEval = dayEvaluations[0];
+  const overallScore = todayEval ? todayEval.score : 0;
+  const goNoGo: "go" | "marginal" | "no-go" = todayEval ? todayEval.goNoGo : "no-go";
 
   return {
     overallScore,
@@ -219,6 +266,7 @@ export function evaluateSpot(
     hourScores,
     rideableWindows,
     bestWindow,
+    dayEvaluations,
   };
 }
 

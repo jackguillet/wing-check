@@ -22,23 +22,39 @@ import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-function GoNoGoBanner({ status, score }: { status: string; score: number }) {
-  const colors = {
-    go: "bg-green-600/10 border-green-600 text-green-700 dark:text-green-400",
-    marginal: "bg-yellow-500/10 border-yellow-500 text-yellow-700 dark:text-yellow-400",
-    "no-go": "bg-red-500/10 border-red-500 text-red-700 dark:text-red-400",
-  };
-  const color = colors[status as keyof typeof colors] ?? colors["no-go"];
+import type { DayEvaluation } from "@/lib/alerts/evaluator";
 
+const goNoGoColors = {
+  go: "bg-green-600/10 border-green-600 text-green-700 dark:text-green-400",
+  marginal: "bg-yellow-500/10 border-yellow-500 text-yellow-700 dark:text-yellow-400",
+  "no-go": "bg-red-500/10 border-red-500 text-red-700 dark:text-red-400",
+};
+
+function dayLabel(dateStr: string, index: number): string {
+  if (index === 0) return "Today";
+  const d = new Date(dateStr + "T00:00");
+  return d.toLocaleDateString("en-US", { weekday: "short" });
+}
+
+function ThreeDayBanner({ days }: { days: DayEvaluation[] }) {
+  const display = days.slice(0, 3);
   return (
-    <div className={`rounded-lg border-2 p-4 ${color}`}>
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-lg font-bold uppercase">{status}</p>
-          <p className="text-sm opacity-80">Overall condition score</p>
-        </div>
-        <p className="text-4xl font-bold">{score}</p>
-      </div>
+    <div className="grid grid-cols-3 gap-3">
+      {display.map((day, i) => {
+        const color = goNoGoColors[day.goNoGo];
+        return (
+          <div
+            key={day.date}
+            className={`rounded-lg border-2 p-4 ${color} ${i === 0 ? "ring-2 ring-offset-2 ring-offset-background ring-current" : ""}`}
+          >
+            <p className="text-xs font-medium opacity-70 mb-1">{dayLabel(day.date, i)}</p>
+            <div className="flex items-center justify-between">
+              <p className={`font-bold uppercase ${i === 0 ? "text-lg" : "text-sm"}`}>{day.goNoGo}</p>
+              <p className={`font-bold ${i === 0 ? "text-3xl" : "text-2xl"}`}>{day.score}</p>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -162,8 +178,8 @@ export default async function SpotDetailPage({
         </div>
       </div>
 
-      {evaluation && (
-        <GoNoGoBanner status={evaluation.goNoGo} score={evaluation.overallScore} />
+      {evaluation && evaluation.dayEvaluations.length > 0 && (
+        <ThreeDayBanner days={evaluation.dayEvaluations} />
       )}
 
       {overview && (

@@ -2,8 +2,7 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { Spot } from "@/lib/db/schema";
-import type { SpotEvaluation } from "@/lib/alerts/evaluator";
-import { degreesToCardinal } from "@/lib/weather/types";
+import type { SpotEvaluation, DayEvaluation } from "@/lib/alerts/evaluator";
 import { Heart } from "lucide-react";
 
 interface SpotCardProps {
@@ -23,7 +22,21 @@ function GoNoGoBadge({ status }: { status: "go" | "marginal" | "no-go" }) {
   }
 }
 
+const statusDot: Record<string, string> = {
+  go: "bg-green-500",
+  marginal: "bg-yellow-500",
+  "no-go": "bg-red-500",
+};
+
+function dayLabel(dateStr: string, index: number): string {
+  if (index === 0) return "Today";
+  const d = new Date(dateStr + "T00:00");
+  return d.toLocaleDateString("en-US", { weekday: "short" });
+}
+
 export function SpotCard({ spot, evaluation, isFavorite }: SpotCardProps) {
+  const days = evaluation?.dayEvaluations.slice(0, 3) ?? [];
+
   return (
     <Link href={`/spots/${spot.id}`}>
       <Card className="transition-colors hover:bg-accent/50">
@@ -35,32 +48,22 @@ export function SpotCard({ spot, evaluation, isFavorite }: SpotCardProps) {
           {evaluation && <GoNoGoBadge status={evaluation.goNoGo} />}
         </CardHeader>
         <CardContent>
-          {evaluation ? (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Score</span>
-                <span className="font-medium">{evaluation.overallScore}/100</span>
-              </div>
-              {evaluation.bestWindow && (
-                <div className="text-sm space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Best window</span>
-                    <span className="font-medium">
-                      {evaluation.bestWindow.avgWind}kt{" "}
-                      {degreesToCardinal(evaluation.bestWindow.dominantDirection)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Duration</span>
-                    <span>{evaluation.bestWindow.hours}h</span>
+          {days.length > 0 ? (
+            <div className="grid grid-cols-3 gap-2 text-center text-sm">
+              {days.map((day, i) => (
+                <div key={day.date} className="space-y-1">
+                  <p className="text-muted-foreground text-xs">{dayLabel(day.date, i)}</p>
+                  <div className="flex items-center justify-center gap-1.5">
+                    <span className={`inline-block h-2 w-2 rounded-full ${statusDot[day.goNoGo]}`} />
+                    <span className="font-medium">{day.score}</span>
                   </div>
                 </div>
-              )}
-              {evaluation.rideableWindows.length > 1 && (
-                <p className="text-xs text-muted-foreground">
-                  +{evaluation.rideableWindows.length - 1} more window(s)
-                </p>
-              )}
+              ))}
+            </div>
+          ) : evaluation ? (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Score</span>
+              <span className="font-medium">{evaluation.overallScore}/100</span>
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">Loading forecast...</p>
