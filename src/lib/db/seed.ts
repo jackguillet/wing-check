@@ -1,6 +1,6 @@
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
-import { eq, isNull } from "drizzle-orm";
+import { eq, inArray, isNull } from "drizzle-orm";
 import * as schema from "./schema";
 import { SYSTEM_USER_ID, TOP_SPOTS } from "../data/top-spots";
 import { findNearestStation } from "../weather/noaa-stations";
@@ -340,6 +340,7 @@ async function seed() {
     .where(isNull(schema.spots.noaaStationId));
 
   let backfilledCount = 0;
+  const backfilledIds: number[] = [];
   for (const spot of spotsWithoutStation) {
     const stationId = await findNearestStation(spot.latitude, spot.longitude);
     if (stationId) {
@@ -347,11 +348,19 @@ async function seed() {
         .update(schema.spots)
         .set({ noaaStationId: stationId })
         .where(eq(schema.spots.id, spot.id));
+      backfilledIds.push(spot.id);
       backfilledCount++;
       console.log(`  ${spot.name} → station ${stationId}`);
     }
   }
   console.log(`Backfilled NOAA station for ${backfilledCount}/${spotsWithoutStation.length} spots.`);
+
+  // Clear stale forecast cache for backfilled spots so fresh fetches pick up new station IDs
+  if (backfilledIds.length > 0) {
+    await db.delete(schema.forecastCache)
+      .where(inArray(schema.forecastCache.spotId, backfilledIds));
+    console.log(`Cleared forecast cache for ${backfilledIds.length} backfilled spots.`);
+  }
 }
 
 seed().catch(console.error);
