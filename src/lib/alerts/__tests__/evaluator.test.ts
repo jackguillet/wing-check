@@ -282,6 +282,40 @@ describe("evaluateSpot", () => {
     });
   });
 
+  it("limits dayEvaluations and rideableWindows to 3 days", () => {
+    const hours = [
+      // Day 1: Feb 14
+      makeHour({ time: "2026-02-14T10:00", windSpeed: 20, windGusts: 24, windDirection: 270 }),
+      makeHour({ time: "2026-02-14T11:00", windSpeed: 20, windGusts: 24, windDirection: 270 }),
+      makeHour({ time: "2026-02-14T12:00", windSpeed: 20, windGusts: 24, windDirection: 270 }),
+      // Day 2: Feb 15
+      makeHour({ time: "2026-02-15T10:00", windSpeed: 20, windGusts: 24, windDirection: 270 }),
+      makeHour({ time: "2026-02-15T11:00", windSpeed: 20, windGusts: 24, windDirection: 270 }),
+      // Day 3: Feb 16
+      makeHour({ time: "2026-02-16T10:00", windSpeed: 20, windGusts: 24, windDirection: 270 }),
+      makeHour({ time: "2026-02-16T11:00", windSpeed: 20, windGusts: 24, windDirection: 270 }),
+      // Day 4: Feb 17 — should be excluded
+      makeHour({ time: "2026-02-17T10:00", windSpeed: 20, windGusts: 24, windDirection: 270 }),
+      makeHour({ time: "2026-02-17T11:00", windSpeed: 20, windGusts: 24, windDirection: 270 }),
+      // Day 5: Feb 18 — should be excluded
+      makeHour({ time: "2026-02-18T10:00", windSpeed: 20, windGusts: 24, windDirection: 270 }),
+      makeHour({ time: "2026-02-18T11:00", windSpeed: 20, windGusts: 24, windDirection: 270 }),
+    ];
+
+    const result = evaluateSpot(hours, defaultCriteria);
+    expect(result.dayEvaluations).toHaveLength(3);
+    expect(result.dayEvaluations.map(d => d.date)).toEqual([
+      "2026-02-14", "2026-02-15", "2026-02-16",
+    ]);
+    // No rideable windows on day 4 or 5
+    for (const w of result.rideableWindows) {
+      expect(w.start.slice(0, 10) <= "2026-02-16").toBe(true);
+    }
+    // hourScores still includes all days (unfiltered)
+    expect(result.hourScores.some(h => h.time.startsWith("2026-02-17"))).toBe(true);
+    expect(result.hourScores.some(h => h.time.startsWith("2026-02-18"))).toBe(true);
+  });
+
   it("regression: Kanaha-like gusty conditions are not no-go", () => {
     // 11 kt wind, 32 kt gusts, NE direction (44°) — rideable for wing foiling
     const kanahaCriteria: AlertCriteria = {

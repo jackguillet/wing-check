@@ -207,13 +207,6 @@ export function evaluateSpot(
     sunset,
   );
 
-  const bestWindow =
-    rideableWindows.length > 0
-      ? rideableWindows.reduce((best, w) =>
-          w.avgScore > best.avgScore ? w : best
-        )
-      : null;
-
   // Group hours by date for per-day evaluations
   const dateGroups = new Map<string, { scores: HourScore[]; forecast: ForecastHour[] }>();
   for (let i = 0; i < hourScores.length; i++) {
@@ -261,8 +254,23 @@ export function evaluateSpot(
     });
   }
 
+  // Limit to first 3 days
+  const maxDays = 3;
+  const limitedDayEvals = dayEvaluations.slice(0, maxDays);
+  const cutoffDate = limitedDayEvals.length > 0
+    ? limitedDayEvals[limitedDayEvals.length - 1].date
+    : "";
+  const limitedWindows = rideableWindows.filter(w => w.start.slice(0, 10) <= cutoffDate);
+
+  const limitedBestWindow =
+    limitedWindows.length > 0
+      ? limitedWindows.reduce((best, w) =>
+          w.avgScore > best.avgScore ? w : best
+        )
+      : null;
+
   // Overall score and goNoGo reflect today (first day)
-  const todayEval = dayEvaluations[0];
+  const todayEval = limitedDayEvals[0];
   const overallScore = todayEval ? todayEval.score : 0;
   const goNoGo: "go" | "marginal" | "no-go" = todayEval ? todayEval.goNoGo : "no-go";
 
@@ -270,9 +278,9 @@ export function evaluateSpot(
     overallScore,
     goNoGo,
     hourScores,
-    rideableWindows,
-    bestWindow,
-    dayEvaluations,
+    rideableWindows: limitedWindows,
+    bestWindow: limitedBestWindow,
+    dayEvaluations: limitedDayEvals,
   };
 }
 
