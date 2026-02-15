@@ -4,7 +4,6 @@ import { getSpotWithCriteria, deleteSpot, updateSpotCriteria, getUserSpotPrefs, 
 import { getSpotForecast } from "@/lib/actions/forecasts";
 import { getSession } from "@/lib/auth-session";
 import { evaluateSpot, defaultCriteria } from "@/lib/alerts/evaluator";
-import { getOrGenerateOverview } from "@/lib/ai/overview";
 import { WindChart } from "@/components/wind-chart";
 import { SwellCard } from "@/components/swell-card";
 import { ForecastTable } from "@/components/forecast-table";
@@ -15,8 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { AlertCriteria, Spot } from "@/lib/db/schema";
-import type { ForecastHour } from "@/lib/weather/types";
+import type { AlertCriteria } from "@/lib/db/schema";
 import { degreesToCardinal } from "@/lib/weather/types";
 import { ForecastMap } from "@/components/forecast-map";
 import { Heart, Bell, Sparkles } from "lucide-react";
@@ -45,16 +43,33 @@ function GoNoGoBanner({ status, score }: { status: string; score: number }) {
   );
 }
 
-async function SpotOverviewSection({
-  spot,
-  hours,
-  criteria,
-}: {
-  spot: Spot;
-  hours: ForecastHour[];
-  criteria: AlertCriteria;
-}) {
-  const overview = await getOrGenerateOverview(spot, hours, criteria);
+async function SpotOverviewSection({ spotId }: { spotId: number }) {
+  const { generateOverviewForSpot } = await import("@/lib/ai/overview");
+  const { db } = await import("@/lib/db");
+  const { spotOverviews } = await import("@/lib/db/schema");
+  const { eq } = await import("drizzle-orm");
+
+  // Check for cached overview first
+  const cached = await db
+    .select()
+    .from(spotOverviews)
+    .where(eq(spotOverviews.spotId, spotId));
+
+  const now = new Date();
+  let overview = cached.find((row) => row.expiresAt > now) ?? null;
+
+  // Generate if no fresh cache
+  if (!overview) {
+    const result = await generateOverviewForSpot(spotId);
+    if (result.success) {
+      const rows = await db
+        .select()
+        .from(spotOverviews)
+        .where(eq(spotOverviews.spotId, spotId));
+      overview = rows.find((row) => row.expiresAt > now) ?? null;
+    }
+  }
+
   if (!overview) return null;
 
   return (
@@ -193,15 +208,9 @@ export default async function SpotDetailPage({
         <GoNoGoBanner status={evaluation.goNoGo} score={evaluation.overallScore} />
       )}
 
-      {forecast && (
-        <Suspense fallback={<OverviewSkeleton />}>
-          <SpotOverviewSection
-            spot={spot}
-            hours={forecast.hours}
-            criteria={criteria}
-          />
-        </Suspense>
-      )}
+      <Suspense fallback={<OverviewSkeleton />}>
+        <SpotOverviewSection spotId={spot.id} />
+      </Suspense>
 
       {evaluation && evaluation.rideableWindows.length > 0 && (
         <Card>
