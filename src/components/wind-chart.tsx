@@ -15,7 +15,7 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { localHour, type ForecastHour } from "@/lib/weather/types";
+import type { ForecastHour } from "@/lib/weather/types";
 import type { AlertCriteria } from "@/lib/db/schema";
 import { format, parseISO } from "date-fns";
 
@@ -38,10 +38,6 @@ const chartConfig = {
 export function WindChart({ hours, criteria }: WindChartProps) {
   const data = hours
     .slice(0, 72)
-    .filter((h) => {
-      const hr = localHour(h.time);
-      return hr >= 5 && hr <= 21;
-    })
     .map((h) => ({
       time: h.time,
       label: format(parseISO(h.time), "EEE HH:mm"),
