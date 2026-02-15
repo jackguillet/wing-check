@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getSession, requireSession } from "@/lib/auth-session";
 import { findNearestStation } from "@/lib/weather/noaa-stations";
+import { generateUniqueSlug } from "@/lib/slugify";
 
 export async function getSpots() {
   return db.select().from(spots);
@@ -32,6 +33,28 @@ export async function getSpotWithCriteria(id: number) {
     .select()
     .from(alertCriteria)
     .where(eq(alertCriteria.spotId, id));
+  return { spot, criteria: criteriaRows[0] ?? null };
+}
+
+export async function getSpotBySlug(slug: string) {
+  const rows = await db
+    .select()
+    .from(spots)
+    .where(eq(spots.slug, slug));
+  return rows[0] ?? null;
+}
+
+export async function getSpotWithCriteriaBySlug(slug: string) {
+  const spotRows = await db
+    .select()
+    .from(spots)
+    .where(eq(spots.slug, slug));
+  const spot = spotRows[0];
+  if (!spot) return null;
+  const criteriaRows = await db
+    .select()
+    .from(alertCriteria)
+    .where(eq(alertCriteria.spotId, spot.id));
   return { spot, criteria: criteriaRows[0] ?? null };
 }
 
@@ -67,9 +90,14 @@ export async function createSpot(formData: FormData) {
   const maxWaveStr = formData.get("maxWaveHeight") as string;
   const maxWave = maxWaveStr ? parseFloat(maxWaveStr) : null;
 
+  // Generate unique slug
+  const existingRows = await db.select({ slug: spots.slug }).from(spots);
+  const existingSlugs = new Set(existingRows.map((r) => r.slug).filter(Boolean) as string[]);
+  const slug = generateUniqueSlug(name, existingSlugs);
+
   const insertResult = await db
     .insert(spots)
-    .values({ name, latitude, longitude, noaaStationId, notes, userId: user.id })
+    .values({ name, slug, latitude, longitude, noaaStationId, notes, userId: user.id })
     .returning();
   const inserted = insertResult[0];
 
@@ -152,7 +180,7 @@ export async function updateSpotCriteria(spotId: number, formData: FormData) {
     await db.insert(alertCriteria).values(values);
   }
 
-  revalidatePath(`/spots/${spotId}`);
+  revalidatePath(`/spots/${spotRows[0].slug}`);
   revalidatePath("/");
 }
 
@@ -170,7 +198,7 @@ export async function updateSpotNotes(spotId: number, notes: string) {
     .set({ notes: notes.trim() || null })
     .where(eq(spots.id, spotId));
 
-  revalidatePath(`/spots/${spotId}`);
+  revalidatePath(`/spots/${spotRows[0].slug}`);
   revalidatePath("/");
 }
 
@@ -206,9 +234,10 @@ export async function toggleFavorite(spotId: number) {
     });
   }
 
+  const spotRow = await db.select({ slug: spots.slug }).from(spots).where(eq(spots.id, spotId));
   revalidatePath("/");
   revalidatePath("/spots");
-  revalidatePath(`/spots/${spotId}`);
+  revalidatePath(`/spots/${spotRow[0]?.slug}`);
 }
 
 export async function toggleSpotAlerts(spotId: number) {
@@ -233,7 +262,8 @@ export async function toggleSpotAlerts(spotId: number) {
     });
   }
 
-  revalidatePath(`/spots/${spotId}`);
+  const spotRow = await db.select({ slug: spots.slug }).from(spots).where(eq(spots.id, spotId));
+  revalidatePath(`/spots/${spotRow[0]?.slug}`);
 }
 
 export async function getUserFavoriteSpotIds(): Promise<Set<number>> {

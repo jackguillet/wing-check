@@ -91,20 +91,25 @@ export const verification = sqliteTable(
 
 // ── App tables ──────────────────────────────────────────────────────
 
-export const spots = sqliteTable("spots", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  userId: text("user_id")
-    .notNull()
-    .references(() => user.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  latitude: real("latitude").notNull(),
-  longitude: real("longitude").notNull(),
-  noaaStationId: text("noaa_station_id"),
-  notes: text("notes"),
-  createdAt: integer("created_at", { mode: "timestamp" })
-    .notNull()
-    .$defaultFn(() => new Date()),
-});
+export const spots = sqliteTable(
+  "spots",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    slug: text("slug"),
+    latitude: real("latitude").notNull(),
+    longitude: real("longitude").notNull(),
+    noaaStationId: text("noaa_station_id"),
+    notes: text("notes"),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [uniqueIndex("spots_slug_uniq").on(table.slug)],
+);
 
 export const userSpots = sqliteTable(
   "user_spots",

@@ -4,6 +4,7 @@ import { eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import * as schema from "./schema";
 import { SYSTEM_USER_ID, TOP_SPOTS } from "../data/top-spots";
 import { findNearestStation, validateStation } from "../weather/noaa-stations";
+import { slugify, generateUniqueSlug } from "../slugify";
 
 const client = createClient({
   url: process.env.TURSO_DATABASE_URL!,
@@ -158,6 +159,7 @@ async function seed() {
       .values({
         userId: DEMO_USER_ID,
         name: "Crissy Field",
+        slug: slugify("Crissy Field"),
         latitude: 37.8045,
         longitude: -122.4654,
         noaaStationId: "9414290",
@@ -183,6 +185,7 @@ async function seed() {
       .values({
         userId: DEMO_USER_ID,
         name: "Ho'okipa Beach",
+        slug: slugify("Ho'okipa Beach"),
         latitude: 20.9342,
         longitude: -156.3558,
         notes: "Maui north shore. Afternoon trades are best. Advanced riders only when big.",
@@ -253,21 +256,26 @@ async function seed() {
     console.log("Created system user.");
   }
 
-  // Fetch existing spot names to avoid duplicates
+  // Fetch existing spot names + slugs to avoid duplicates
   const existingSpots = await db
-    .select({ name: schema.spots.name })
+    .select({ name: schema.spots.name, slug: schema.spots.slug })
     .from(schema.spots);
   const existingNames = new Set(existingSpots.map((s) => s.name));
+  const existingSlugs = new Set(existingSpots.map((s) => s.slug).filter(Boolean) as string[]);
 
   let seededCount = 0;
   for (const topSpot of TOP_SPOTS) {
     if (existingNames.has(topSpot.name)) continue;
+
+    const spotSlug = generateUniqueSlug(topSpot.name, existingSlugs);
+    existingSlugs.add(spotSlug);
 
     const insertResult = await db
       .insert(schema.spots)
       .values({
         userId: SYSTEM_USER_ID,
         name: topSpot.name,
+        slug: spotSlug,
         latitude: topSpot.latitude,
         longitude: topSpot.longitude,
         noaaStationId: topSpot.noaaStationId ?? null,
@@ -391,6 +399,31 @@ async function seed() {
     }
   }
   console.log(`Re-validated ${revalidatedCount} stations.`);
+
+  // ── Backfill slugs for spots missing them ──
+  const spotsWithoutSlug = await db
+    .select({ id: schema.spots.id, name: schema.spots.name })
+    .from(schema.spots)
+    .where(isNull(schema.spots.slug));
+
+  if (spotsWithoutSlug.length > 0) {
+    const allSlugs = await db
+      .select({ slug: schema.spots.slug })
+      .from(schema.spots);
+    const slugSet = new Set(allSlugs.map((s) => s.slug).filter(Boolean) as string[]);
+
+    let slugBackfillCount = 0;
+    for (const spot of spotsWithoutSlug) {
+      const newSlug = generateUniqueSlug(spot.name, slugSet);
+      slugSet.add(newSlug);
+      await db
+        .update(schema.spots)
+        .set({ slug: newSlug })
+        .where(eq(schema.spots.id, spot.id));
+      slugBackfillCount++;
+    }
+    console.log(`Backfilled slugs for ${slugBackfillCount} spots.`);
+  }
 
   // Clear stale forecast cache for backfilled/re-validated spots
   if (backfilledIds.length > 0) {

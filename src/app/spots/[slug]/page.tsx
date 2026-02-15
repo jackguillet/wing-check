@@ -1,6 +1,6 @@
 import { Suspense } from "react";
-import { notFound } from "next/navigation";
-import { getSpotWithCriteria, deleteSpot, updateSpotCriteria, updateSpotNotes, getUserSpotPrefs, toggleFavorite, toggleSpotAlerts } from "@/lib/actions/spots";
+import { notFound, redirect } from "next/navigation";
+import { getSpot, getSpotWithCriteriaBySlug, deleteSpot, updateSpotCriteria, updateSpotNotes, getUserSpotPrefs, toggleFavorite, toggleSpotAlerts } from "@/lib/actions/spots";
 import { getSpotForecast } from "@/lib/actions/forecasts";
 import { getSession } from "@/lib/auth-session";
 import { evaluateSpot, defaultCriteria } from "@/lib/alerts/evaluator";
@@ -123,20 +123,25 @@ function ThreeDayBanner({ days }: { days: DayEvaluation[] }) {
 export default async function SpotDetailPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ slug: string }>;
 }) {
-  const { id } = await params;
-  const spotId = parseInt(id);
-  if (isNaN(spotId)) notFound();
+  const { slug } = await params;
+
+  // Backward-compat: if slug is all digits, look up by numeric ID and redirect
+  if (/^\d+$/.test(slug)) {
+    const spot = await getSpot(parseInt(slug));
+    if (!spot || !spot.slug) notFound();
+    redirect(`/spots/${spot.slug}`);
+  }
 
   const session = await getSession();
-  const spotData = await getSpotWithCriteria(spotId);
+  const spotData = await getSpotWithCriteriaBySlug(slug);
   if (!spotData) notFound();
 
   const { spot, criteria: rawCriteria } = spotData;
   const isOwner = session?.user?.id === spot.userId;
   const isAuthenticated = !!session?.user;
-  const userSpotPrefs = isAuthenticated ? await getUserSpotPrefs(spotId) : null;
+  const userSpotPrefs = isAuthenticated ? await getUserSpotPrefs(spot.id) : null;
   const criteria: AlertCriteria = rawCriteria ?? {
     id: 0,
     spotId: spot.id,

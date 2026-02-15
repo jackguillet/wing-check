@@ -74,7 +74,7 @@ export function SpotsTable({ spots, favoriteIds }: SpotsTableProps) {
                   </TableCell>
                   <TableCell>
                     <Link
-                      href={`/spots/${spot.id}`}
+                      href={`/spots/${spot.slug}`}
                       className="font-medium hover:underline"
                     >
                       {spot.name}

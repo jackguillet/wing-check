@@ -38,7 +38,7 @@ export function SpotCard({ spot, evaluation, isFavorite }: SpotCardProps) {
   const days = evaluation?.dayEvaluations.slice(0, 3) ?? [];
 
   return (
-    <Link href={`/spots/${spot.id}`}>
+    <Link href={`/spots/${spot.slug}`}>
       <Card className="transition-colors hover:bg-accent/50">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-lg flex items-center gap-1.5">
