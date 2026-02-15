@@ -46,6 +46,34 @@ async function fetchStations(): Promise<NOAAStation[]> {
   return stations;
 }
 
+export async function validateStation(stationId: string): Promise<boolean> {
+  const today = new Date();
+  const fmt = (d: Date) =>
+    `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+  const params = new URLSearchParams({
+    begin_date: fmt(today),
+    end_date: fmt(today),
+    station: stationId,
+    product: "predictions",
+    datum: "MLLW",
+    units: "metric",
+    time_zone: "lst_ldt",
+    application: "wing-check",
+    format: "json",
+    interval: "h",
+  });
+  try {
+    const res = await fetch(
+      `https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?${params}`
+    );
+    if (!res.ok) return false;
+    const data = await res.json();
+    return Array.isArray(data?.predictions) && data.predictions.length > 0;
+  } catch {
+    return false;
+  }
+}
+
 export async function findNearestStation(
   lat: number,
   lng: number
@@ -54,18 +82,16 @@ export async function findNearestStation(
     const stations = await fetchStations();
     if (stations.length === 0) return null;
 
-    let bestId: string | null = null;
-    let bestDist = Infinity;
+    const candidates = stations
+      .map((s) => ({ id: s.id, dist: haversineKm(lat, lng, s.lat, s.lng) }))
+      .filter((c) => c.dist <= MAX_DISTANCE_KM)
+      .sort((a, b) => a.dist - b.dist);
 
-    for (const s of stations) {
-      const d = haversineKm(lat, lng, s.lat, s.lng);
-      if (d < bestDist) {
-        bestDist = d;
-        bestId = s.id;
-      }
+    for (const c of candidates) {
+      if (await validateStation(c.id)) return c.id;
     }
 
-    return bestDist <= MAX_DISTANCE_KM ? bestId : null;
+    return null;
   } catch {
     return null;
   }

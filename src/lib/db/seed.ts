@@ -1,9 +1,9 @@
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
-import { eq, inArray, isNull } from "drizzle-orm";
+import { eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import * as schema from "./schema";
 import { SYSTEM_USER_ID, TOP_SPOTS } from "../data/top-spots";
-import { findNearestStation } from "../weather/noaa-stations";
+import { findNearestStation, validateStation } from "../weather/noaa-stations";
 
 const client = createClient({
   url: process.env.TURSO_DATABASE_URL!,
@@ -355,11 +355,48 @@ async function seed() {
   }
   console.log(`Backfilled NOAA station for ${backfilledCount}/${spotsWithoutStation.length} spots.`);
 
-  // Clear stale forecast cache for backfilled spots so fresh fetches pick up new station IDs
+  // ── Validate existing NOAA stations ──
+  const spotsWithStation = await db
+    .select({
+      id: schema.spots.id,
+      name: schema.spots.name,
+      latitude: schema.spots.latitude,
+      longitude: schema.spots.longitude,
+      noaaStationId: schema.spots.noaaStationId,
+    })
+    .from(schema.spots)
+    .where(isNotNull(schema.spots.noaaStationId));
+
+  let revalidatedCount = 0;
+  for (const spot of spotsWithStation) {
+    const valid = await validateStation(spot.noaaStationId!);
+    if (!valid) {
+      const newStation = await findNearestStation(spot.latitude, spot.longitude);
+      if (newStation && newStation !== spot.noaaStationId) {
+        await db
+          .update(schema.spots)
+          .set({ noaaStationId: newStation })
+          .where(eq(schema.spots.id, spot.id));
+        backfilledIds.push(spot.id);
+        revalidatedCount++;
+        console.log(`  ${spot.name}: ${spot.noaaStationId} → ${newStation}`);
+      } else {
+        await db
+          .update(schema.spots)
+          .set({ noaaStationId: null })
+          .where(eq(schema.spots.id, spot.id));
+        backfilledIds.push(spot.id);
+        console.log(`  ${spot.name}: ${spot.noaaStationId} → none (no valid station)`);
+      }
+    }
+  }
+  console.log(`Re-validated ${revalidatedCount} stations.`);
+
+  // Clear stale forecast cache for backfilled/re-validated spots
   if (backfilledIds.length > 0) {
     await db.delete(schema.forecastCache)
       .where(inArray(schema.forecastCache.spotId, backfilledIds));
-    console.log(`Cleared forecast cache for ${backfilledIds.length} backfilled spots.`);
+    console.log(`Cleared forecast cache for ${backfilledIds.length} spots.`);
   }
 }
 
