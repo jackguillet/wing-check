@@ -8,12 +8,15 @@ import { degreesToCardinal } from "@/lib/weather/types";
 import { getWindColor } from "@/lib/weather/colors";
 import type { ForecastHour } from "@/lib/weather/types";
 import { format } from "date-fns";
+import { SolarPosition } from "@/components/ui/solar-position";
 
 interface ForecastMapProps {
   spotId: number;
   lat: number;
   lng: number;
   hours: ForecastHour[];
+  sunrise: string[];
+  sunset: string[];
 }
 
 function drawArrow(
@@ -64,6 +67,8 @@ export function ForecastMap({
   lat,
   lng,
   hours,
+  sunrise,
+  sunset,
 }: ForecastMapProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -95,6 +100,28 @@ export function ForecastMap({
     return segments.flatMap((seg) => interpolateForecasts(seg, 30));
   }, [displayHours]);
   const maxIndex = Math.max(interpolated.length - 1, 0);
+
+  // Build date-keyed sunrise/sunset lookup
+  const sunTimesMap = useMemo(() => {
+    const map = new Map<string, { sunrise: Date; sunset: Date }>();
+    for (const sr of sunrise) {
+      const date = sr.substring(0, 10);
+      map.set(date, {
+        sunrise: new Date(sr),
+        sunset: map.get(date)?.sunset ?? new Date(sr),
+      });
+    }
+    for (const ss of sunset) {
+      const date = ss.substring(0, 10);
+      const existing = map.get(date);
+      if (existing) {
+        existing.sunset = new Date(ss);
+      } else {
+        map.set(date, { sunrise: new Date(ss), sunset: new Date(ss) });
+      }
+    }
+    return map;
+  }, [sunrise, sunset]);
 
   // Load satellite image
   useEffect(() => {
@@ -229,13 +256,29 @@ export function ForecastMap({
             />
           </div>
           {current && (
-            <div className="text-center">
-              <p className="text-xs text-muted-foreground">
-                {format(current.time, "EEEE d MMM")}
-              </p>
-              <p className="text-lg font-semibold tabular-nums">
+            <div className="flex items-center justify-center gap-2">
+              <span className="text-sm font-semibold">
+                {format(current.time, "EEEE")}
+              </span>
+              {(() => {
+                const t = current.time instanceof Date ? current.time : new Date(current.time);
+                const dateKey = t.toISOString().substring(0, 10);
+                const sun = sunTimesMap.get(dateKey);
+                if (!sun) return null;
+                return (
+                  <SolarPosition
+                    currentTime={new Date(current.time)}
+                    sunrise={sun.sunrise}
+                    sunset={sun.sunset}
+                  />
+                );
+              })()}
+              <span className="text-lg font-semibold tabular-nums">
                 {format(current.time, "HH:mm")}
-              </p>
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {format(current.time, "d MMM")}
+              </span>
             </div>
           )}
         </div>

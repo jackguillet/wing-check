@@ -205,6 +205,8 @@ export function ForecastSection({
             lat={lat}
             lng={lng}
             hours={filteredHours}
+            sunrise={sunrise}
+            sunset={sunset}
           />
           <Card>
             <CardHeader>
@@ -264,6 +266,8 @@ export function ForecastSection({
           lat={lat}
           lng={lng}
           hours={filteredHours}
+          sunrise={sunrise}
+          sunset={sunset}
         />
       )}
 
