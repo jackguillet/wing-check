@@ -141,39 +141,28 @@ async function generateSpotOverview(
   const response = await client.messages.create({
     model: MODEL,
     max_tokens: 300,
-    system: `You are a concise wing foiling weather analyst writing for experienced riders. Write a single short paragraph (50-80 words max) summarizing today's conditions: wind range, direction, best window, and swell if relevant. Don't explain basic concepts or restate the rider's own criteria — they already know what they need. Only mention web search findings if they reveal something genuinely noteworthy (storm warnings, unusual conditions, local hazard reports). End with a bold **Bottom line:** one-sentence go/no-go verdict.
-
-IMPORTANT: Wrap your entire final overview text in <overview>...</overview> tags.`,
-    tools: [
-      {
-        type: "web_search_20250305",
-        name: "web_search",
-        max_uses: 3,
-      },
-    ],
+    system: `You are a concise wing foiling weather analyst writing for experienced riders.
+Write a single short paragraph (50-80 words max) summarizing today's conditions:
+wind range, direction, best window, and swell if relevant. Don't explain basic
+concepts or restate the rider's criteria — they already know what they need.
+End with a bold **Bottom line:** one-sentence go/no-go verdict.`,
     messages: [
       {
         role: "user",
         content: `Generate a daily wing foiling overview for ${spot.name} (${spot.latitude.toFixed(4)}°, ${spot.longitude.toFixed(4)}°).
 
 Here's the forecast data and evaluation:
-${forecastSummary}
-
-Search for any recent local wind or wing foiling reports near this spot if relevant, then write the overview.`,
+${forecastSummary}`,
       },
     ],
   });
 
-  // Extract text blocks and parse <overview> tags
+  // Extract text — without tools there's a single text block
   const textParts = response.content
     .filter((block): block is Anthropic.TextBlock => block.type === "text")
     .map((block) => block.text);
 
-  const joined = textParts.join("");
-  const tagMatch = joined.match(/<overview>([\s\S]*?)<\/overview>/);
-  const overview = tagMatch
-    ? tagMatch[1].trim()
-    : joined.replace(/^[,;.\s]+/, "").trim();
+  const overview = textParts.join("").trim();
 
   return { overview, forecastSummary };
 }
