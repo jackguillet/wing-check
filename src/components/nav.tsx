@@ -12,7 +12,6 @@ const publicLinks = [
 ];
 
 const authLinks = [
-  { href: "/spots/new", label: "Add Spot" },
   { href: "/settings", label: "Settings" },
 ];
 
