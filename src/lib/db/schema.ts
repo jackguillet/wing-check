@@ -144,7 +144,7 @@ export const alertCriteria = sqliteTable("alert_criteria", {
   preferredDirections: text("preferred_directions").notNull().default("[]"),
   directionTolerance: real("direction_tolerance").notNull().default(45),
   minConsecutiveHours: integer("min_consecutive_hours").notNull().default(2),
-  maxWaveHeight: real("max_wave_height"),
+  maxWaveHeight: real("max_wave_height").default(1.5),
 });
 
 export const forecastCache = sqliteTable("forecast_cache", {

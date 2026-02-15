@@ -8,6 +8,7 @@ export interface HourScore {
   gustOk: boolean;
   directionOk: boolean;
   waveOk: boolean;
+  weatherOk: boolean;
 }
 
 export interface RideableWindow {
@@ -43,6 +44,9 @@ function angleDifference(a: number, b: number): number {
   return diff;
 }
 
+const THUNDERSTORM_CODES = new Set([95, 96, 99]);
+const MAX_GUST_SPREAD_KT = 10;
+
 function scoreHour(hour: ForecastHour, criteria: AlertCriteria): HourScore {
   const preferredDirs: number[] = JSON.parse(criteria.preferredDirections);
 
@@ -51,7 +55,8 @@ function scoreHour(hour: ForecastHour, criteria: AlertCriteria): HourScore {
     hour.windSpeed <= criteria.maxWindSpeed;
 
   const gustOk =
-    hour.windGusts <= hour.windSpeed * criteria.maxGustFactor;
+    hour.windGusts <= hour.windSpeed * criteria.maxGustFactor &&
+    (hour.windGusts - hour.windSpeed) <= MAX_GUST_SPREAD_KT;
 
   const directionOk =
     preferredDirs.length === 0 ||
@@ -64,12 +69,14 @@ function scoreHour(hour: ForecastHour, criteria: AlertCriteria): HourScore {
     hour.waveHeight == null ||
     hour.waveHeight <= criteria.maxWaveHeight;
 
-  // Early exit: wind and gusts are hard prerequisites
-  if (!windOk || !gustOk) {
+  const weatherOk = !THUNDERSTORM_CODES.has(hour.weatherCode);
+
+  // Early exit: wind, gusts, and weather are hard prerequisites
+  if (!windOk || !gustOk || !weatherOk) {
     return {
       time: hour.time,
       score: 0,
-      windOk, gustOk, directionOk, waveOk,
+      windOk, gustOk, directionOk, waveOk, weatherOk,
     };
   }
 
@@ -79,7 +86,7 @@ function scoreHour(hour: ForecastHour, criteria: AlertCriteria): HourScore {
   const midpoint = (criteria.minWindSpeed + criteria.maxWindSpeed) / 2;
   const range = (criteria.maxWindSpeed - criteria.minWindSpeed) / 2;
   const deviation = Math.abs(hour.windSpeed - midpoint) / range;
-  score += 40 * (1 - deviation * 0.5);
+  score += 40 * (1 - deviation);
 
   // Gust scoring (0-25 points) — clamped to [0, 25]
   const gustRatio = hour.windGusts / hour.windSpeed;
@@ -112,6 +119,7 @@ function scoreHour(hour: ForecastHour, criteria: AlertCriteria): HourScore {
     gustOk,
     directionOk,
     waveOk,
+    weatherOk,
   };
 }
 
@@ -277,5 +285,5 @@ export const defaultCriteria: Omit<AlertCriteria, "id" | "spotId"> = {
   preferredDirections: "[]",
   directionTolerance: 45,
   minConsecutiveHours: 2,
-  maxWaveHeight: null,
+  maxWaveHeight: 1.5,
 };

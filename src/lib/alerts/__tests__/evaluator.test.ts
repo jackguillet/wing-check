@@ -73,6 +73,60 @@ describe("evaluateSpot", () => {
     expect(result.rideableWindows).toHaveLength(0);
   });
 
+  it("scores zero during thunderstorms (hard gate)", () => {
+    const hours = makeHours(3, { windSpeed: 20, windGusts: 24, windDirection: 270, weatherCode: 95 });
+    const result = evaluateSpot(hours, defaultCriteria);
+
+    for (const s of result.hourScores) {
+      expect(s.score).toBe(0);
+      expect(s.weatherOk).toBe(false);
+    }
+    expect(result.goNoGo).toBe("no-go");
+  });
+
+  it("passes weather gate with normal weather code", () => {
+    const hours = makeHours(3, { windSpeed: 20, windGusts: 24, windDirection: 270, weatherCode: 3 });
+    const result = evaluateSpot(hours, defaultCriteria);
+
+    for (const s of result.hourScores) {
+      expect(s.score).toBeGreaterThan(0);
+      expect(s.weatherOk).toBe(true);
+    }
+  });
+
+  it("fails gust gate when absolute spread exceeds 10 kt", () => {
+    // 25 kt wind, 36 kt gusts: ratio 1.44 (under 1.5), but spread = 11 kt
+    const hours = makeHours(3, { windSpeed: 25, windGusts: 36, windDirection: 270 });
+    const result = evaluateSpot(hours, defaultCriteria);
+
+    for (const s of result.hourScores) {
+      expect(s.score).toBe(0);
+      expect(s.gustOk).toBe(false);
+    }
+  });
+
+  it("passes gust gate when spread is exactly 10 kt", () => {
+    // 25 kt wind, 35 kt gusts: ratio 1.4, spread = 10 kt
+    const hours = makeHours(3, { windSpeed: 25, windGusts: 35, windDirection: 270 });
+    const result = evaluateSpot(hours, defaultCriteria);
+
+    for (const s of result.hourScores) {
+      expect(s.score).toBeGreaterThan(0);
+      expect(s.gustOk).toBe(true);
+    }
+  });
+
+  it("passes gust gate when ratio and spread are both within limits", () => {
+    // 15 kt wind, 22 kt gusts: ratio 1.47, spread = 7 kt
+    const hours = makeHours(3, { windSpeed: 15, windGusts: 22, windDirection: 270 });
+    const result = evaluateSpot(hours, defaultCriteria);
+
+    for (const s of result.hourScores) {
+      expect(s.score).toBeGreaterThan(0);
+      expect(s.gustOk).toBe(true);
+    }
+  });
+
   it("penalizes gusty conditions", () => {
     const steadyHours = makeHours(3, { windSpeed: 20, windGusts: 22 });
     const gustyHours = makeHours(3, { windSpeed: 20, windGusts: 29 });
