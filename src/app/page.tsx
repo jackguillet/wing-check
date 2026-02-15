@@ -49,7 +49,7 @@ export default async function DashboardPage() {
           ...defaultCriteria,
         };
 
-        const evaluation = evaluateSpot(forecast.hours, criteria);
+        const evaluation = evaluateSpot(forecast.hours, criteria, forecast.sunrise, forecast.sunset);
         return { spot, evaluation, isFavorite: favoriteIds.has(spot.id) };
       } catch {
         return { spot, evaluation: null, isFavorite: favoriteIds.has(spot.id) };

@@ -64,7 +64,7 @@ export async function GET(request: Request) {
       ]);
       const hours = mergeForecasts(weather, marine);
 
-      const evaluation = evaluateSpot(hours, criteria);
+      const evaluation = evaluateSpot(hours, criteria, weather.daily?.sunrise, weather.daily?.sunset);
 
       if (
         evaluation.goNoGo === "go" &&

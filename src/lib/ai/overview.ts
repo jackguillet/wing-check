@@ -33,6 +33,8 @@ export function buildForecastSummary(
   spot: Spot,
   hours: ForecastHour[],
   criteria: AlertCriteria,
+  sunrise?: string[],
+  sunset?: string[],
 ) {
   // Group hours by day (first 72h)
   const next72h = hours.slice(0, 72);
@@ -89,7 +91,7 @@ export function buildForecastSummary(
   }
 
   // Evaluation results
-  const evaluation = evaluateSpot(hours, criteria);
+  const evaluation = evaluateSpot(hours, criteria, sunrise, sunset);
 
   const windows = evaluation.rideableWindows.map((w) => ({
     start: w.start,
@@ -128,8 +130,10 @@ async function generateSpotOverview(
   spot: Spot,
   hours: ForecastHour[],
   criteria: AlertCriteria,
+  sunrise?: string[],
+  sunset?: string[],
 ): Promise<{ overview: string; forecastSummary: string }> {
-  const summary = buildForecastSummary(spot, hours, criteria);
+  const summary = buildForecastSummary(spot, hours, criteria, sunrise, sunset);
   const forecastSummary = JSON.stringify(summary);
 
   const client = getClient();
@@ -174,6 +178,8 @@ export async function getOrGenerateOverview(
   spot: Spot,
   hours: ForecastHour[],
   criteria: AlertCriteria,
+  sunrise?: string[],
+  sunset?: string[],
 ): Promise<SpotOverview | null> {
   // Check for fresh cached overview
   const now = new Date();
@@ -190,6 +196,8 @@ export async function getOrGenerateOverview(
       spot,
       hours,
       criteria,
+      sunrise,
+      sunset,
     );
 
     // Delete old entries

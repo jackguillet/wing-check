@@ -71,7 +71,7 @@ export default async function SpotDetailPage({
   try {
     forecast = await getSpotForecast(spot.id);
     if (forecast) {
-      evaluation = evaluateSpot(forecast.hours, criteria);
+      evaluation = evaluateSpot(forecast.hours, criteria, forecast.sunrise, forecast.sunset);
     }
   } catch (e) {
     console.error("Failed to load forecast:", e);
@@ -80,7 +80,7 @@ export default async function SpotDetailPage({
   let overview = null;
   if (forecast) {
     try {
-      overview = await getOrGenerateOverview(spot, forecast.hours, criteria);
+      overview = await getOrGenerateOverview(spot, forecast.hours, criteria, forecast.sunrise, forecast.sunset);
     } catch (e) {
       console.error("Failed to load overview:", e);
     }

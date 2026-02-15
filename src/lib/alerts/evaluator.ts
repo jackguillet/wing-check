@@ -100,17 +100,32 @@ function scoreHour(hour: ForecastHour, criteria: AlertCriteria): HourScore {
   };
 }
 
+function isDaytime(
+  time: string,
+  sunrise: string[],
+  sunset: string[],
+): boolean {
+  const datePrefix = time.slice(0, 10);
+  const rise = sunrise.find((s) => s.startsWith(datePrefix));
+  const set = sunset.find((s) => s.startsWith(datePrefix));
+  if (!rise || !set) return true;
+  return time >= rise && time <= set;
+}
+
 function findRideableWindows(
   hourScores: HourScore[],
   hours: ForecastHour[],
   minConsecutiveHours: number,
-  threshold: number = 50
+  threshold: number = 50,
+  sunrise?: string[],
+  sunset?: string[],
 ): RideableWindow[] {
   const windows: RideableWindow[] = [];
   let windowStart = -1;
 
   for (let i = 0; i <= hourScores.length; i++) {
-    const isGood = i < hourScores.length && hourScores[i].score >= threshold;
+    const daytime = sunrise && sunset ? isDaytime(hourScores[i]?.time ?? "", sunrise, sunset) : true;
+    const isGood = i < hourScores.length && daytime && hourScores[i].score >= threshold;
 
     if (isGood && windowStart === -1) {
       windowStart = i;
@@ -157,13 +172,18 @@ function findRideableWindows(
 
 export function evaluateSpot(
   hours: ForecastHour[],
-  criteria: AlertCriteria
+  criteria: AlertCriteria,
+  sunrise?: string[],
+  sunset?: string[],
 ): SpotEvaluation {
   const hourScores = hours.map((h) => scoreHour(h, criteria));
   const rideableWindows = findRideableWindows(
     hourScores,
     hours,
-    criteria.minConsecutiveHours
+    criteria.minConsecutiveHours,
+    50,
+    sunrise,
+    sunset,
   );
 
   const bestWindow =
