@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import type { ForecastHour } from "@/lib/weather/types";
 import type { HourScore } from "@/lib/alerts/evaluator";
 import { degreesToCardinal, weatherCodeToDescription } from "@/lib/weather/types";
+import { getWindColor, getGustColor } from "@/lib/weather/colors";
 import { format, parseISO } from "date-fns";
 
 interface ForecastTableProps {
@@ -53,10 +54,12 @@ export function ForecastTable({ hours, hourScores }: ForecastTableProps) {
                 <TableCell className="whitespace-nowrap text-sm">
                   {format(parseISO(h.time), "EEE HH:mm")}
                 </TableCell>
-                <TableCell className="font-medium">
+                <TableCell className="font-bold" style={{ color: getWindColor(h.windSpeed) }}>
                   {h.windSpeed.toFixed(1)}
                 </TableCell>
-                <TableCell>{h.windGusts.toFixed(1)}</TableCell>
+                <TableCell className="font-bold" style={{ color: getGustColor(h.windSpeed, h.windGusts) }}>
+                  {h.windGusts.toFixed(1)}
+                </TableCell>
                 <TableCell>
                   {degreesToCardinal(h.windDirection)} ({Math.round(h.windDirection)}°)
                 </TableCell>

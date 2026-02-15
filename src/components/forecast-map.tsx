@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Play, Pause } from "lucide-react";
 import { interpolateForecasts } from "@/lib/weather/interpolate";
 import { degreesToCardinal } from "@/lib/weather/types";
+import { getWindColor } from "@/lib/weather/colors";
 import type { ForecastHour } from "@/lib/weather/types";
 import { format } from "date-fns";
 
@@ -13,8 +14,6 @@ interface ForecastMapProps {
   lat: number;
   lng: number;
   hours: ForecastHour[];
-  minWind?: number;
-  maxWind?: number;
 }
 
 function drawArrow(
@@ -23,21 +22,10 @@ function drawArrow(
   cy: number,
   direction: number,
   speed: number,
-  minWind: number,
-  maxWind: number,
 ) {
   const size = 24 + Math.min(speed / 35, 1) * 24;
   const rad = ((direction + 180) * Math.PI) / 180; // rotate: arrow points where wind blows TO
-
-  // Color based on speed thresholds
-  let color: string;
-  if (speed < minWind) {
-    color = "#22c55e"; // green
-  } else if (speed <= maxWind) {
-    color = "#eab308"; // yellow
-  } else {
-    color = "#ef4444"; // red
-  }
+  const color = getWindColor(speed);
 
   ctx.save();
   ctx.translate(cx, cy);
@@ -76,8 +64,6 @@ export function ForecastMap({
   lat,
   lng,
   hours,
-  minWind = 12,
-  maxWind = 25,
 }: ForecastMapProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -160,13 +146,11 @@ export function ForecastMap({
             (rect.height * (row + 1)) / 4,
             point.windDirection,
             point.windSpeed,
-            minWind,
-            maxWind,
           );
         }
       }
     }
-  }, [imageLoaded, interpolated, sliderIndex, maxIndex, minWind, maxWind]);
+  }, [imageLoaded, interpolated, sliderIndex, maxIndex]);
 
   useEffect(() => {
     draw();

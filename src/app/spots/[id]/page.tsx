@@ -318,8 +318,6 @@ export default async function SpotDetailPage({
           spotId={spot.id}
           lat={spot.latitude}
           lng={spot.longitude}
-          minWind={criteria.minWindSpeed}
-          maxWind={criteria.maxWindSpeed}
           isOwner={isOwner}
           updateCriteriaAction={updateCriteriaAction}
         />

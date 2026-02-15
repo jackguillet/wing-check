@@ -26,8 +26,6 @@ interface ForecastSectionProps {
   spotId: number;
   lat: number;
   lng: number;
-  minWind: number;
-  maxWind: number;
   isOwner: boolean;
   updateCriteriaAction: (formData: FormData) => Promise<void>;
 }
@@ -97,8 +95,6 @@ export function ForecastSection({
   spotId,
   lat,
   lng,
-  minWind,
-  maxWind,
   isOwner,
   updateCriteriaAction,
 }: ForecastSectionProps) {
@@ -153,8 +149,6 @@ export function ForecastSection({
         lat={lat}
         lng={lng}
         hours={filteredHours}
-        minWind={minWind}
-        maxWind={maxWind}
       />
 
       <Tabs defaultValue="chart">
