@@ -254,8 +254,8 @@ export function evaluateSpot(
     });
   }
 
-  // Limit to first 3 days
-  const maxDays = 3;
+  // Limit to first 7 days
+  const maxDays = 7;
   const limitedDayEvals = dayEvaluations.slice(0, maxDays);
   const cutoffDate = limitedDayEvals.length > 0
     ? limitedDayEvals[limitedDayEvals.length - 1].date

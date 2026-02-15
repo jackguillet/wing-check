@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Play, Pause } from "lucide-react";
 import { interpolateForecasts } from "@/lib/weather/interpolate";
@@ -74,7 +74,7 @@ export function ForecastMap({
   const imgRef = useRef<HTMLImageElement | null>(null);
 
   // Interpolate contiguous segments for smooth animation
-  const displayHours = useMemo(() => hours.slice(0, 48), [hours]);
+  const displayHours = hours;
 
   const interpolated = useMemo(() => {
     if (displayHours.length === 0) return [];

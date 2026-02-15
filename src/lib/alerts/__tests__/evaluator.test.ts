@@ -282,7 +282,7 @@ describe("evaluateSpot", () => {
     });
   });
 
-  it("limits dayEvaluations and rideableWindows to 3 days", () => {
+  it("limits dayEvaluations and rideableWindows to 7 days", () => {
     const hours = [
       // Day 1: Feb 14
       makeHour({ time: "2026-02-14T10:00", windSpeed: 20, windGusts: 24, windDirection: 270 }),
@@ -294,26 +294,39 @@ describe("evaluateSpot", () => {
       // Day 3: Feb 16
       makeHour({ time: "2026-02-16T10:00", windSpeed: 20, windGusts: 24, windDirection: 270 }),
       makeHour({ time: "2026-02-16T11:00", windSpeed: 20, windGusts: 24, windDirection: 270 }),
-      // Day 4: Feb 17 — should be excluded
+      // Day 4: Feb 17
       makeHour({ time: "2026-02-17T10:00", windSpeed: 20, windGusts: 24, windDirection: 270 }),
       makeHour({ time: "2026-02-17T11:00", windSpeed: 20, windGusts: 24, windDirection: 270 }),
-      // Day 5: Feb 18 — should be excluded
+      // Day 5: Feb 18
       makeHour({ time: "2026-02-18T10:00", windSpeed: 20, windGusts: 24, windDirection: 270 }),
       makeHour({ time: "2026-02-18T11:00", windSpeed: 20, windGusts: 24, windDirection: 270 }),
+      // Day 6: Feb 19
+      makeHour({ time: "2026-02-19T10:00", windSpeed: 20, windGusts: 24, windDirection: 270 }),
+      makeHour({ time: "2026-02-19T11:00", windSpeed: 20, windGusts: 24, windDirection: 270 }),
+      // Day 7: Feb 20
+      makeHour({ time: "2026-02-20T10:00", windSpeed: 20, windGusts: 24, windDirection: 270 }),
+      makeHour({ time: "2026-02-20T11:00", windSpeed: 20, windGusts: 24, windDirection: 270 }),
+      // Day 8: Feb 21 — should be excluded
+      makeHour({ time: "2026-02-21T10:00", windSpeed: 20, windGusts: 24, windDirection: 270 }),
+      makeHour({ time: "2026-02-21T11:00", windSpeed: 20, windGusts: 24, windDirection: 270 }),
+      // Day 9: Feb 22 — should be excluded
+      makeHour({ time: "2026-02-22T10:00", windSpeed: 20, windGusts: 24, windDirection: 270 }),
+      makeHour({ time: "2026-02-22T11:00", windSpeed: 20, windGusts: 24, windDirection: 270 }),
     ];
 
     const result = evaluateSpot(hours, defaultCriteria);
-    expect(result.dayEvaluations).toHaveLength(3);
+    expect(result.dayEvaluations).toHaveLength(7);
     expect(result.dayEvaluations.map(d => d.date)).toEqual([
-      "2026-02-14", "2026-02-15", "2026-02-16",
+      "2026-02-14", "2026-02-15", "2026-02-16", "2026-02-17",
+      "2026-02-18", "2026-02-19", "2026-02-20",
     ]);
-    // No rideable windows on day 4 or 5
+    // No rideable windows on day 8 or 9
     for (const w of result.rideableWindows) {
-      expect(w.start.slice(0, 10) <= "2026-02-16").toBe(true);
+      expect(w.start.slice(0, 10) <= "2026-02-20").toBe(true);
     }
     // hourScores still includes all days (unfiltered)
-    expect(result.hourScores.some(h => h.time.startsWith("2026-02-17"))).toBe(true);
-    expect(result.hourScores.some(h => h.time.startsWith("2026-02-18"))).toBe(true);
+    expect(result.hourScores.some(h => h.time.startsWith("2026-02-21"))).toBe(true);
+    expect(result.hourScores.some(h => h.time.startsWith("2026-02-22"))).toBe(true);
   });
 
   it("regression: Kanaha-like gusty conditions are not no-go", () => {

@@ -33,6 +33,16 @@ interface ForecastSectionProps {
   updateCriteriaAction: (formData: FormData) => Promise<void>;
 }
 
+/** Filter hours to only include those within the given day range from the first hour. */
+function filterByDayRange(hours: ForecastHour[], days: number): ForecastHour[] {
+  if (hours.length === 0) return hours;
+  const firstDate = hours[0].time.substring(0, 10);
+  const cutoff = new Date(firstDate + "T00:00");
+  cutoff.setDate(cutoff.getDate() + days);
+  const cutoffStr = cutoff.toISOString().substring(0, 10);
+  return hours.filter((h) => h.time.substring(0, 10) < cutoffStr);
+}
+
 /**
  * Filter hours to daylight only using sunrise/sunset times.
  * Floor sunrise to the hour, ceil sunset to the next hour.
@@ -103,52 +113,92 @@ export function ForecastSection({
   updateCriteriaAction,
 }: ForecastSectionProps) {
   const [daylightOnly, setDaylightOnly] = useState(true);
+  const [dayRange, setDayRange] = useState(3);
+
+  const rangeFilteredHours = useMemo(
+    () => filterByDayRange(hours, dayRange),
+    [hours, dayRange],
+  );
 
   const filteredHours = useMemo(
-    () => (daylightOnly ? filterDaylightHours(hours, sunrise, sunset) : hours),
-    [hours, sunrise, sunset, daylightOnly],
+    () =>
+      daylightOnly
+        ? filterDaylightHours(rangeFilteredHours, sunrise, sunset)
+        : rangeFilteredHours,
+    [rangeFilteredHours, sunrise, sunset, daylightOnly],
   );
 
-  const filteredScores = useMemo(
-    () =>
-      hourScores
-        ? daylightOnly
-          ? filterDaylightScores(hourScores, sunrise, sunset)
-          : hourScores
-        : undefined,
-    [hourScores, sunrise, sunset, daylightOnly],
-  );
+  const filteredScores = useMemo(() => {
+    if (!hourScores) return undefined;
+    const rangeScores = filterByDayRange(
+      hourScores.map((s) => ({ time: s.time } as ForecastHour)),
+      dayRange,
+    ).map((h) => h.time);
+    const rangeSet = new Set(rangeScores);
+    const byRange = hourScores.filter((s) => rangeSet.has(s.time));
+    return daylightOnly
+      ? filterDaylightScores(byRange, sunrise, sunset)
+      : byRange;
+  }, [hourScores, dayRange, sunrise, sunset, daylightOnly]);
+
+  const filteredWindows = useMemo(() => {
+    if (!rideableWindows) return undefined;
+    if (hours.length === 0) return rideableWindows;
+    const firstDate = hours[0].time.substring(0, 10);
+    const cutoff = new Date(firstDate + "T00:00");
+    cutoff.setDate(cutoff.getDate() + dayRange);
+    const cutoffStr = cutoff.toISOString().substring(0, 10);
+    return rideableWindows.filter((w) => w.start.substring(0, 10) < cutoffStr);
+  }, [rideableWindows, hours, dayRange]);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-1 rounded-lg border p-1 w-fit">
-        <button
-          type="button"
-          onClick={() => setDaylightOnly(true)}
-          className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-            daylightOnly
-              ? "bg-primary text-primary-foreground"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <Sun className="h-3.5 w-3.5" />
-          Daylight
-        </button>
-        <button
-          type="button"
-          onClick={() => setDaylightOnly(false)}
-          className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-            !daylightOnly
-              ? "bg-primary text-primary-foreground"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <Clock className="h-3.5 w-3.5" />
-          24 Hours
-        </button>
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-1 rounded-lg border p-1">
+          {([1, 3, 5, 7] as const).map((d) => (
+            <button
+              key={d}
+              type="button"
+              onClick={() => setDayRange(d)}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                dayRange === d
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {d}D
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-1 rounded-lg border p-1">
+          <button
+            type="button"
+            onClick={() => setDaylightOnly(true)}
+            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+              daylightOnly
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Sun className="h-3.5 w-3.5" />
+            Daylight
+          </button>
+          <button
+            type="button"
+            onClick={() => setDaylightOnly(false)}
+            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+              !daylightOnly
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Clock className="h-3.5 w-3.5" />
+            24 Hours
+          </button>
+        </div>
       </div>
 
-      {rideableWindows && rideableWindows.length > 0 ? (
+      {filteredWindows && filteredWindows.length > 0 ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <ForecastMap
             spotId={spotId}
@@ -162,7 +212,7 @@ export function ForecastSection({
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {rideableWindows.map((w, i) => {
+                {filteredWindows.map((w, i) => {
                   const start = new Date(w.start);
                   const end = new Date(w.end);
                   return (

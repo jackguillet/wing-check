@@ -37,7 +37,6 @@ const chartConfig = {
 
 export function WindChart({ hours, criteria }: WindChartProps) {
   const data = hours
-    .slice(0, 72)
     .map((h) => ({
       time: h.time,
       label: format(parseISO(h.time), "EEE HH:mm"),

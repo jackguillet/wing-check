@@ -29,7 +29,7 @@ function scoreBadge(score: number) {
 
 export function ForecastTable({ hours, hourScores }: ForecastTableProps) {
   const now = new Date().toISOString();
-  const upcoming = hours.filter((h) => h.time >= now).slice(0, 48);
+  const upcoming = hours.filter((h) => h.time >= now);
   const scoreMap = new Map(hourScores?.map((s) => [s.time, s]));
   const colCount = hourScores ? 8 : 7;
 

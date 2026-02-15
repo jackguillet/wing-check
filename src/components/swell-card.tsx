@@ -63,7 +63,7 @@ export function SwellCard({ hours }: SwellCardProps) {
     );
   }
 
-  const chartData = hours.slice(0, 72).map((h) => ({
+  const chartData = hours.map((h) => ({
     time: h.time,
     label: format(parseISO(h.time), "EEE HH:mm"),
     swellHeight: h.swellHeight,
@@ -71,7 +71,7 @@ export function SwellCard({ hours }: SwellCardProps) {
   }));
 
   const now = new Date().toISOString();
-  const tableData = hours.filter((h) => h.time >= now).slice(0, 48);
+  const tableData = hours.filter((h) => h.time >= now);
 
   return (
     <Card>
