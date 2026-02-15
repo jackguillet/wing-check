@@ -1,8 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { db } from "@/lib/db";
-import { spotOverviews, spots, alertCriteria } from "@/lib/db/schema";
+import { spotOverviews } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { evaluateSpot, defaultCriteria } from "@/lib/alerts/evaluator";
+import { evaluateSpot } from "@/lib/alerts/evaluator";
 import type { ForecastHour } from "@/lib/weather/types";
 import {
   degreesToCardinal,
@@ -229,38 +229,4 @@ export async function getOrGenerateOverview(
     const stale = cached[0];
     return stale ?? null;
   }
-}
-
-// ── Cron helper: fetches its own forecast data ───────────────────────
-
-export async function generateOverviewForSpot(
-  spotId: number,
-): Promise<{ success: boolean; spotName: string; error?: string }> {
-  const { getSpotForecast } = await import("@/lib/actions/forecasts");
-
-  const spotRows = await db.select().from(spots).where(eq(spots.id, spotId));
-  const spot = spotRows[0];
-  if (!spot) return { success: false, spotName: "unknown", error: "Spot not found" };
-
-  const criteriaRows = await db
-    .select()
-    .from(alertCriteria)
-    .where(eq(alertCriteria.spotId, spotId));
-  const criteria: AlertCriteria = criteriaRows[0] ?? {
-    id: 0,
-    spotId,
-    ...defaultCriteria,
-  };
-
-  const forecast = await getSpotForecast(spotId);
-  if (!forecast) {
-    return { success: false, spotName: spot.name, error: "No forecast data" };
-  }
-
-  const result = await getOrGenerateOverview(spot, forecast.hours, criteria);
-  return {
-    success: !!result,
-    spotName: spot.name,
-    error: result ? undefined : "Generation failed",
-  };
 }
