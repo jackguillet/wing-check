@@ -1,8 +1,10 @@
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { getSpotWithCriteria, deleteSpot, updateSpotCriteria, getUserSpotPrefs, toggleFavorite, toggleSpotAlerts } from "@/lib/actions/spots";
 import { getSpotForecast } from "@/lib/actions/forecasts";
 import { getSession } from "@/lib/auth-session";
 import { evaluateSpot, defaultCriteria } from "@/lib/alerts/evaluator";
+import { getOrGenerateOverview } from "@/lib/ai/overview";
 import { WindChart } from "@/components/wind-chart";
 import { SwellCard } from "@/components/swell-card";
 import { ForecastTable } from "@/components/forecast-table";
@@ -13,10 +15,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { AlertCriteria } from "@/lib/db/schema";
+import type { AlertCriteria, Spot } from "@/lib/db/schema";
+import type { ForecastHour } from "@/lib/weather/types";
 import { degreesToCardinal } from "@/lib/weather/types";
 import { ForecastMap } from "@/components/forecast-map";
-import { Heart, Bell } from "lucide-react";
+import { Heart, Bell, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -39,6 +42,62 @@ function GoNoGoBanner({ status, score }: { status: string; score: number }) {
         <p className="text-4xl font-bold">{score}</p>
       </div>
     </div>
+  );
+}
+
+async function SpotOverviewSection({
+  spot,
+  hours,
+  criteria,
+}: {
+  spot: Spot;
+  hours: ForecastHour[];
+  criteria: AlertCriteria;
+}) {
+  const overview = await getOrGenerateOverview(spot, hours, criteria);
+  if (!overview) return null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5" />
+            Daily Overview
+          </CardTitle>
+          <span className="text-xs text-muted-foreground">
+            {overview.generatedAt.toLocaleString()}
+          </span>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="text-sm leading-relaxed whitespace-pre-line">
+          {overview.overview}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function OverviewSkeleton() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Sparkles className="h-5 w-5 animate-pulse" />
+          Generating overview...
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-2 animate-pulse">
+          <div className="h-4 bg-muted rounded w-full" />
+          <div className="h-4 bg-muted rounded w-5/6" />
+          <div className="h-4 bg-muted rounded w-4/6" />
+          <div className="h-4 bg-muted rounded w-full mt-4" />
+          <div className="h-4 bg-muted rounded w-3/4" />
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -132,6 +191,16 @@ export default async function SpotDetailPage({
 
       {evaluation && (
         <GoNoGoBanner status={evaluation.goNoGo} score={evaluation.overallScore} />
+      )}
+
+      {forecast && (
+        <Suspense fallback={<OverviewSkeleton />}>
+          <SpotOverviewSection
+            spot={spot}
+            hours={forecast.hours}
+            criteria={criteria}
+          />
+        </Suspense>
       )}
 
       {evaluation && evaluation.rideableWindows.length > 0 && (

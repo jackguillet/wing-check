@@ -170,6 +170,24 @@ export const alertHistory = sqliteTable("alert_history", {
   forecastSummary: text("forecast_summary").notNull(),
 });
 
+export const spotOverviews = sqliteTable(
+  "spot_overviews",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    spotId: integer("spot_id")
+      .notNull()
+      .references(() => spots.id, { onDelete: "cascade" }),
+    overview: text("overview").notNull(),
+    model: text("model").notNull(),
+    generatedAt: integer("generated_at", { mode: "timestamp" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+    forecastSummary: text("forecast_summary").notNull(),
+  },
+  (table) => [index("spot_overviews_spotId_idx").on(table.spotId)],
+);
+
 export const preferences = sqliteTable("preferences", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   userId: text("user_id")
@@ -192,3 +210,4 @@ export type AlertCriteria = typeof alertCriteria.$inferSelect;
 export type NewAlertCriteria = typeof alertCriteria.$inferInsert;
 export type ForecastCache = typeof forecastCache.$inferSelect;
 export type Preferences = typeof preferences.$inferSelect;
+export type SpotOverview = typeof spotOverviews.$inferSelect;
