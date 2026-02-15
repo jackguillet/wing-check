@@ -9,11 +9,11 @@ export function SolarPosition({
   sunrise,
   sunset,
 }: SolarPositionProps) {
-  const totalDaylight = sunset.getTime() - sunrise.getTime();
-  const elapsed = currentTime.getTime() - sunrise.getTime();
-  const isDaytime = elapsed >= 0 && elapsed <= totalDaylight;
+  const totalHours = Math.round((sunset.getTime() - sunrise.getTime()) / 3_600_000);
+  const elapsedHours = Math.floor((currentTime.getTime() - sunrise.getTime()) / 3_600_000);
+  const isDaytime = elapsedHours >= 0 && elapsedHours <= totalHours;
   const progress = isDaytime
-    ? Math.max(0, Math.min(1, elapsed / totalDaylight))
+    ? Math.max(0, Math.min(1, elapsedHours / totalHours))
     : 0;
 
   // Quadratic Bezier: P0=(5,20) P1=(40,−8) P2=(75,20)
