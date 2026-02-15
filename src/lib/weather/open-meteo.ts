@@ -19,6 +19,7 @@ export async function fetchWeatherForecast(
     longitude: longitude.toString(),
     hourly:
       "temperature_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,weather_code",
+    daily: "sunrise,sunset",
     wind_speed_unit: "kmh",
     timezone: "auto",
     forecast_days: "14",

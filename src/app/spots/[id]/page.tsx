@@ -17,7 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { AlertCriteria } from "@/lib/db/schema";
 import { degreesToCardinal } from "@/lib/weather/types";
 import { ForecastMap } from "@/components/forecast-map";
-import { Heart, Bell, Sparkles } from "lucide-react";
+import { Heart, Bell, Sparkles, Clock, Sunrise, Sunset } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -100,6 +100,28 @@ export default async function SpotDetailPage({
             {spot.latitude.toFixed(4)}°, {spot.longitude.toFixed(4)}°
             {spot.notes && ` — ${spot.notes}`}
           </p>
+          {forecast && (() => {
+            const now = new Date();
+            const localMs = now.getTime() + (now.getTimezoneOffset() * 60_000) + (forecast.utcOffsetSeconds * 1000);
+            const localDate = new Date(localMs);
+            const localTimeStr = localDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+            const todayStr = localDate.toISOString().slice(0, 10);
+            const todaySunrise = forecast.sunrise.find(s => s.startsWith(todayStr));
+            const todaySunset = forecast.sunset.find(s => s.startsWith(todayStr));
+            const fmtSun = (iso: string) => {
+              const h = parseInt(iso.substring(11, 13), 10);
+              const m = iso.substring(14, 16);
+              const ampm = h >= 12 ? "PM" : "AM";
+              return `${h % 12 || 12}:${m} ${ampm}`;
+            };
+            return (
+              <p className="text-sm text-muted-foreground flex items-center gap-3 mt-1">
+                <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{localTimeStr}</span>
+                {todaySunrise && <span className="flex items-center gap-1"><Sunrise className="h-3.5 w-3.5" />{fmtSun(todaySunrise)}</span>}
+                {todaySunset && <span className="flex items-center gap-1"><Sunset className="h-3.5 w-3.5" />{fmtSun(todaySunset)}</span>}
+              </p>
+            );
+          })()}
         </div>
         <div className="flex items-center gap-2">
           {isAuthenticated && (

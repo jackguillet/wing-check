@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Play, Pause } from "lucide-react";
 import { interpolateForecasts } from "@/lib/weather/interpolate";
-import { degreesToCardinal } from "@/lib/weather/types";
+import { degreesToCardinal, localHour } from "@/lib/weather/types";
 import type { ForecastHour } from "@/lib/weather/types";
 import { format } from "date-fns";
 
@@ -87,12 +87,34 @@ export function ForecastMap({
   const [imageError, setImageError] = useState(false);
   const imgRef = useRef<HTMLImageElement | null>(null);
 
-  // Only interpolate the first 25 hours (24h window)
-  const slice = useMemo(() => hours.slice(0, 25), [hours]);
-  const interpolated = useMemo(
-    () => interpolateForecasts(slice, 30),
-    [slice],
-  );
+  // Filter to daytime hours (5am–9pm) across 2 days, then interpolate each contiguous segment
+  const daytimeHours = useMemo(() => {
+    return hours
+      .slice(0, 48)
+      .filter((h) => {
+        const hr = localHour(h.time);
+        return hr >= 5 && hr <= 21;
+      });
+  }, [hours]);
+
+  const interpolated = useMemo(() => {
+    if (daytimeHours.length === 0) return [];
+    // Split into contiguous segments (gap > 2h = new segment)
+    const segments: ForecastHour[][] = [];
+    let current: ForecastHour[] = [daytimeHours[0]];
+    for (let i = 1; i < daytimeHours.length; i++) {
+      const prevTime = new Date(daytimeHours[i - 1].time).getTime();
+      const curTime = new Date(daytimeHours[i].time).getTime();
+      if (curTime - prevTime > 2 * 60 * 60_000) {
+        segments.push(current);
+        current = [];
+      }
+      current.push(daytimeHours[i]);
+    }
+    segments.push(current);
+    // Interpolate each segment and concatenate
+    return segments.flatMap((seg) => interpolateForecasts(seg, 30));
+  }, [daytimeHours]);
   const maxIndex = Math.max(interpolated.length - 1, 0);
 
   // Load satellite image

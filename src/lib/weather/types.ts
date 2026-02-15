@@ -9,6 +9,12 @@ export const HourlyWeatherSchema = z.object({
   weather_code: z.array(z.number()),
 });
 
+export const DailyWeatherSchema = z.object({
+  time: z.array(z.string()),
+  sunrise: z.array(z.string()),
+  sunset: z.array(z.string()),
+});
+
 export const OpenMeteoWeatherResponseSchema = z.object({
   latitude: z.number(),
   longitude: z.number(),
@@ -16,6 +22,8 @@ export const OpenMeteoWeatherResponseSchema = z.object({
   timezone: z.string(),
   hourly: HourlyWeatherSchema,
   hourly_units: z.record(z.string(), z.string()),
+  daily: DailyWeatherSchema.optional(),
+  daily_units: z.record(z.string(), z.string()).optional(),
 });
 
 export const HourlyMarineSchema = z.object({
@@ -57,6 +65,15 @@ export interface SpotForecast {
   spotName: string;
   hours: ForecastHour[];
   fetchedAt: string;
+  timezone: string;
+  utcOffsetSeconds: number;
+  sunrise: string[];
+  sunset: string[];
+}
+
+/** Extract hour (0–23) from an ISO-like time string e.g. "2026-02-14T09:00" */
+export function localHour(isoTime: string): number {
+  return parseInt(isoTime.substring(11, 13), 10);
 }
 
 export const NOAATidePredictionSchema = z.object({

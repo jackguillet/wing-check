@@ -15,7 +15,7 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { ForecastHour } from "@/lib/weather/types";
+import { localHour, type ForecastHour } from "@/lib/weather/types";
 import type { AlertCriteria } from "@/lib/db/schema";
 import { format, parseISO } from "date-fns";
 
@@ -36,12 +36,18 @@ const chartConfig = {
 } satisfies ChartConfig;
 
 export function WindChart({ hours, criteria }: WindChartProps) {
-  const data = hours.slice(0, 72).map((h) => ({
-    time: h.time,
-    label: format(parseISO(h.time), "EEE HH:mm"),
-    windSpeed: h.windSpeed,
-    windGusts: h.windGusts,
-  }));
+  const data = hours
+    .slice(0, 72)
+    .filter((h) => {
+      const hr = localHour(h.time);
+      return hr >= 5 && hr <= 21;
+    })
+    .map((h) => ({
+      time: h.time,
+      label: format(parseISO(h.time), "EEE HH:mm"),
+      windSpeed: h.windSpeed,
+      windGusts: h.windGusts,
+    }));
 
   return (
     <Card>
@@ -55,7 +61,7 @@ export function WindChart({ hours, criteria }: WindChartProps) {
             <XAxis
               dataKey="label"
               tick={{ fontSize: 11 }}
-              interval={11}
+              interval={Math.max(1, Math.floor(data.length / 6) - 1)}
               angle={-45}
               textAnchor="end"
               height={60}

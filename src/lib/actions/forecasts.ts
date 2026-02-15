@@ -8,6 +8,7 @@ import {
   fetchMarineForecast,
   mergeForecasts,
 } from "@/lib/weather/open-meteo";
+import { OpenMeteoWeatherResponseSchema } from "@/lib/weather/types";
 import type { ForecastHour, SpotForecast } from "@/lib/weather/types";
 
 const CACHE_DURATION_MS = 60 * 60 * 1000; // 1 hour
@@ -33,7 +34,7 @@ export async function getSpotForecast(
   const cached = cachedRows[0];
 
   if (cached) {
-    const weatherData = JSON.parse(cached.weatherData);
+    const weatherData = OpenMeteoWeatherResponseSchema.parse(JSON.parse(cached.weatherData));
     const marineData = cached.marineData ? JSON.parse(cached.marineData) : null;
     const hours: ForecastHour[] = mergeForecasts(weatherData, marineData);
     return {
@@ -41,6 +42,10 @@ export async function getSpotForecast(
       spotName: spot.name,
       hours,
       fetchedAt: cached.fetchedAt.toISOString(),
+      timezone: weatherData.timezone,
+      utcOffsetSeconds: weatherData.utc_offset_seconds,
+      sunrise: weatherData.daily?.sunrise ?? [],
+      sunset: weatherData.daily?.sunset ?? [],
     };
   }
 
@@ -74,5 +79,9 @@ export async function getSpotForecast(
     spotName: spot.name,
     hours,
     fetchedAt: fetchedAt.toISOString(),
+    timezone: weather.timezone,
+    utcOffsetSeconds: weather.utc_offset_seconds,
+    sunrise: weather.daily?.sunrise ?? [],
+    sunset: weather.daily?.sunset ?? [],
   };
 }
