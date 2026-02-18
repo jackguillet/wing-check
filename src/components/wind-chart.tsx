@@ -72,8 +72,9 @@ export function WindChart({ hours, criteria }: WindChartProps) {
                   y1={criteria.minWindSpeed}
                   y2={criteria.maxWindSpeed}
                   fill="hsl(142, 76%, 36%)"
-                  fillOpacity={0.06}
+                  fillOpacity={0.12}
                   strokeOpacity={0}
+                  ifOverflow="extendDomain"
                 />
                 <ReferenceLine
                   y={criteria.minWindSpeed}
