@@ -66,6 +66,14 @@ export function WindChart({ hours, criteria }: WindChartProps) {
             />
             <YAxis tick={{ fontSize: 11 }} width={48} unit=" kt" />
             <ChartTooltip content={<ChartTooltipContent />} />
+            <ReferenceArea
+              y1={10}
+              y2={25}
+              fill="red"
+              fillOpacity={0.3}
+              strokeOpacity={0}
+              ifOverflow="extendDomain"
+            />
             {criteria && (
               <>
                 <ReferenceArea
