@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import {
-  user,
   spots,
   alertCriteria,
   alertHistory,
   preferences,
   userSpots,
 } from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { evaluateSpot } from "@/lib/alerts/evaluator";
 import { sendAlert } from "@/lib/alerts/notifier";
 import {
@@ -16,86 +15,142 @@ import {
   fetchMarineForecast,
   mergeForecasts,
 } from "@/lib/weather/open-meteo";
+import { logger } from "@/lib/logger";
+import * as Sentry from "@sentry/nextjs";
 
 export async function GET(request: Request) {
-  // Verify cron secret
-  const authHeader = request.headers.get("authorization");
+  const startTime = Date.now();
+
+  // Verify cron secret — fail closed if not configured
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret) {
+    return NextResponse.json(
+      { error: "CRON_SECRET not configured" },
+      { status: 500 },
+    );
+  }
+  const authHeader = request.headers.get("authorization");
+  if (authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Get all users with alerts enabled and an email set
-  const allPrefs = await db.select().from(preferences);
-  const enabledPrefs = allPrefs.filter((p) => p.alertsEnabled && p.email);
+  try {
+    // Bulk fetch: all users with alerts enabled and an email set
+    const allPrefs = await db.select().from(preferences);
+    const enabledPrefs = allPrefs.filter((p) => p.alertsEnabled && p.email);
 
-  if (enabledPrefs.length === 0) {
-    return NextResponse.json({ message: "No users with alerts enabled" });
-  }
+    if (enabledPrefs.length === 0) {
+      logger.info("No users with alerts enabled");
+      return NextResponse.json({ message: "No users with alerts enabled" });
+    }
 
-  const results = [];
+    const enabledUserIds = enabledPrefs.map((p) => p.userId);
 
-  for (const prefs of enabledPrefs) {
-    // Get spots this user has opted in for alerts
-    const subscribedSpots = await db
-      .select({ spot: spots })
+    // Bulk fetch: all subscriptions for enabled users
+    const allSubscriptions = await db
+      .select({ userId: userSpots.userId, spot: spots })
       .from(userSpots)
       .innerJoin(spots, eq(userSpots.spotId, spots.id))
       .where(
         and(
-          eq(userSpots.userId, prefs.userId),
+          inArray(userSpots.userId, enabledUserIds),
           eq(userSpots.alertsEnabled, true),
         ),
       );
 
-    for (const { spot } of subscribedSpots) {
-      const criteriaRows = await db
-        .select()
-        .from(alertCriteria)
-        .where(eq(alertCriteria.spotId, spot.id));
-      const criteria = criteriaRows[0];
+    // Deduplicate spots for forecast fetching
+    const uniqueSpots = new Map<number, (typeof allSubscriptions)[0]["spot"]>();
+    for (const sub of allSubscriptions) {
+      uniqueSpots.set(sub.spot.id, sub.spot);
+    }
 
+    const uniqueSpotIds = [...uniqueSpots.keys()];
+    if (uniqueSpotIds.length === 0) {
+      logger.info("No spots subscribed for alerts");
+      return NextResponse.json({ message: "No spots subscribed" });
+    }
+
+    // Bulk fetch: all criteria for subscribed spots
+    const allCriteria = await db
+      .select()
+      .from(alertCriteria)
+      .where(inArray(alertCriteria.spotId, uniqueSpotIds));
+    const criteriaBySpot = new Map(allCriteria.map((c) => [c.spotId, c]));
+
+    // Bulk fetch: all recent alert history for enabled users
+    const allHistory = await db
+      .select()
+      .from(alertHistory)
+      .where(inArray(alertHistory.userId, enabledUserIds));
+    const prefsMap = new Map(enabledPrefs.map((p) => [p.userId, p]));
+
+    // Fetch forecasts for unique spots (deduplicated)
+    const forecastCache = new Map<
+      number,
+      Awaited<ReturnType<typeof fetchWeatherForecast>> & {
+        marine: Awaited<ReturnType<typeof fetchMarineForecast>>;
+      }
+    >();
+
+    await Promise.all(
+      [...uniqueSpots.values()].map(async (spot) => {
+        try {
+          const [weather, marine] = await Promise.all([
+            fetchWeatherForecast(spot.latitude, spot.longitude),
+            fetchMarineForecast(spot.latitude, spot.longitude),
+          ]);
+          forecastCache.set(spot.id, { ...weather, marine });
+        } catch (error) {
+          logger.error(
+            { err: error, spotId: spot.id },
+            "Failed to fetch forecast for spot",
+          );
+          Sentry.captureException(error);
+        }
+      }),
+    );
+
+    const results = [];
+
+    // Process each user-spot subscription
+    for (const sub of allSubscriptions) {
+      const prefs = prefsMap.get(sub.userId);
+      if (!prefs) continue;
+
+      const criteria = criteriaBySpot.get(sub.spot.id);
       if (!criteria) continue;
 
-      // Fetch forecast directly (no session needed for cron)
-      const [weather, marine] = await Promise.all([
-        fetchWeatherForecast(spot.latitude, spot.longitude),
-        fetchMarineForecast(spot.latitude, spot.longitude),
-      ]);
-      const hours = mergeForecasts(weather, marine);
+      const forecast = forecastCache.get(sub.spot.id);
+      if (!forecast) continue;
 
-      const evaluation = evaluateSpot(hours, criteria, weather.daily?.sunrise, weather.daily?.sunset);
+      const hours = mergeForecasts(forecast, forecast.marine);
+      const evaluation = evaluateSpot(
+        hours,
+        criteria,
+        forecast.daily?.sunrise,
+        forecast.daily?.sunset,
+      );
 
-      if (
-        evaluation.goNoGo === "go" &&
-        evaluation.rideableWindows.length > 0
-      ) {
-        // Check if we already sent an alert recently (per user + spot)
-        const allHistory = await db
-          .select()
-          .from(alertHistory)
-          .where(
-            and(
-              eq(alertHistory.spotId, spot.id),
-              eq(alertHistory.userId, prefs.userId),
-            ),
-          );
-        const recent = allHistory.filter((h) => {
+      if (evaluation.goNoGo === "go" && evaluation.rideableWindows.length > 0) {
+        // Check recent alert history (from bulk-fetched data)
+        const recentAlerts = allHistory.filter((h) => {
+          if (h.spotId !== sub.spot.id || h.userId !== prefs.userId)
+            return false;
           const hoursSince =
             (Date.now() - h.sentAt.getTime()) / (1000 * 60 * 60);
           return hoursSince < prefs.checkIntervalHours;
         });
 
-        if (recent.length > 0) continue;
+        if (recentAlerts.length > 0) continue;
 
         const result = await sendAlert({
-          spotName: spot.name,
+          spotName: sub.spot.name,
           windows: evaluation.rideableWindows,
           email: prefs.email!,
         });
 
         await db.insert(alertHistory).values({
-          spotId: spot.id,
+          spotId: sub.spot.id,
           userId: prefs.userId,
           sentAt: new Date(),
           alertType: "go",
@@ -108,20 +163,41 @@ export async function GET(request: Request) {
 
         results.push({
           user: prefs.userId,
-          spot: spot.name,
+          spot: sub.spot.name,
           sent: true,
           result,
         });
       } else {
         results.push({
           user: prefs.userId,
-          spot: spot.name,
+          spot: sub.spot.name,
           sent: false,
           goNoGo: evaluation.goNoGo,
         });
       }
     }
-  }
 
-  return NextResponse.json({ usersChecked: enabledPrefs.length, results });
+    const durationMs = Date.now() - startTime;
+    logger.info(
+      {
+        usersChecked: enabledPrefs.length,
+        spotsChecked: uniqueSpots.size,
+        alertsSent: results.filter((r) => r.sent).length,
+        durationMs,
+      },
+      "Cron check-alerts completed",
+    );
+
+    return NextResponse.json({
+      usersChecked: enabledPrefs.length,
+      results,
+    });
+  } catch (error) {
+    logger.error({ err: error }, "Cron check-alerts failed");
+    Sentry.captureException(error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
+  }
 }

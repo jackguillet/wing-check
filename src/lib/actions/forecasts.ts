@@ -10,81 +10,98 @@ import {
 } from "@/lib/weather/open-meteo";
 import { fetchTidePredictions } from "@/lib/weather/noaa-tides";
 import { OpenMeteoWeatherResponseSchema } from "@/lib/weather/types";
-import type { ForecastHour, SpotForecast, TidePoint } from "@/lib/weather/types";
+import type {
+  ForecastHour,
+  SpotForecast,
+  TidePoint,
+} from "@/lib/weather/types";
+import { logger } from "@/lib/logger";
+import * as Sentry from "@sentry/nextjs";
 
 const CACHE_DURATION_MS = 60 * 60 * 1000; // 1 hour
 
+function buildForecastFromCache(
+  spot: { id: number; name: string },
+  cached: {
+    weatherData: string;
+    marineData: string | null;
+    tideData: string | null;
+    fetchedAt: Date;
+  },
+  stale = false,
+): SpotForecast & { stale?: boolean } {
+  const weatherData = OpenMeteoWeatherResponseSchema.parse(
+    JSON.parse(cached.weatherData),
+  );
+  const marineData = cached.marineData ? JSON.parse(cached.marineData) : null;
+  const hours: ForecastHour[] = mergeForecasts(weatherData, marineData);
+  const tides: TidePoint[] = cached.tideData ? JSON.parse(cached.tideData) : [];
+  return {
+    spotId: spot.id,
+    spotName: spot.name,
+    hours,
+    tides,
+    fetchedAt: cached.fetchedAt.toISOString(),
+    timezone: weatherData.timezone,
+    utcOffsetSeconds: weatherData.utc_offset_seconds,
+    sunrise: weatherData.daily?.sunrise ?? [],
+    sunset: weatherData.daily?.sunset ?? [],
+    ...(stale ? { stale: true } : {}),
+  };
+}
+
 export async function getSpotForecast(
-  spotId: number
-): Promise<SpotForecast | null> {
-  const spotRows = await db
-    .select()
-    .from(spots)
-    .where(eq(spots.id, spotId));
+  spotId: number,
+): Promise<(SpotForecast & { stale?: boolean }) | null> {
+  const spotRows = await db.select().from(spots).where(eq(spots.id, spotId));
   const spot = spotRows[0];
   if (!spot) return null;
 
-  // Check cache
+  // Check fresh cache
   const now = new Date();
   const cachedRows = await db
     .select()
     .from(forecastCache)
     .where(
-      and(eq(forecastCache.spotId, spotId), gt(forecastCache.expiresAt, now))
+      and(eq(forecastCache.spotId, spotId), gt(forecastCache.expiresAt, now)),
     );
   const cached = cachedRows[0];
 
   if (cached) {
-    const weatherData = OpenMeteoWeatherResponseSchema.parse(JSON.parse(cached.weatherData));
-    const marineData = cached.marineData ? JSON.parse(cached.marineData) : null;
-    const hours: ForecastHour[] = mergeForecasts(weatherData, marineData);
-    const tides: TidePoint[] = cached.tideData ? JSON.parse(cached.tideData) : [];
-    return {
-      spotId: spot.id,
-      spotName: spot.name,
-      hours,
-      tides,
-      fetchedAt: cached.fetchedAt.toISOString(),
-      timezone: weatherData.timezone,
-      utcOffsetSeconds: weatherData.utc_offset_seconds,
-      sunrise: weatherData.daily?.sunrise ?? [],
-      sunset: weatherData.daily?.sunset ?? [],
-    };
+    return buildForecastFromCache(spot, cached);
   }
 
   // Fetch fresh data
-  const fetches: [
-    Promise<Awaited<ReturnType<typeof fetchWeatherForecast>>>,
-    Promise<Awaited<ReturnType<typeof fetchMarineForecast>>>,
-    Promise<TidePoint[]>,
-  ] = [
-    fetchWeatherForecast(spot.latitude, spot.longitude),
-    fetchMarineForecast(spot.latitude, spot.longitude),
-    (async () => {
-      if (!spot.noaaStationId) return [];
-      const today = new Date();
-      const end = new Date(today);
-      end.setDate(end.getDate() + 14);
-      const fmt = (d: Date) =>
-        `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
-      return fetchTidePredictions(spot.noaaStationId, fmt(today), fmt(end));
-    })(),
-  ];
+  try {
+    const fetches: [
+      Promise<Awaited<ReturnType<typeof fetchWeatherForecast>>>,
+      Promise<Awaited<ReturnType<typeof fetchMarineForecast>>>,
+      Promise<TidePoint[]>,
+    ] = [
+      fetchWeatherForecast(spot.latitude, spot.longitude),
+      fetchMarineForecast(spot.latitude, spot.longitude),
+      (async () => {
+        if (!spot.noaaStationId) return [];
+        const today = new Date();
+        const end = new Date(today);
+        end.setDate(end.getDate() + 14);
+        const fmt = (d: Date) =>
+          `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+        return fetchTidePredictions(spot.noaaStationId, fmt(today), fmt(end));
+      })(),
+    ];
 
-  const [weather, marine, tides] = await Promise.all(fetches);
+    const [weather, marine, tides] = await Promise.all(fetches);
+    const hours = mergeForecasts(weather, marine);
 
-  const hours = mergeForecasts(weather, marine);
+    // Cache the raw API responses
+    const fetchedAt = new Date();
+    const expiresAt = new Date(fetchedAt.getTime() + CACHE_DURATION_MS);
 
-  // Cache the raw API responses
-  const fetchedAt = new Date();
-  const expiresAt = new Date(fetchedAt.getTime() + CACHE_DURATION_MS);
+    // Delete old cache entries for this spot
+    await db.delete(forecastCache).where(eq(forecastCache.spotId, spotId));
 
-  // Delete old cache entries for this spot
-  await db.delete(forecastCache)
-    .where(eq(forecastCache.spotId, spotId));
-
-  await db.insert(forecastCache)
-    .values({
+    await db.insert(forecastCache).values({
       spotId,
       fetchedAt,
       expiresAt,
@@ -93,15 +110,36 @@ export async function getSpotForecast(
       tideData: tides.length > 0 ? JSON.stringify(tides) : null,
     });
 
-  return {
-    spotId: spot.id,
-    spotName: spot.name,
-    hours,
-    tides,
-    fetchedAt: fetchedAt.toISOString(),
-    timezone: weather.timezone,
-    utcOffsetSeconds: weather.utc_offset_seconds,
-    sunrise: weather.daily?.sunrise ?? [],
-    sunset: weather.daily?.sunset ?? [],
-  };
+    return {
+      spotId: spot.id,
+      spotName: spot.name,
+      hours,
+      tides,
+      fetchedAt: fetchedAt.toISOString(),
+      timezone: weather.timezone,
+      utcOffsetSeconds: weather.utc_offset_seconds,
+      sunrise: weather.daily?.sunrise ?? [],
+      sunset: weather.daily?.sunset ?? [],
+    };
+  } catch (error) {
+    logger.error(
+      { err: error, spotId },
+      "Fresh forecast fetch failed, checking stale cache",
+    );
+    Sentry.captureException(error);
+
+    // Stale-while-error: fall back to expired cache if available
+    const staleRows = await db
+      .select()
+      .from(forecastCache)
+      .where(eq(forecastCache.spotId, spotId));
+    const stale = staleRows[0];
+
+    if (stale) {
+      logger.info({ spotId }, "Serving stale forecast from cache");
+      return buildForecastFromCache(spot, stale, true);
+    }
+
+    throw error;
+  }
 }

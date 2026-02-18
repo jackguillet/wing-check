@@ -1,0 +1,208 @@
+import { describe, it, expect } from "vitest";
+import {
+  createSpotSchema,
+  updateCriteriaSchema,
+  updatePreferencesSchema,
+  formDataToObject,
+} from "../validations";
+
+describe("createSpotSchema", () => {
+  it("accepts valid spot data", () => {
+    const result = createSpotSchema.safeParse({
+      name: "Test Spot",
+      latitude: "37.7749",
+      longitude: "-122.4194",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.name).toBe("Test Spot");
+      expect(result.data.latitude).toBe(37.7749);
+      expect(result.data.longitude).toBe(-122.4194);
+      expect(result.data.minWindSpeed).toBe(10); // default
+    }
+  });
+
+  it("rejects empty name", () => {
+    const result = createSpotSchema.safeParse({
+      name: "",
+      latitude: "37",
+      longitude: "-122",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects invalid latitude (> 90)", () => {
+    const result = createSpotSchema.safeParse({
+      name: "Test",
+      latitude: "999",
+      longitude: "-122",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects invalid latitude (< -90)", () => {
+    const result = createSpotSchema.safeParse({
+      name: "Test",
+      latitude: "-91",
+      longitude: "-122",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects invalid longitude (> 180)", () => {
+    const result = createSpotSchema.safeParse({
+      name: "Test",
+      latitude: "37",
+      longitude: "181",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects non-numeric latitude", () => {
+    const result = createSpotSchema.safeParse({
+      name: "Test",
+      latitude: "abc",
+      longitude: "-122",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("applies defaults for optional fields", () => {
+    const result = createSpotSchema.safeParse({
+      name: "Test",
+      latitude: "37",
+      longitude: "-122",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.minWindSpeed).toBe(10);
+      expect(result.data.maxWindSpeed).toBe(25);
+      expect(result.data.maxGustFactor).toBe(2.5);
+      expect(result.data.directionTolerance).toBe(45);
+      expect(result.data.minConsecutiveHours).toBe(2);
+    }
+  });
+
+  it("rejects name that is too long", () => {
+    const result = createSpotSchema.safeParse({
+      name: "a".repeat(101),
+      latitude: "37",
+      longitude: "-122",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects negative wind speed", () => {
+    const result = createSpotSchema.safeParse({
+      name: "Test",
+      latitude: "37",
+      longitude: "-122",
+      minWindSpeed: "-5",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects gust factor below 1", () => {
+    const result = createSpotSchema.safeParse({
+      name: "Test",
+      latitude: "37",
+      longitude: "-122",
+      maxGustFactor: "0.5",
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("updateCriteriaSchema", () => {
+  it("accepts valid criteria", () => {
+    const result = updateCriteriaSchema.safeParse({
+      minWindSpeed: "12",
+      maxWindSpeed: "30",
+      maxGustFactor: "2.0",
+      preferredDirections: '["N","S"]',
+      directionTolerance: "60",
+      minConsecutiveHours: "3",
+      maxWaveHeight: "2.0",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.minWindSpeed).toBe(12);
+      expect(result.data.maxWaveHeight).toBe(2.0);
+    }
+  });
+
+  it("applies defaults for missing fields", () => {
+    const result = updateCriteriaSchema.safeParse({});
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.minWindSpeed).toBe(10);
+      expect(result.data.maxWindSpeed).toBe(25);
+    }
+  });
+
+  it("rejects out-of-range direction tolerance", () => {
+    const result = updateCriteriaSchema.safeParse({
+      directionTolerance: "200",
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("updatePreferencesSchema", () => {
+  it("accepts valid preferences", () => {
+    const result = updatePreferencesSchema.safeParse({
+      email: "test@example.com",
+      alertsEnabled: "on",
+      checkIntervalHours: "12",
+      windSpeedUnit: "knots",
+      temperatureUnit: "celsius",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts empty email", () => {
+    const result = updatePreferencesSchema.safeParse({
+      email: "",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects invalid email", () => {
+    const result = updatePreferencesSchema.safeParse({
+      email: "not-an-email",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects invalid wind speed unit", () => {
+    const result = updatePreferencesSchema.safeParse({
+      windSpeedUnit: "invalid",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects check interval too high", () => {
+    const result = updatePreferencesSchema.safeParse({
+      checkIntervalHours: "200",
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("formDataToObject", () => {
+  it("converts FormData to a plain object", () => {
+    const fd = new FormData();
+    fd.append("name", "Test");
+    fd.append("latitude", "37.0");
+    const obj = formDataToObject(fd);
+    expect(obj).toEqual({ name: "Test", latitude: "37.0" });
+  });
+
+  it("skips non-string values", () => {
+    const fd = new FormData();
+    fd.append("name", "Test");
+    fd.append("file", new Blob(["test"]), "test.txt");
+    const obj = formDataToObject(fd);
+    expect(obj).toEqual({ name: "Test" });
+  });
+});

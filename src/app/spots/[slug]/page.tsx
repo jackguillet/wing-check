@@ -1,6 +1,15 @@
 import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
-import { getSpot, getSpotWithCriteriaBySlug, deleteSpot, updateSpotCriteria, updateSpotNotes, getUserSpotPrefs, toggleFavorite, toggleSpotAlerts } from "@/lib/actions/spots";
+import {
+  getSpot,
+  getSpotWithCriteriaBySlug,
+  deleteSpot,
+  updateSpotCriteria,
+  updateSpotNotes,
+  getUserSpotPrefs,
+  toggleFavorite,
+  toggleSpotAlerts,
+} from "@/lib/actions/spots";
 import { getSpotForecast } from "@/lib/actions/forecasts";
 import { getSession } from "@/lib/auth-session";
 import { evaluateSpot, defaultCriteria } from "@/lib/alerts/evaluator";
@@ -10,11 +19,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { AlertCriteria, Spot } from "@/lib/db/schema";
 import type { ForecastHour } from "@/lib/weather/types";
 import { ForecastSection } from "@/components/forecast-section";
-import { ForecastControlsProvider, ForecastToggles } from "@/components/forecast-controls";
+import {
+  ForecastControlsProvider,
+  ForecastToggles,
+} from "@/components/forecast-controls";
 import { SpotNotes } from "@/components/spot-notes";
 import ReactMarkdown from "react-markdown";
 import { Heart, Bell, Sparkles, Clock, Sunrise, Sunset } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { logger } from "@/lib/logger";
+import * as Sentry from "@sentry/nextjs";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +36,8 @@ import type { DayEvaluation } from "@/lib/alerts/evaluator";
 
 const goNoGoColors = {
   go: "bg-green-600/10 border-green-600 text-green-700 dark:text-green-400",
-  marginal: "bg-yellow-500/10 border-yellow-500 text-yellow-700 dark:text-yellow-400",
+  marginal:
+    "bg-yellow-500/10 border-yellow-500 text-yellow-700 dark:text-yellow-400",
   "no-go": "bg-red-500/10 border-red-500 text-red-700 dark:text-red-400",
 };
 
@@ -69,9 +84,16 @@ async function OverviewSection({
 }) {
   let overview = null;
   try {
-    overview = await getOrGenerateOverview(spot, hours, criteria, sunrise, sunset);
+    overview = await getOrGenerateOverview(
+      spot,
+      hours,
+      criteria,
+      sunrise,
+      sunset,
+    );
   } catch (e) {
-    console.error("Failed to load overview:", e);
+    logger.error({ err: e }, "Failed to load overview");
+    Sentry.captureException(e);
   }
   if (!overview) return null;
 
@@ -108,10 +130,18 @@ function ThreeDayBanner({ days }: { days: DayEvaluation[] }) {
             key={day.date}
             className={`rounded-lg border-2 p-4 ${color} ${i === 0 ? "ring-2 ring-offset-2 ring-offset-background ring-current" : ""}`}
           >
-            <p className="text-xs font-medium opacity-70 mb-1">{dayLabel(day.date, i)}</p>
+            <p className="text-xs font-medium opacity-70 mb-1">
+              {dayLabel(day.date, i)}
+            </p>
             <div className="flex items-center justify-between">
-              <p className={`font-bold uppercase ${i === 0 ? "text-lg" : "text-sm"}`}>{day.goNoGo}</p>
-              <p className={`font-bold ${i === 0 ? "text-3xl" : "text-2xl"}`}>{day.score}</p>
+              <p
+                className={`font-bold uppercase ${i === 0 ? "text-lg" : "text-sm"}`}
+              >
+                {day.goNoGo}
+              </p>
+              <p className={`font-bold ${i === 0 ? "text-3xl" : "text-2xl"}`}>
+                {day.score}
+              </p>
             </div>
           </div>
         );
@@ -141,7 +171,9 @@ export default async function SpotDetailPage({
   const { spot, criteria: rawCriteria } = spotData;
   const isOwner = session?.user?.id === spot.userId;
   const isAuthenticated = !!session?.user;
-  const userSpotPrefs = isAuthenticated ? await getUserSpotPrefs(spot.id) : null;
+  const userSpotPrefs = isAuthenticated
+    ? await getUserSpotPrefs(spot.id)
+    : null;
   const criteria: AlertCriteria = rawCriteria ?? {
     id: 0,
     spotId: spot.id,
@@ -153,10 +185,16 @@ export default async function SpotDetailPage({
   try {
     forecast = await getSpotForecast(spot.id);
     if (forecast) {
-      evaluation = evaluateSpot(forecast.hours, criteria, forecast.sunrise, forecast.sunset);
+      evaluation = evaluateSpot(
+        forecast.hours,
+        criteria,
+        forecast.sunrise,
+        forecast.sunset,
+      );
     }
   } catch (e) {
-    console.error("Failed to load forecast:", e);
+    logger.error({ err: e, spotId: spot.id }, "Failed to load forecast");
+    Sentry.captureException(e);
   }
 
   const deleteAction = deleteSpot.bind(null, spot.id);
@@ -166,123 +204,165 @@ export default async function SpotDetailPage({
 
   return (
     <ForecastControlsProvider>
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">{spot.name}</h1>
-          <p className="text-muted-foreground">
-            {spot.latitude.toFixed(4)}°, {spot.longitude.toFixed(4)}°
-          </p>
-          {forecast && (() => {
-            const now = new Date();
-            const localMs = now.getTime() + (now.getTimezoneOffset() * 60_000) + (forecast.utcOffsetSeconds * 1000);
-            const localDate = new Date(localMs);
-            const localTimeStr = localDate.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
-            const todayStr = `${localDate.getFullYear()}-${String(localDate.getMonth() + 1).padStart(2, '0')}-${String(localDate.getDate()).padStart(2, '0')}`;
-            const todaySunrise = forecast.sunrise.find(s => s.startsWith(todayStr));
-            const todaySunset = forecast.sunset.find(s => s.startsWith(todayStr));
-            const fmtSun = (iso: string) => iso.substring(11, 16);
-            return (
-              <p className="text-sm text-muted-foreground flex items-center gap-3 mt-1">
-                <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{localTimeStr}</span>
-                {todaySunrise && <span className="flex items-center gap-1"><Sunrise className="h-3.5 w-3.5" />{fmtSun(todaySunrise)}</span>}
-                {todaySunset && <span className="flex items-center gap-1"><Sunset className="h-3.5 w-3.5" />{fmtSun(todaySunset)}</span>}
-              </p>
-            );
-          })()}
-        </div>
-        <div className="flex items-center gap-2">
-          <ForecastToggles />
-          {isAuthenticated && (
-            <>
-              <form action={toggleFavoriteAction}>
-                <Button variant="ghost" size="icon" title={userSpotPrefs?.isFavorite ? "Remove from favorites" : "Add to favorites"}>
-                  <Heart
-                    className={cn(
-                      "h-5 w-5",
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">{spot.name}</h1>
+            <p className="text-muted-foreground">
+              {spot.latitude.toFixed(4)}°, {spot.longitude.toFixed(4)}°
+            </p>
+            {forecast &&
+              (() => {
+                const now = new Date();
+                const localMs =
+                  now.getTime() +
+                  now.getTimezoneOffset() * 60_000 +
+                  forecast.utcOffsetSeconds * 1000;
+                const localDate = new Date(localMs);
+                const localTimeStr = localDate.toLocaleTimeString("en-US", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: false,
+                });
+                const todayStr = `${localDate.getFullYear()}-${String(localDate.getMonth() + 1).padStart(2, "0")}-${String(localDate.getDate()).padStart(2, "0")}`;
+                const todaySunrise = forecast.sunrise.find((s) =>
+                  s.startsWith(todayStr),
+                );
+                const todaySunset = forecast.sunset.find((s) =>
+                  s.startsWith(todayStr),
+                );
+                const fmtSun = (iso: string) => iso.substring(11, 16);
+                return (
+                  <p className="text-sm text-muted-foreground flex items-center gap-3 mt-1">
+                    <span className="flex items-center gap-1">
+                      <Clock className="h-3.5 w-3.5" />
+                      {localTimeStr}
+                    </span>
+                    {todaySunrise && (
+                      <span className="flex items-center gap-1">
+                        <Sunrise className="h-3.5 w-3.5" />
+                        {fmtSun(todaySunrise)}
+                      </span>
+                    )}
+                    {todaySunset && (
+                      <span className="flex items-center gap-1">
+                        <Sunset className="h-3.5 w-3.5" />
+                        {fmtSun(todaySunset)}
+                      </span>
+                    )}
+                  </p>
+                );
+              })()}
+          </div>
+          <div className="flex items-center gap-2">
+            <ForecastToggles />
+            {isAuthenticated && (
+              <>
+                <form action={toggleFavoriteAction}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    title={
                       userSpotPrefs?.isFavorite
-                        ? "fill-red-500 text-red-500"
-                        : "text-muted-foreground",
-                    )}
-                  />
-                </Button>
-              </form>
-              <form action={toggleAlertsAction}>
-                <Button variant="ghost" size="icon" title={userSpotPrefs?.alertsEnabled ? "Disable alerts" : "Enable alerts"}>
-                  <Bell
-                    className={cn(
-                      "h-5 w-5",
+                        ? "Remove from favorites"
+                        : "Add to favorites"
+                    }
+                  >
+                    <Heart
+                      className={cn(
+                        "h-5 w-5",
+                        userSpotPrefs?.isFavorite
+                          ? "fill-red-500 text-red-500"
+                          : "text-muted-foreground",
+                      )}
+                    />
+                  </Button>
+                </form>
+                <form action={toggleAlertsAction}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    title={
                       userSpotPrefs?.alertsEnabled
-                        ? "fill-blue-500 text-blue-500"
-                        : "text-muted-foreground",
-                    )}
-                  />
+                        ? "Disable alerts"
+                        : "Enable alerts"
+                    }
+                  >
+                    <Bell
+                      className={cn(
+                        "h-5 w-5",
+                        userSpotPrefs?.alertsEnabled
+                          ? "fill-blue-500 text-blue-500"
+                          : "text-muted-foreground",
+                      )}
+                    />
+                  </Button>
+                </form>
+              </>
+            )}
+            {isOwner && (
+              <form action={deleteAction}>
+                <Button variant="destructive" size="sm">
+                  Delete Spot
                 </Button>
               </form>
-            </>
-          )}
-          {isOwner && (
-            <form action={deleteAction}>
-              <Button variant="destructive" size="sm">
-                Delete Spot
-              </Button>
-            </form>
-          )}
+            )}
+          </div>
         </div>
-      </div>
 
-      <SpotNotes
-        spotId={spot.id}
-        notes={spot.notes}
-        isOwner={isOwner}
-        updateAction={updateSpotNotes}
-      />
+        <SpotNotes
+          spotId={spot.id}
+          notes={spot.notes}
+          isOwner={isOwner}
+          updateAction={updateSpotNotes}
+        />
 
-      {evaluation && evaluation.dayEvaluations.length > 0 && (
-        <ThreeDayBanner days={evaluation.dayEvaluations} />
-      )}
+        {evaluation && evaluation.dayEvaluations.length > 0 && (
+          <ThreeDayBanner days={evaluation.dayEvaluations} />
+        )}
 
-      {forecast && (
-        <Suspense fallback={<OverviewSkeleton />}>
-          <OverviewSection
-            spot={spot}
+        {forecast && (
+          <Suspense fallback={<OverviewSkeleton />}>
+            <OverviewSection
+              spot={spot}
+              hours={forecast.hours}
+              criteria={criteria}
+              sunrise={forecast.sunrise}
+              sunset={forecast.sunset}
+            />
+          </Suspense>
+        )}
+
+        {forecast && (
+          <ForecastSection
             hours={forecast.hours}
-            criteria={criteria}
+            tides={forecast.tides}
             sunrise={forecast.sunrise}
             sunset={forecast.sunset}
+            criteria={criteria}
+            rawCriteria={rawCriteria}
+            hourScores={evaluation?.hourScores}
+            rideableWindows={evaluation?.rideableWindows}
+            spotId={spot.id}
+            lat={spot.latitude}
+            lng={spot.longitude}
+            isOwner={isOwner}
+            updateCriteriaAction={updateCriteriaAction}
           />
-        </Suspense>
-      )}
+        )}
 
-      {forecast && (
-        <ForecastSection
-          hours={forecast.hours}
-          tides={forecast.tides}
-          sunrise={forecast.sunrise}
-          sunset={forecast.sunset}
-          criteria={criteria}
-          rawCriteria={rawCriteria}
-          hourScores={evaluation?.hourScores}
-          rideableWindows={evaluation?.rideableWindows}
-          spotId={spot.id}
-          lat={spot.latitude}
-          lng={spot.longitude}
-          isOwner={isOwner}
-          updateCriteriaAction={updateCriteriaAction}
-        />
-      )}
-
-      {forecast && (
-        <p className="text-xs text-muted-foreground text-right">
-          Forecast fetched: {new Date(forecast.fetchedAt).toLocaleString("en-US", {
-            timeZone: forecast.timezone,
-            dateStyle: "medium",
-            timeStyle: "short",
-            hour12: false,
-          })}
-        </p>
-      )}
-    </div>
+        {forecast && (
+          <p className="text-xs text-muted-foreground text-right">
+            Forecast fetched:{" "}
+            {new Date(forecast.fetchedAt).toLocaleString("en-US", {
+              timeZone: forecast.timezone,
+              dateStyle: "medium",
+              timeStyle: "short",
+              hour12: false,
+            })}
+          </p>
+        )}
+      </div>
     </ForecastControlsProvider>
   );
 }

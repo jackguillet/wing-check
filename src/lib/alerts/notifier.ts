@@ -1,5 +1,6 @@
 import type { RideableWindow } from "./evaluator";
 import { degreesToCardinal } from "@/lib/weather/types";
+import { logger } from "@/lib/logger";
 
 interface AlertPayload {
   spotName: string;
@@ -10,7 +11,7 @@ interface AlertPayload {
 export async function sendAlert({ spotName, windows, email }: AlertPayload) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
-    console.warn("RESEND_API_KEY not set, skipping email alert");
+    logger.warn("RESEND_API_KEY not set, skipping email alert");
     return null;
   }
 

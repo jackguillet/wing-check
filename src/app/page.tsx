@@ -1,6 +1,8 @@
-import { getSpotsWithFavorites } from "@/lib/actions/spots";
+import {
+  getSpotsWithFavorites,
+  getSpotsWithCriteria,
+} from "@/lib/actions/spots";
 import { getSpotForecast } from "@/lib/actions/forecasts";
-import { getSpotWithCriteria } from "@/lib/actions/spots";
 import { evaluateSpot, defaultCriteria } from "@/lib/alerts/evaluator";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { getSession } from "@/lib/auth-session";
@@ -33,28 +35,38 @@ export default async function DashboardPage() {
     );
   }
 
+  // Batch fetch criteria for all spots (eliminates N+1)
+  const criteriaMap = await getSpotsWithCriteria(spots.map((s) => s.id));
+
   const spotData = await Promise.all(
     spots.map(async (spot) => {
       try {
-        const [forecast, spotWithCriteria] = await Promise.all([
-          getSpotForecast(spot.id),
-          getSpotWithCriteria(spot.id),
-        ]);
+        const forecast = await getSpotForecast(spot.id);
+        if (!forecast)
+          return {
+            spot,
+            evaluation: null,
+            isFavorite: favoriteIds.has(spot.id),
+          };
 
-        if (!forecast) return { spot, evaluation: null, isFavorite: favoriteIds.has(spot.id) };
-
-        const criteria: AlertCriteria = spotWithCriteria?.criteria ?? {
+        const spotCriteria = criteriaMap.get(spot.id);
+        const criteria: AlertCriteria = spotCriteria?.criteria ?? {
           id: 0,
           spotId: spot.id,
           ...defaultCriteria,
         };
 
-        const evaluation = evaluateSpot(forecast.hours, criteria, forecast.sunrise, forecast.sunset);
+        const evaluation = evaluateSpot(
+          forecast.hours,
+          criteria,
+          forecast.sunrise,
+          forecast.sunset,
+        );
         return { spot, evaluation, isFavorite: favoriteIds.has(spot.id) };
       } catch {
         return { spot, evaluation: null, isFavorite: favoriteIds.has(spot.id) };
       }
-    })
+    }),
   );
 
   return (

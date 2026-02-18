@@ -9,6 +9,8 @@ import {
   weatherCodeToDescription,
 } from "@/lib/weather/types";
 import type { AlertCriteria, Spot, SpotOverview } from "@/lib/db/schema";
+import { logger } from "@/lib/logger";
+import * as Sentry from "@sentry/nextjs";
 
 const MODEL = "claude-sonnet-4-20250514";
 const OVERVIEW_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -53,16 +55,9 @@ export function buildForecastSummary(
     const dirs = dayHours.map((h) => h.windDirection);
 
     // Dominant direction via circular mean
-    const sinSum = dirs.reduce(
-      (s, d) => s + Math.sin((d * Math.PI) / 180),
-      0,
-    );
-    const cosSum = dirs.reduce(
-      (s, d) => s + Math.cos((d * Math.PI) / 180),
-      0,
-    );
-    const avgDir =
-      ((Math.atan2(sinSum, cosSum) * 180) / Math.PI + 360) % 360;
+    const sinSum = dirs.reduce((s, d) => s + Math.sin((d * Math.PI) / 180), 0);
+    const cosSum = dirs.reduce((s, d) => s + Math.cos((d * Math.PI) / 180), 0);
+    const avgDir = ((Math.atan2(sinSum, cosSum) * 180) / Math.PI + 360) % 360;
 
     const weatherCodes = [
       ...new Set(dayHours.map((h) => weatherCodeToDescription(h.weatherCode))),
@@ -73,9 +68,11 @@ export function buildForecastSummary(
     if (swellHours.length > 0) {
       const avgSwell =
         swellHours.reduce((s, h) => s + h.swellHeight!, 0) / swellHours.length;
-      const avgPeriod = swellHours
-        .filter((h) => h.swellPeriod != null)
-        .reduce((s, h) => s + h.swellPeriod!, 0) / (swellHours.filter((h) => h.swellPeriod != null).length || 1);
+      const avgPeriod =
+        swellHours
+          .filter((h) => h.swellPeriod != null)
+          .reduce((s, h) => s + h.swellPeriod!, 0) /
+        (swellHours.filter((h) => h.swellPeriod != null).length || 1);
       swellSummary = `${avgSwell.toFixed(1)}m @ ${avgPeriod.toFixed(0)}s`;
     }
 
@@ -137,25 +134,31 @@ async function generateSpotOverview(
   const forecastSummary = JSON.stringify(summary);
 
   const client = getClient();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
 
-  const response = await client.messages.create({
-    model: MODEL,
-    max_tokens: 300,
-    system: `You are a concise wing foiling weather analyst writing for experienced riders.
+  const response = await client.messages.create(
+    {
+      model: MODEL,
+      max_tokens: 300,
+      system: `You are a concise wing foiling weather analyst writing for experienced riders.
 Write a single short paragraph (50-80 words max) summarizing today's conditions:
 wind range, direction, best window, and swell if relevant. Don't explain basic
 concepts or restate the rider's criteria — they already know what they need.
 End with a bold **Bottom line:** one-sentence go/no-go verdict.`,
-    messages: [
-      {
-        role: "user",
-        content: `Generate a daily wing foiling overview for ${spot.name} (${spot.latitude.toFixed(4)}°, ${spot.longitude.toFixed(4)}°).
+      messages: [
+        {
+          role: "user",
+          content: `Generate a daily wing foiling overview for ${spot.name} (${spot.latitude.toFixed(4)}°, ${spot.longitude.toFixed(4)}°).
 
 Here's the forecast data and evaluation:
 ${forecastSummary}`,
-      },
-    ],
-  });
+        },
+      ],
+    },
+    { signal: controller.signal },
+  );
+  clearTimeout(timeout);
 
   // Extract text — without tools there's a single text block
   const textParts = response.content
@@ -197,9 +200,7 @@ export async function getOrGenerateOverview(
 
     // Delete old entries
     if (cached.length > 0) {
-      await db
-        .delete(spotOverviews)
-        .where(eq(spotOverviews.spotId, spot.id));
+      await db.delete(spotOverviews).where(eq(spotOverviews.spotId, spot.id));
     }
 
     const generatedAt = new Date();
@@ -219,7 +220,11 @@ export async function getOrGenerateOverview(
 
     return inserted[0];
   } catch (error) {
-    console.error("Failed to generate overview:", error);
+    logger.error(
+      { err: error, spotId: spot.id },
+      "Failed to generate overview",
+    );
+    Sentry.captureException(error);
     // Fall back to stale overview if available
     const stale = cached[0];
     return stale ?? null;

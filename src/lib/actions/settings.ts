@@ -5,6 +5,7 @@ import { preferences } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/auth-session";
+import { updatePreferencesSchema, formDataToObject } from "@/lib/validations";
 
 export async function getPreferences() {
   const { user } = await requireSession();
@@ -35,16 +36,22 @@ export async function updatePreferences(formData: FormData) {
   const { user } = await requireSession();
   const prefs = await getPreferences();
 
-  await db.update(preferences)
+  const parsed = updatePreferencesSchema.safeParse(formDataToObject(formData));
+  if (!parsed.success) {
+    throw new Error(
+      `Validation failed: ${parsed.error.issues.map((i) => i.message).join(", ")}`,
+    );
+  }
+  const data = parsed.data;
+
+  await db
+    .update(preferences)
     .set({
-      email: (formData.get("email") as string) || null,
-      alertsEnabled: formData.get("alertsEnabled") === "on",
-      checkIntervalHours: parseInt(
-        (formData.get("checkIntervalHours") as string) || "6"
-      ),
-      windSpeedUnit: (formData.get("windSpeedUnit") as string) || "knots",
-      temperatureUnit:
-        (formData.get("temperatureUnit") as string) || "celsius",
+      email: data.email || null,
+      alertsEnabled: data.alertsEnabled === "on",
+      checkIntervalHours: data.checkIntervalHours,
+      windSpeedUnit: data.windSpeedUnit,
+      temperatureUnit: data.temperatureUnit,
     })
     .where(eq(preferences.id, prefs.id));
 

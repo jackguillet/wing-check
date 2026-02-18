@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { getSpotForecast } from "@/lib/actions/forecasts";
+import { logger } from "@/lib/logger";
+import * as Sentry from "@sentry/nextjs";
 
 export async function GET(
   _request: Request,
-  { params }: { params: Promise<{ spotId: string }> }
+  { params }: { params: Promise<{ spotId: string }> },
 ) {
   const { spotId } = await params;
   const id = parseInt(spotId);
@@ -18,10 +20,11 @@ export async function GET(
     }
     return NextResponse.json(forecast);
   } catch (error) {
-    console.error("Forecast fetch error:", error);
+    logger.error({ err: error, spotId: id }, "Forecast fetch error");
+    Sentry.captureException(error);
     return NextResponse.json(
       { error: "Failed to fetch forecast" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

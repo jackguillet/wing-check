@@ -2,31 +2,30 @@
 
 import { db } from "@/lib/db";
 import { spots, alertCriteria, userSpots } from "@/lib/db/schema";
-import type { Spot } from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
+import type { Spot, AlertCriteria } from "@/lib/db/schema";
+import { eq, and, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getSession, requireSession } from "@/lib/auth-session";
 import { findNearestStation } from "@/lib/weather/noaa-stations";
 import { generateUniqueSlug } from "@/lib/slugify";
+import {
+  createSpotSchema,
+  updateCriteriaSchema,
+  formDataToObject,
+} from "@/lib/validations";
 
 export async function getSpots() {
   return db.select().from(spots);
 }
 
 export async function getSpot(id: number) {
-  const rows = await db
-    .select()
-    .from(spots)
-    .where(eq(spots.id, id));
+  const rows = await db.select().from(spots).where(eq(spots.id, id));
   return rows[0] ?? null;
 }
 
 export async function getSpotWithCriteria(id: number) {
-  const spotRows = await db
-    .select()
-    .from(spots)
-    .where(eq(spots.id, id));
+  const spotRows = await db.select().from(spots).where(eq(spots.id, id));
   const spot = spotRows[0];
   if (!spot) return null;
   const criteriaRows = await db
@@ -37,18 +36,12 @@ export async function getSpotWithCriteria(id: number) {
 }
 
 export async function getSpotBySlug(slug: string) {
-  const rows = await db
-    .select()
-    .from(spots)
-    .where(eq(spots.slug, slug));
+  const rows = await db.select().from(spots).where(eq(spots.slug, slug));
   return rows[0] ?? null;
 }
 
 export async function getSpotWithCriteriaBySlug(slug: string) {
-  const spotRows = await db
-    .select()
-    .from(spots)
-    .where(eq(spots.slug, slug));
+  const spotRows = await db.select().from(spots).where(eq(spots.slug, slug));
   const spot = spotRows[0];
   if (!spot) return null;
   const criteriaRows = await db
@@ -58,60 +51,85 @@ export async function getSpotWithCriteriaBySlug(slug: string) {
   return { spot, criteria: criteriaRows[0] ?? null };
 }
 
+/** Batch fetch spots with criteria — avoids N+1 for dashboard */
+export async function getSpotsWithCriteria(
+  spotIds: number[],
+): Promise<Map<number, { spot: Spot; criteria: AlertCriteria | null }>> {
+  if (spotIds.length === 0) return new Map();
+
+  const allSpots = await db
+    .select()
+    .from(spots)
+    .where(inArray(spots.id, spotIds));
+
+  const allCriteria = await db
+    .select()
+    .from(alertCriteria)
+    .where(inArray(alertCriteria.spotId, spotIds));
+
+  const criteriaBySpot = new Map(allCriteria.map((c) => [c.spotId, c]));
+  const result = new Map<
+    number,
+    { spot: Spot; criteria: AlertCriteria | null }
+  >();
+
+  for (const spot of allSpots) {
+    result.set(spot.id, {
+      spot,
+      criteria: criteriaBySpot.get(spot.id) ?? null,
+    });
+  }
+
+  return result;
+}
+
 export async function createSpot(formData: FormData) {
   const { user } = await requireSession();
 
-  const name = formData.get("name") as string;
-  const latitude = parseFloat(formData.get("latitude") as string);
-  const longitude = parseFloat(formData.get("longitude") as string);
-  let noaaStationId = (formData.get("noaaStationId") as string) || null;
-  const notes = (formData.get("notes") as string) || null;
-
-  if (!noaaStationId) {
-    noaaStationId = await findNearestStation(latitude, longitude);
+  const parsed = createSpotSchema.safeParse(formDataToObject(formData));
+  if (!parsed.success) {
+    throw new Error(
+      `Validation failed: ${parsed.error.issues.map((i) => i.message).join(", ")}`,
+    );
   }
+  const data = parsed.data;
 
-  const preferredDirs = formData.get("preferredDirections") as string;
-  const minWind = parseFloat(
-    (formData.get("minWindSpeed") as string) || "10"
-  );
-  const maxWind = parseFloat(
-    (formData.get("maxWindSpeed") as string) || "25"
-  );
-  const maxGust = parseFloat(
-    (formData.get("maxGustFactor") as string) || "2.5"
-  );
-  const dirTolerance = parseFloat(
-    (formData.get("directionTolerance") as string) || "45"
-  );
-  const minHours = parseInt(
-    (formData.get("minConsecutiveHours") as string) || "2"
-  );
-  const maxWaveStr = formData.get("maxWaveHeight") as string;
-  const maxWave = maxWaveStr ? parseFloat(maxWaveStr) : null;
+  let noaaStationId = data.noaaStationId || null;
+  if (!noaaStationId) {
+    noaaStationId = await findNearestStation(data.latitude, data.longitude);
+  }
 
   // Generate unique slug
   const existingRows = await db.select({ slug: spots.slug }).from(spots);
-  const existingSlugs = new Set(existingRows.map((r) => r.slug).filter(Boolean) as string[]);
-  const slug = generateUniqueSlug(name, existingSlugs);
+  const existingSlugs = new Set(
+    existingRows.map((r) => r.slug).filter(Boolean) as string[],
+  );
+  const slug = generateUniqueSlug(data.name, existingSlugs);
 
   const insertResult = await db
     .insert(spots)
-    .values({ name, slug, latitude, longitude, noaaStationId, notes, userId: user.id })
+    .values({
+      name: data.name,
+      slug,
+      latitude: data.latitude,
+      longitude: data.longitude,
+      noaaStationId,
+      notes: data.notes || null,
+      userId: user.id,
+    })
     .returning();
   const inserted = insertResult[0];
 
-  await db.insert(alertCriteria)
-    .values({
-      spotId: inserted.id,
-      minWindSpeed: minWind,
-      maxWindSpeed: maxWind,
-      maxGustFactor: maxGust,
-      preferredDirections: preferredDirs || "[]",
-      directionTolerance: dirTolerance,
-      minConsecutiveHours: minHours,
-      maxWaveHeight: maxWave,
-    });
+  await db.insert(alertCriteria).values({
+    spotId: inserted.id,
+    minWindSpeed: data.minWindSpeed,
+    maxWindSpeed: data.maxWindSpeed,
+    maxGustFactor: data.maxGustFactor,
+    preferredDirections: data.preferredDirections,
+    directionTolerance: data.directionTolerance,
+    minConsecutiveHours: data.minConsecutiveHours,
+    maxWaveHeight: data.maxWaveHeight ?? null,
+  });
 
   await db.insert(userSpots).values({
     userId: user.id,
@@ -127,7 +145,9 @@ export async function createSpot(formData: FormData) {
 
 export async function deleteSpot(id: number) {
   const { user } = await requireSession();
-  await db.delete(spots).where(and(eq(spots.id, id), eq(spots.userId, user.id)));
+  await db
+    .delete(spots)
+    .where(and(eq(spots.id, id), eq(spots.userId, user.id)));
   revalidatePath("/");
   revalidatePath("/spots");
   redirect("/spots");
@@ -143,6 +163,14 @@ export async function updateSpotCriteria(spotId: number, formData: FormData) {
     .where(and(eq(spots.id, spotId), eq(spots.userId, user.id)));
   if (spotRows.length === 0) throw new Error("Spot not found");
 
+  const parsed = updateCriteriaSchema.safeParse(formDataToObject(formData));
+  if (!parsed.success) {
+    throw new Error(
+      `Validation failed: ${parsed.error.issues.map((i) => i.message).join(", ")}`,
+    );
+  }
+  const data = parsed.data;
+
   const existingRows = await db
     .select()
     .from(alertCriteria)
@@ -151,29 +179,18 @@ export async function updateSpotCriteria(spotId: number, formData: FormData) {
 
   const values = {
     spotId,
-    minWindSpeed: parseFloat(
-      (formData.get("minWindSpeed") as string) || "10"
-    ),
-    maxWindSpeed: parseFloat(
-      (formData.get("maxWindSpeed") as string) || "25"
-    ),
-    maxGustFactor: parseFloat(
-      (formData.get("maxGustFactor") as string) || "2.5"
-    ),
-    preferredDirections: (formData.get("preferredDirections") as string) || "[]",
-    directionTolerance: parseFloat(
-      (formData.get("directionTolerance") as string) || "45"
-    ),
-    minConsecutiveHours: parseInt(
-      (formData.get("minConsecutiveHours") as string) || "2"
-    ),
-    maxWaveHeight: formData.get("maxWaveHeight")
-      ? parseFloat(formData.get("maxWaveHeight") as string)
-      : null,
+    minWindSpeed: data.minWindSpeed,
+    maxWindSpeed: data.maxWindSpeed,
+    maxGustFactor: data.maxGustFactor,
+    preferredDirections: data.preferredDirections,
+    directionTolerance: data.directionTolerance,
+    minConsecutiveHours: data.minConsecutiveHours,
+    maxWaveHeight: data.maxWaveHeight ?? null,
   };
 
   if (existing) {
-    await db.update(alertCriteria)
+    await db
+      .update(alertCriteria)
       .set(values)
       .where(eq(alertCriteria.id, existing.id));
   } else {
@@ -208,7 +225,9 @@ export async function getUserSpotPrefs(spotId: number) {
   const rows = await db
     .select()
     .from(userSpots)
-    .where(and(eq(userSpots.userId, session.user.id), eq(userSpots.spotId, spotId)));
+    .where(
+      and(eq(userSpots.userId, session.user.id), eq(userSpots.spotId, spotId)),
+    );
   return rows[0] ?? null;
 }
 
@@ -234,7 +253,10 @@ export async function toggleFavorite(spotId: number) {
     });
   }
 
-  const spotRow = await db.select({ slug: spots.slug }).from(spots).where(eq(spots.id, spotId));
+  const spotRow = await db
+    .select({ slug: spots.slug })
+    .from(spots)
+    .where(eq(spots.id, spotId));
   revalidatePath("/");
   revalidatePath("/spots");
   revalidatePath(`/spots/${spotRow[0]?.slug}`);
@@ -262,7 +284,10 @@ export async function toggleSpotAlerts(spotId: number) {
     });
   }
 
-  const spotRow = await db.select({ slug: spots.slug }).from(spots).where(eq(spots.id, spotId));
+  const spotRow = await db
+    .select({ slug: spots.slug })
+    .from(spots)
+    .where(eq(spots.id, spotId));
   revalidatePath(`/spots/${spotRow[0]?.slug}`);
 }
 
@@ -272,7 +297,12 @@ export async function getUserFavoriteSpotIds(): Promise<Set<number>> {
   const rows = await db
     .select({ spotId: userSpots.spotId })
     .from(userSpots)
-    .where(and(eq(userSpots.userId, session.user.id), eq(userSpots.isFavorite, true)));
+    .where(
+      and(
+        eq(userSpots.userId, session.user.id),
+        eq(userSpots.isFavorite, true),
+      ),
+    );
   return new Set(rows.map((r) => r.spotId));
 }
 
