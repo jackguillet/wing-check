@@ -362,7 +362,7 @@ export function ForecastSection({
         </TabsList>
 
         <TabsContent value="chart" className="space-y-4">
-          <WindChart hours={filteredHours} criteria={rawCriteria} />
+          <WindChart hours={filteredHours} criteria={criteria} />
           <PressureTrendCard trends={conditionsInsight.pressureTrends} />
           <ConditionsChart
             hours={filteredHours}
