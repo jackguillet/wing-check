@@ -37,6 +37,9 @@ const chartConfig = {
 } satisfies ChartConfig;
 
 export function WindChart({ hours, criteria }: WindChartProps) {
+  const minWind = criteria?.minWindSpeed ?? 10;
+  const maxWind = criteria?.maxWindSpeed ?? 25;
+
   const data = hours.map((h) => ({
     time: h.time,
     label: format(parseISO(h.time), "EEE HH:mm"),
@@ -67,37 +70,25 @@ export function WindChart({ hours, criteria }: WindChartProps) {
             <YAxis tick={{ fontSize: 11 }} width={48} unit=" kt" />
             <ChartTooltip content={<ChartTooltipContent />} />
             <ReferenceArea
-              y1={10}
-              y2={25}
-              fill="red"
-              fillOpacity={0.3}
+              y1={minWind}
+              y2={maxWind}
+              fill="hsl(142, 76%, 36%)"
+              fillOpacity={0.12}
               strokeOpacity={0}
               ifOverflow="extendDomain"
             />
-            {criteria && (
-              <>
-                <ReferenceArea
-                  y1={criteria.minWindSpeed}
-                  y2={criteria.maxWindSpeed}
-                  fill="hsl(142, 76%, 36%)"
-                  fillOpacity={0.12}
-                  strokeOpacity={0}
-                  ifOverflow="extendDomain"
-                />
-                <ReferenceLine
-                  y={criteria.minWindSpeed}
-                  stroke="hsl(142, 76%, 36%)"
-                  strokeDasharray="4 4"
-                  label={{ value: "Min", position: "left", fontSize: 10 }}
-                />
-                <ReferenceLine
-                  y={criteria.maxWindSpeed}
-                  stroke="hsl(0, 84%, 60%)"
-                  strokeDasharray="4 4"
-                  label={{ value: "Max", position: "left", fontSize: 10 }}
-                />
-              </>
-            )}
+            <ReferenceLine
+              y={minWind}
+              stroke="hsl(142, 76%, 36%)"
+              strokeDasharray="4 4"
+              label={{ value: "Min", position: "left", fontSize: 10 }}
+            />
+            <ReferenceLine
+              y={maxWind}
+              stroke="hsl(0, 84%, 60%)"
+              strokeDasharray="4 4"
+              label={{ value: "Max", position: "left", fontSize: 10 }}
+            />
             <Area
               type="monotone"
               dataKey="windGusts"
