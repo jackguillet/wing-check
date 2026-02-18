@@ -6,6 +6,7 @@ import {
   CartesianGrid,
   XAxis,
   YAxis,
+  ReferenceArea,
   ReferenceLine,
 } from "recharts";
 import {
@@ -36,13 +37,12 @@ const chartConfig = {
 } satisfies ChartConfig;
 
 export function WindChart({ hours, criteria }: WindChartProps) {
-  const data = hours
-    .map((h) => ({
-      time: h.time,
-      label: format(parseISO(h.time), "EEE HH:mm"),
-      windSpeed: h.windSpeed,
-      windGusts: h.windGusts,
-    }));
+  const data = hours.map((h) => ({
+    time: h.time,
+    label: format(parseISO(h.time), "EEE HH:mm"),
+    windSpeed: h.windSpeed,
+    windGusts: h.windGusts,
+  }));
 
   return (
     <Card>
@@ -51,7 +51,10 @@ export function WindChart({ hours, criteria }: WindChartProps) {
       </CardHeader>
       <CardContent>
         <ChartContainer config={chartConfig} className="h-[300px] w-full">
-          <AreaChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+          <AreaChart
+            data={data}
+            margin={{ top: 5, right: 10, left: 0, bottom: 0 }}
+          >
             <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
             <XAxis
               dataKey="label"
@@ -65,6 +68,13 @@ export function WindChart({ hours, criteria }: WindChartProps) {
             <ChartTooltip content={<ChartTooltipContent />} />
             {criteria && (
               <>
+                <ReferenceArea
+                  y1={criteria.minWindSpeed}
+                  y2={criteria.maxWindSpeed}
+                  fill="hsl(142, 76%, 36%)"
+                  fillOpacity={0.06}
+                  strokeOpacity={0}
+                />
                 <ReferenceLine
                   y={criteria.minWindSpeed}
                   stroke="hsl(142, 76%, 36%)"
