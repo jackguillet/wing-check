@@ -11,12 +11,12 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { ForecastMap } from "@/components/forecast-map";
 import { WindChart } from "@/components/wind-chart";
-import { SwellCard } from "@/components/swell-card";
-import { PressureChart } from "@/components/pressure-chart";
-import { TideChart } from "@/components/tide-chart";
+import { PressureTrendCard } from "@/components/pressure-trend-card";
+import { ConditionsChart } from "@/components/conditions-chart";
 import { ForecastTable } from "@/components/forecast-table";
 import type { ForecastHour, TidePoint } from "@/lib/weather/types";
 import { degreesToCardinal } from "@/lib/weather/types";
+import { computeConditionsInsight } from "@/lib/weather/conditions";
 import type { AlertCriteria } from "@/lib/db/schema";
 import type { HourScore, RideableWindow } from "@/lib/alerts/evaluator";
 
@@ -93,7 +93,7 @@ function filterDaylightScores(
 ): HourScore[] {
   const daylightTimes = new Set(
     filterDaylightHours(
-      scores.map((s) => ({ time: s.time } as ForecastHour)),
+      scores.map((s) => ({ time: s.time }) as ForecastHour),
       sunrise,
       sunset,
     ).map((h) => h.time),
@@ -102,7 +102,11 @@ function filterDaylightScores(
 }
 
 /** Filter tide points by day range from the first hour. */
-function filterTidesByDayRange(tides: TidePoint[], hours: ForecastHour[], days: number): TidePoint[] {
+function filterTidesByDayRange(
+  tides: TidePoint[],
+  hours: ForecastHour[],
+  days: number,
+): TidePoint[] {
   if (hours.length === 0 || tides.length === 0) return tides;
   const firstDate = hours[0].time.substring(0, 10);
   const cutoff = new Date(firstDate + "T00:00");
@@ -178,7 +182,7 @@ export function ForecastSection({
   const filteredScores = useMemo(() => {
     if (!hourScores) return undefined;
     const rangeScores = filterByDayRange(
-      hourScores.map((s) => ({ time: s.time } as ForecastHour)),
+      hourScores.map((s) => ({ time: s.time }) as ForecastHour),
       dayRange,
     ).map((h) => h.time);
     const rangeSet = new Set(rangeScores);
@@ -204,6 +208,11 @@ export function ForecastSection({
     const cutoffStr = cutoff.toISOString().substring(0, 10);
     return rideableWindows.filter((w) => w.start.substring(0, 10) < cutoffStr);
   }, [rideableWindows, hours, dayRange]);
+
+  const conditionsInsight = useMemo(
+    () => computeConditionsInsight(filteredHours, filteredTides),
+    [filteredHours, filteredTides],
+  );
 
   return (
     <div className="space-y-6">
@@ -251,9 +260,70 @@ export function ForecastSection({
                           })}
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          {w.hours}h · {w.avgWind}kt avg · gusts {w.avgGusts}kt ·{" "}
-                          {degreesToCardinal(w.dominantDirection)}
+                          {w.hours}h · {w.avgWind}kt avg · gusts {w.avgGusts}kt
+                          · {degreesToCardinal(w.dominantDirection)}
                         </p>
+                        {(() => {
+                          const midTime = new Date(
+                            (new Date(w.start).getTime() +
+                              new Date(w.end).getTime()) /
+                              2,
+                          )
+                            .toISOString()
+                            .substring(0, 16);
+                          const nearestHour = filteredHours.reduce((best, h) =>
+                            Math.abs(
+                              new Date(h.time).getTime() -
+                                new Date(midTime).getTime(),
+                            ) <
+                            Math.abs(
+                              new Date(best.time).getTime() -
+                                new Date(midTime).getTime(),
+                            )
+                              ? h
+                              : best,
+                          );
+                          const sq = conditionsInsight.swellQualities.get(
+                            nearestHour.time,
+                          );
+                          const pt = conditionsInsight.pressureTrends.find(
+                            (p) => p.time === nearestHour.time,
+                          );
+                          const tp =
+                            conditionsInsight.tidePhases.length > 0
+                              ? conditionsInsight.tidePhases.reduce(
+                                  (best, phase) =>
+                                    Math.abs(
+                                      new Date(phase.time).getTime() -
+                                        new Date(midTime).getTime(),
+                                    ) <
+                                    Math.abs(
+                                      new Date(best.time).getTime() -
+                                        new Date(midTime).getTime(),
+                                    )
+                                      ? phase
+                                      : best,
+                                )
+                              : null;
+
+                          const parts: string[] = [];
+                          if (tp)
+                            parts.push(
+                              `${tp.phase === "rising" ? "Rising" : tp.phase === "falling" ? "Falling" : tp.phase === "high" ? "High" : "Low"} tide`,
+                            );
+                          if (sq && sq.rating !== "poor") parts.push(sq.label);
+                          if (pt && pt.direction !== "steady")
+                            parts.push(
+                              `Pressure ${pt.direction.replace("-", " ")}`,
+                            );
+
+                          if (parts.length === 0) return null;
+                          return (
+                            <p className="text-xs text-muted-foreground">
+                              {parts.join(" · ")}
+                            </p>
+                          );
+                        })()}
                       </div>
                       <Badge
                         className={
@@ -286,14 +356,19 @@ export function ForecastSection({
         <TabsList>
           <TabsTrigger value="chart">Wind Chart</TabsTrigger>
           <TabsTrigger value="table">Forecast Table</TabsTrigger>
-          {isOwner && <TabsTrigger value="criteria">Alert Criteria</TabsTrigger>}
+          {isOwner && (
+            <TabsTrigger value="criteria">Alert Criteria</TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="chart" className="space-y-4">
           <WindChart hours={filteredHours} criteria={rawCriteria} />
-          <SwellCard hours={filteredHours} />
-          <PressureChart hours={filteredHours} />
-          <TideChart tides={filteredTides} />
+          <PressureTrendCard trends={conditionsInsight.pressureTrends} />
+          <ConditionsChart
+            hours={filteredHours}
+            tides={filteredTides}
+            insight={conditionsInsight}
+          />
         </TabsContent>
 
         <TabsContent value="table">
