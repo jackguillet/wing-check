@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { db } from "@/lib/db";
 import { spotOverviews } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { evaluateSpot } from "@/lib/alerts/evaluator";
 import type { ForecastHour } from "@/lib/weather/types";
 import {
@@ -223,9 +223,14 @@ export async function getOrGenerateOverview(
       units,
     );
 
-    // Delete old entries
-    if (cached.length > 0) {
-      await db.delete(spotOverviews).where(eq(spotOverviews.spotId, spot.id));
+    const expired = cached.filter((row) => row.expiresAt <= now);
+    if (expired.length > 0) {
+      await db.delete(spotOverviews).where(
+        inArray(
+          spotOverviews.id,
+          expired.map((row) => row.id),
+        ),
+      );
     }
 
     const generatedAt = new Date();

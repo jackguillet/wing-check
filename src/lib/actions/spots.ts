@@ -1,8 +1,14 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { spots, alertCriteria, userSpots } from "@/lib/db/schema";
-import type { Spot, AlertCriteria } from "@/lib/db/schema";
+import {
+  spots,
+  alertCriteria,
+  userAlertCriteria,
+  userSpots,
+} from "@/lib/db/schema";
+import type { Spot, AlertCriteria, UserAlertCriteria } from "@/lib/db/schema";
+import { resolveCriteria } from "@/lib/criteria";
 import { eq, and, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -69,6 +75,42 @@ export async function getSpotWithCriteriaBySlug(slug: string) {
     .from(alertCriteria)
     .where(eq(alertCriteria.spotId, spot.id));
   return { spot, criteria: criteriaRows[0] ?? null };
+}
+
+export async function getUserCriteriaMap(
+  userId: string,
+  spotIds: number[],
+): Promise<Map<number, UserAlertCriteria>> {
+  if (spotIds.length === 0) return new Map();
+  const rows = await db
+    .select()
+    .from(userAlertCriteria)
+    .where(
+      and(
+        eq(userAlertCriteria.userId, userId),
+        inArray(userAlertCriteria.spotId, spotIds),
+      ),
+    );
+  return new Map(rows.map((row) => [row.spotId, row]));
+}
+
+export async function getResolvedCriteriaMap(
+  spotIds: number[],
+  userId?: string | null,
+): Promise<Map<number, AlertCriteria>> {
+  const [spotMap, userMap] = await Promise.all([
+    getSpotsWithCriteria(spotIds),
+    userId ? getUserCriteriaMap(userId, spotIds) : Promise.resolve(new Map()),
+  ]);
+
+  const result = new Map<number, AlertCriteria>();
+  for (const id of spotIds) {
+    result.set(
+      id,
+      resolveCriteria(id, userMap.get(id), spotMap.get(id)?.criteria),
+    );
+  }
+  return result;
 }
 
 /** Batch fetch spots with criteria — avoids N+1 for dashboard */
@@ -165,6 +207,18 @@ export async function createSpot(
     alertsEnabled: true,
   });
 
+  await db.insert(userAlertCriteria).values({
+    userId: user.id,
+    spotId: inserted.id,
+    minWindSpeed: data.minWindSpeed,
+    maxWindSpeed: data.maxWindSpeed,
+    maxGustFactor: data.maxGustFactor,
+    preferredDirections: data.preferredDirections,
+    directionTolerance: data.directionTolerance,
+    minConsecutiveHours: data.minConsecutiveHours,
+    maxWaveHeight: data.maxWaveHeight ?? null,
+  });
+
   revalidatePath("/");
   revalidatePath("/spots");
   redirect("/spots");
@@ -187,11 +241,7 @@ export async function updateSpotCriteria(
 ): Promise<SpotFormState> {
   const { user } = await requireSession();
 
-  // Verify ownership
-  const spotRows = await db
-    .select()
-    .from(spots)
-    .where(and(eq(spots.id, spotId), eq(spots.userId, user.id)));
+  const spotRows = await db.select().from(spots).where(eq(spots.id, spotId));
   if (spotRows.length === 0) {
     return { error: "Spot not found" };
   }
@@ -208,13 +258,8 @@ export async function updateSpotCriteria(
   }
   const data = parsed.data;
 
-  const existingRows = await db
-    .select()
-    .from(alertCriteria)
-    .where(eq(alertCriteria.spotId, spotId));
-  const existing = existingRows[0];
-
   const values = {
+    userId: user.id,
     spotId,
     minWindSpeed: data.minWindSpeed,
     maxWindSpeed: data.maxWindSpeed,
@@ -225,13 +270,24 @@ export async function updateSpotCriteria(
     maxWaveHeight: data.maxWaveHeight ?? null,
   };
 
+  const existingRows = await db
+    .select()
+    .from(userAlertCriteria)
+    .where(
+      and(
+        eq(userAlertCriteria.userId, user.id),
+        eq(userAlertCriteria.spotId, spotId),
+      ),
+    );
+  const existing = existingRows[0];
+
   if (existing) {
     await db
-      .update(alertCriteria)
+      .update(userAlertCriteria)
       .set(values)
-      .where(eq(alertCriteria.id, existing.id));
+      .where(eq(userAlertCriteria.id, existing.id));
   } else {
-    await db.insert(alertCriteria).values(values);
+    await db.insert(userAlertCriteria).values(values);
   }
 
   revalidatePath(`/spots/${spotRows[0].slug}`);

@@ -152,6 +152,33 @@ export const alertCriteria = sqliteTable("alert_criteria", {
   maxWaveHeight: real("max_wave_height").default(1.5),
 });
 
+export const userAlertCriteria = sqliteTable(
+  "user_alert_criteria",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    spotId: integer("spot_id")
+      .notNull()
+      .references(() => spots.id, { onDelete: "cascade" }),
+    minWindSpeed: real("min_wind_speed").notNull().default(10),
+    maxWindSpeed: real("max_wind_speed").notNull().default(25),
+    maxGustFactor: real("max_gust_factor").notNull().default(2.5),
+    preferredDirections: text("preferred_directions").notNull().default("[]"),
+    directionTolerance: real("direction_tolerance").notNull().default(45),
+    minConsecutiveHours: integer("min_consecutive_hours").notNull().default(2),
+    maxWaveHeight: real("max_wave_height").default(1.5),
+  },
+  (table) => [
+    index("user_alert_criteria_userId_idx").on(table.userId),
+    uniqueIndex("user_alert_criteria_userId_spotId_uniq").on(
+      table.userId,
+      table.spotId,
+    ),
+  ],
+);
+
 export const forecastCache = sqliteTable("forecast_cache", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   spotId: integer("spot_id")
@@ -213,6 +240,8 @@ export type UserSpot = typeof userSpots.$inferSelect;
 export type NewUserSpot = typeof userSpots.$inferInsert;
 export type AlertCriteria = typeof alertCriteria.$inferSelect;
 export type NewAlertCriteria = typeof alertCriteria.$inferInsert;
+export type UserAlertCriteria = typeof userAlertCriteria.$inferSelect;
+export type NewUserAlertCriteria = typeof userAlertCriteria.$inferInsert;
 export type ForecastCache = typeof forecastCache.$inferSelect;
 export type Preferences = typeof preferences.$inferSelect;
 export type SpotOverview = typeof spotOverviews.$inferSelect;

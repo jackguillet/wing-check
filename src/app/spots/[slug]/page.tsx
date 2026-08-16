@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import {
   getSpot,
   getSpotWithCriteriaBySlug,
+  getResolvedCriteriaMap,
   deleteSpot,
   updateSpotNotes,
   getUserSpotPrefs,
@@ -170,13 +171,17 @@ export default async function SpotDetailPage({
   const spotData = await getSpotWithCriteriaBySlug(slug);
   if (!spotData) notFound();
 
-  const { spot, criteria: rawCriteria } = spotData;
+  const { spot } = spotData;
   const isOwner = session?.user?.id === spot.userId;
   const isAuthenticated = !!session?.user;
   const userSpotPrefs = isAuthenticated
     ? await getUserSpotPrefs(spot.id)
     : null;
-  const criteria: AlertCriteria = rawCriteria ?? {
+  const resolvedMap = await getResolvedCriteriaMap(
+    [spot.id],
+    session?.user?.id,
+  );
+  const criteria: AlertCriteria = resolvedMap.get(spot.id) ?? {
     id: 0,
     spotId: spot.id,
     ...defaultCriteria,
@@ -369,13 +374,14 @@ export default async function SpotDetailPage({
             sunrise={forecast.sunrise}
             sunset={forecast.sunset}
             criteria={criteria}
-            rawCriteria={rawCriteria}
+            rawCriteria={criteria}
             hourScores={evaluation?.hourScores}
             rideableWindows={evaluation?.rideableWindows}
             spotId={spot.id}
             lat={spot.latitude}
             lng={spot.longitude}
             isOwner={isOwner}
+            canEditCriteria={isAuthenticated}
           />
         )}
 
