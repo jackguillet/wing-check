@@ -31,18 +31,27 @@ const kit = {
 
 describe("resolveCriteria", () => {
 
-  it("prefers a per-spot override", () => {
+  it("prefers a per-spot override, including that spot's dirs", () => {
     const resolved = resolveCriteria(7, user, kit, spot);
     expect(resolved.spotId).toBe(7);
     expect(resolved.minWindSpeed).toBe(18);
     expect(resolved.preferredDirections).toBe("[45]");
   });
 
-  it("uses the rider's default kit when there is no override", () => {
+  it("uses the rider's wind band but the catalog's directions", () => {
     const resolved = resolveCriteria(7, null, kit, spot);
     expect(resolved.minWindSpeed).toBe(14);
     expect(resolved.maxWindSpeed).toBe(22);
-    expect(resolved.preferredDirections).toBe("[90]");
+    expect(resolved.preferredDirections).toBe("[270]");
+    expect(resolved.directionTolerance).toBe(spot.directionTolerance);
+  });
+
+  it("ignores rider-kit directions when the spot has no catalog dirs", () => {
+    const resolved = resolveCriteria(7, null, kit, null);
+    expect(resolved.minWindSpeed).toBe(14);
+    expect(resolved.preferredDirections).toBe(
+      defaultCriteria.preferredDirections,
+    );
   });
 
   it("falls back to the spot default", () => {
@@ -99,7 +108,7 @@ describe("windProfileFromPrefs", () => {
       maxWaveHeight: 2,
     });
     expect(kit?.minWindSpeed).toBe(16);
-    expect(kit?.preferredDirections).toBe("[270]");
+    expect(kit?.preferredDirections).toBe(defaultCriteria.preferredDirections);
     expect(kit?.maxGustFactor).toBe(defaultCriteria.maxGustFactor);
     expect(kit?.maxWaveHeight).toBe(2);
   });

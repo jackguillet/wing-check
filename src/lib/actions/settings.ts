@@ -35,8 +35,6 @@ function kitFieldsFromProfile(profile: KitWindFields): KitWindFields {
     minWindSpeed: profile.minWindSpeed,
     maxWindSpeed: profile.maxWindSpeed,
     maxGustFactor: profile.maxGustFactor,
-    preferredDirections: profile.preferredDirections,
-    directionTolerance: profile.directionTolerance,
     minConsecutiveHours: profile.minConsecutiveHours,
     maxWaveHeight: profile.maxWaveHeight,
   };
@@ -113,8 +111,6 @@ export async function updateWindProfile(formData: FormData) {
     minWindSpeed: data.minWindSpeed,
     maxWindSpeed: data.maxWindSpeed,
     maxGustFactor: data.maxGustFactor,
-    preferredDirections: data.preferredDirections,
-    directionTolerance: data.directionTolerance,
     minConsecutiveHours: data.minConsecutiveHours,
     maxWaveHeight: data.maxWaveHeight ?? null,
   };
@@ -136,6 +132,8 @@ export async function updateWindProfile(formData: FormData) {
     .update(preferences)
     .set({
       ...nextKit,
+      preferredDirections: null,
+      directionTolerance: null,
       skill,
       sessionStartHour: hour("sessionStartHour"),
       sessionEndHour: hour("sessionEndHour"),
@@ -207,7 +205,13 @@ export async function saveKitPreset(formData: FormData) {
 
   await db
     .insert(kitPresets)
-    .values({ userId: user.id, name, ...fields })
+    .values({
+      userId: user.id,
+      name,
+      ...fields,
+      preferredDirections: "[]",
+      directionTolerance: 45,
+    })
     .onConflictDoUpdate({
       target: [kitPresets.userId, kitPresets.name],
       set: fields,
@@ -240,6 +244,8 @@ export async function activateKitPreset(formData: FormData) {
     .update(preferences)
     .set({
       ...kitFieldsFromProfile(preset),
+      preferredDirections: null,
+      directionTolerance: null,
       activeKitName: preset.name,
     })
     .where(eq(preferences.userId, user.id));
