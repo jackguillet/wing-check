@@ -126,3 +126,8 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Keep OSM tiles below the sticky nav */
+.leaflet-container {
+  z-index: 0;
+}

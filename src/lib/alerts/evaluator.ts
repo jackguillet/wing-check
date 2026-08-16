@@ -1,5 +1,6 @@
 import type { ForecastHour } from "@/lib/weather/types";
 import type { AlertCriteria } from "@/lib/db/schema";
+import { parsePreferredDirections } from "@/lib/directions";
 
 export interface HourScore {
   time: string;
@@ -48,7 +49,9 @@ const THUNDERSTORM_CODES = new Set([95, 96, 99]);
 const MAX_GUST_ABSOLUTE_KT = 50;
 
 function scoreHour(hour: ForecastHour, criteria: AlertCriteria): HourScore {
-  const preferredDirs: number[] = JSON.parse(criteria.preferredDirections);
+  const preferredDirs: number[] = parsePreferredDirections(
+    criteria.preferredDirections,
+  );
 
   const windOk =
     hour.windSpeed >= criteria.minWindSpeed &&

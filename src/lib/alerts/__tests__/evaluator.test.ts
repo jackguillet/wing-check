@@ -165,6 +165,21 @@ describe("evaluateSpot", () => {
     expect(result.hourScores.every((s) => s.directionOk)).toBe(true);
   });
 
+  it("parses comma-separated preferred directions", () => {
+    const criteria = { ...defaultCriteria, preferredDirections: "270, 280" };
+    const hours = makeHours(3, { windDirection: 270 });
+    const result = evaluateSpot(hours, criteria);
+    expect(result.hourScores.every((s) => s.directionOk)).toBe(true);
+  });
+
+  it("does not throw on invalid preferredDirections JSON", () => {
+    const criteria = { ...defaultCriteria, preferredDirections: "not-json" };
+    const hours = makeHours(3, { windDirection: 90 });
+    expect(() => evaluateSpot(hours, criteria)).not.toThrow();
+    const result = evaluateSpot(hours, criteria);
+    expect(result.hourScores.every((s) => s.directionOk)).toBe(true);
+  });
+
   it("handles no wave data gracefully", () => {
     const hours = makeHours(3, { waveHeight: null, swellHeight: null });
     const result = evaluateSpot(hours, defaultCriteria);

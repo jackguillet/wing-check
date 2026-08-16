@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { forecastCache, spots } from "@/lib/db/schema";
-import { eq, and, gt } from "drizzle-orm";
+import { eq, and, gt, inArray } from "drizzle-orm";
 import {
   fetchWeatherForecast,
   fetchMarineForecast,
@@ -142,4 +142,51 @@ export async function getSpotForecast(
 
     throw error;
   }
+}
+
+export type CachedSpotForecast = SpotForecast & { stale?: boolean };
+
+/**
+ * Batch-read cached forecasts. Does not hit weather APIs.
+ * Expired rows are returned with `stale: true` so the dashboard can
+ * rank spots without a thundering herd of live fetches.
+ */
+export async function getCachedForecastsBySpotIds(
+  spotIds: number[],
+): Promise<Map<number, CachedSpotForecast>> {
+  const result = new Map<number, CachedSpotForecast>();
+  if (spotIds.length === 0) return result;
+
+  const [spotRows, cacheRows] = await Promise.all([
+    db.select().from(spots).where(inArray(spots.id, spotIds)),
+    db
+      .select()
+      .from(forecastCache)
+      .where(inArray(forecastCache.spotId, spotIds)),
+  ]);
+
+  const spotsById = new Map(spotRows.map((s) => [s.id, s]));
+  const now = Date.now();
+
+  // Latest row per spot wins if duplicates exist
+  const latestBySpot = new Map<(typeof cacheRows)[number]["spotId"], (typeof cacheRows)[number]>();
+  for (const row of cacheRows) {
+    const existing = latestBySpot.get(row.spotId);
+    if (!existing || row.fetchedAt > existing.fetchedAt) {
+      latestBySpot.set(row.spotId, row);
+    }
+  }
+
+  for (const [spotId, cached] of latestBySpot) {
+    const spot = spotsById.get(spotId);
+    if (!spot) continue;
+    try {
+      const stale = cached.expiresAt.getTime() <= now;
+      result.set(spotId, buildForecastFromCache(spot, cached, stale));
+    } catch (error) {
+      logger.warn({ err: error, spotId }, "Skipping unreadable forecast cache row");
+    }
+  }
+
+  return result;
 }

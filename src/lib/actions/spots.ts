@@ -15,6 +15,24 @@ import {
   formDataToObject,
 } from "@/lib/validations";
 
+export type SpotFormState = {
+  error?: string;
+  fieldErrors?: Record<string, string[] | undefined>;
+  ok?: boolean;
+};
+
+function flattenFieldErrors(
+  issues: { path: PropertyKey[]; message: string }[],
+): Record<string, string[]> {
+  const fieldErrors: Record<string, string[]> = {};
+  for (const issue of issues) {
+    const key = String(issue.path[0] ?? "form");
+    if (!fieldErrors[key]) fieldErrors[key] = [];
+    fieldErrors[key].push(issue.message);
+  }
+  return fieldErrors;
+}
+
 export async function getSpots() {
   return db.select().from(spots);
 }
@@ -83,14 +101,18 @@ export async function getSpotsWithCriteria(
   return result;
 }
 
-export async function createSpot(formData: FormData) {
+export async function createSpot(
+  _prev: SpotFormState,
+  formData: FormData,
+): Promise<SpotFormState> {
   const { user } = await requireSession();
 
   const parsed = createSpotSchema.safeParse(formDataToObject(formData));
   if (!parsed.success) {
-    throw new Error(
-      `Validation failed: ${parsed.error.issues.map((i) => i.message).join(", ")}`,
-    );
+    return {
+      error: parsed.error.issues.map((i) => i.message).join(", "),
+      fieldErrors: flattenFieldErrors(parsed.error.issues),
+    };
   }
   const data = parsed.data;
 
@@ -153,7 +175,11 @@ export async function deleteSpot(id: number) {
   redirect("/spots");
 }
 
-export async function updateSpotCriteria(spotId: number, formData: FormData) {
+export async function updateSpotCriteria(
+  spotId: number,
+  _prev: SpotFormState,
+  formData: FormData,
+): Promise<SpotFormState> {
   const { user } = await requireSession();
 
   // Verify ownership
@@ -161,13 +187,16 @@ export async function updateSpotCriteria(spotId: number, formData: FormData) {
     .select()
     .from(spots)
     .where(and(eq(spots.id, spotId), eq(spots.userId, user.id)));
-  if (spotRows.length === 0) throw new Error("Spot not found");
+  if (spotRows.length === 0) {
+    return { error: "Spot not found" };
+  }
 
   const parsed = updateCriteriaSchema.safeParse(formDataToObject(formData));
   if (!parsed.success) {
-    throw new Error(
-      `Validation failed: ${parsed.error.issues.map((i) => i.message).join(", ")}`,
-    );
+    return {
+      error: parsed.error.issues.map((i) => i.message).join(", "),
+      fieldErrors: flattenFieldErrors(parsed.error.issues),
+    };
   }
   const data = parsed.data;
 
@@ -199,6 +228,7 @@ export async function updateSpotCriteria(spotId: number, formData: FormData) {
 
   revalidatePath(`/spots/${spotRows[0].slug}`);
   revalidatePath("/");
+  return { ok: true };
 }
 
 export async function updateSpotNotes(spotId: number, notes: string) {

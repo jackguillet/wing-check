@@ -13,7 +13,7 @@ import { logger } from "@/lib/logger";
 import * as Sentry from "@sentry/nextjs";
 
 const MODEL = "claude-sonnet-4-20250514";
-const OVERVIEW_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const OVERVIEW_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours max; also keyed on forecast summary
 
 function getClient() {
   return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
@@ -179,18 +179,23 @@ export async function getOrGenerateOverview(
   sunrise?: string[],
   sunset?: string[],
 ): Promise<SpotOverview | null> {
-  // Check for fresh cached overview
   const now = new Date();
+  const forecastSummary = JSON.stringify(
+    buildForecastSummary(spot, hours, criteria, sunrise, sunset),
+  );
+
   const cached = await db
     .select()
     .from(spotOverviews)
     .where(eq(spotOverviews.spotId, spot.id));
 
-  const fresh = cached.find((row) => row.expiresAt > now);
-  if (fresh) return fresh;
+  const matching = cached.find(
+    (row) => row.forecastSummary === forecastSummary && row.expiresAt > now,
+  );
+  if (matching) return matching;
 
   try {
-    const { overview, forecastSummary } = await generateSpotOverview(
+    const { overview } = await generateSpotOverview(
       spot,
       hours,
       criteria,

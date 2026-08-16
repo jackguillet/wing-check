@@ -2,20 +2,26 @@ import {
   getSpotsWithFavorites,
   getSpotsWithCriteria,
 } from "@/lib/actions/spots";
-import { getSpotForecast } from "@/lib/actions/forecasts";
+import {
+  getSpotForecast,
+  getCachedForecastsBySpotIds,
+} from "@/lib/actions/forecasts";
 import { evaluateSpot, defaultCriteria } from "@/lib/alerts/evaluator";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { getSession } from "@/lib/auth-session";
 import type { AlertCriteria } from "@/lib/db/schema";
+import type { SpotForecast } from "@/lib/weather/types";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const session = await getSession();
+  const [session, { spots, favoriteIds }] = await Promise.all([
+    getSession(),
+    getSpotsWithFavorites(),
+  ]);
   const isAuthenticated = !!session?.user;
-  const { spots, favoriteIds } = await getSpotsWithFavorites();
 
   if (spots.length === 0) {
     return (
@@ -35,39 +41,61 @@ export default async function DashboardPage() {
     );
   }
 
-  // Batch fetch criteria for all spots (eliminates N+1)
-  const criteriaMap = await getSpotsWithCriteria(spots.map((s) => s.id));
+  const spotIds = spots.map((s) => s.id);
+  const [criteriaMap, cachedForecasts] = await Promise.all([
+    getSpotsWithCriteria(spotIds),
+    getCachedForecastsBySpotIds(spotIds),
+  ]);
 
-  const spotData = await Promise.all(
-    spots.map(async (spot) => {
+  const favoriteIdsNeedingFetch = spots
+    .filter((spot) => favoriteIds.has(spot.id))
+    .filter((spot) => {
+      const cached = cachedForecasts.get(spot.id);
+      return !cached || cached.stale;
+    })
+    .map((spot) => spot.id);
+
+  const liveFavorites = await Promise.all(
+    favoriteIdsNeedingFetch.map(async (id) => {
       try {
-        const forecast = await getSpotForecast(spot.id);
-        if (!forecast)
-          return {
-            spot,
-            evaluation: null,
-            isFavorite: favoriteIds.has(spot.id),
-          };
-
-        const spotCriteria = criteriaMap.get(spot.id);
-        const criteria: AlertCriteria = spotCriteria?.criteria ?? {
-          id: 0,
-          spotId: spot.id,
-          ...defaultCriteria,
-        };
-
-        const evaluation = evaluateSpot(
-          forecast.hours,
-          criteria,
-          forecast.sunrise,
-          forecast.sunset,
-        );
-        return { spot, evaluation, isFavorite: favoriteIds.has(spot.id) };
+        return [id, await getSpotForecast(id)] as const;
       } catch {
-        return { spot, evaluation: null, isFavorite: favoriteIds.has(spot.id) };
+        return [id, cachedForecasts.get(id) ?? null] as const;
       }
     }),
   );
+  const liveById = new Map(liveFavorites);
+
+  const spotData = spots.map((spot) => {
+    const isFavorite = favoriteIds.has(spot.id);
+    let forecast: (SpotForecast & { stale?: boolean }) | null | undefined =
+      liveById.has(spot.id)
+        ? liveById.get(spot.id)
+        : cachedForecasts.get(spot.id);
+
+    if (!forecast) {
+      return { spot, evaluation: null, isFavorite };
+    }
+
+    const spotCriteria = criteriaMap.get(spot.id);
+    const criteria: AlertCriteria = spotCriteria?.criteria ?? {
+      id: 0,
+      spotId: spot.id,
+      ...defaultCriteria,
+    };
+
+    try {
+      const evaluation = evaluateSpot(
+        forecast.hours,
+        criteria,
+        forecast.sunrise,
+        forecast.sunset,
+      );
+      return { spot, evaluation, isFavorite };
+    } catch {
+      return { spot, evaluation: null, isFavorite };
+    }
+  });
 
   return (
     <div className="space-y-6">

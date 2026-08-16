@@ -4,7 +4,6 @@ import {
   getSpot,
   getSpotWithCriteriaBySlug,
   deleteSpot,
-  updateSpotCriteria,
   updateSpotNotes,
   getUserSpotPrefs,
   toggleFavorite,
@@ -25,7 +24,8 @@ import {
 } from "@/components/forecast-controls";
 import { SpotNotes } from "@/components/spot-notes";
 import ReactMarkdown from "react-markdown";
-import { Heart, Bell, Sparkles, Clock, Sunrise, Sunset } from "lucide-react";
+import { Heart, Bell, Sparkles, Clock, Sunrise, Sunset, AlertTriangle } from "lucide-react";
+import { DeleteSpotButton } from "@/components/delete-spot-button";
 import { cn } from "@/lib/utils";
 import { logger } from "@/lib/logger";
 import * as Sentry from "@sentry/nextjs";
@@ -198,7 +198,6 @@ export default async function SpotDetailPage({
   }
 
   const deleteAction = deleteSpot.bind(null, spot.id);
-  const updateCriteriaAction = updateSpotCriteria.bind(null, spot.id);
   const toggleFavoriteAction = toggleFavorite.bind(null, spot.id);
   const toggleAlertsAction = toggleSpotAlerts.bind(null, spot.id);
 
@@ -301,11 +300,10 @@ export default async function SpotDetailPage({
               </>
             )}
             {isOwner && (
-              <form action={deleteAction}>
-                <Button variant="destructive" size="sm">
-                  Delete Spot
-                </Button>
-              </form>
+              <DeleteSpotButton
+                spotName={spot.name}
+                deleteAction={deleteAction}
+              />
             )}
           </div>
         </div>
@@ -316,6 +314,33 @@ export default async function SpotDetailPage({
           isOwner={isOwner}
           updateAction={updateSpotNotes}
         />
+
+        {forecast?.stale && (
+          <div className="flex items-start gap-2 rounded-md border border-yellow-500/50 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-800 dark:text-yellow-200">
+            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+            <p>
+              Showing a cached forecast from{" "}
+              {new Date(forecast.fetchedAt).toLocaleString("en-US", {
+                timeZone: forecast.timezone,
+                dateStyle: "medium",
+                timeStyle: "short",
+                hour12: false,
+              })}
+              . Latest data couldn&apos;t be fetched.
+            </p>
+          </div>
+        )}
+
+        {!forecast && (
+          <Card>
+            <CardContent className="py-8 text-center space-y-2">
+              <p className="font-medium">Couldn&apos;t load the forecast</p>
+              <p className="text-sm text-muted-foreground">
+                Weather data is temporarily unavailable. Refresh to try again.
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
         {evaluation && evaluation.dayEvaluations.length > 0 && (
           <ThreeDayBanner days={evaluation.dayEvaluations} />
@@ -347,7 +372,6 @@ export default async function SpotDetailPage({
             lat={spot.latitude}
             lng={spot.longitude}
             isOwner={isOwner}
-            updateCriteriaAction={updateCriteriaAction}
           />
         )}
 

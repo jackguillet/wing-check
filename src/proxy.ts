@@ -17,7 +17,7 @@ function addSecurityHeaders(response: NextResponse) {
   );
   response.headers.set(
     "Content-Security-Policy",
-    "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.sentry.io; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://*.sentry.io https://*.ingest.sentry.io; frame-ancestors 'none';",
+    "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.sentry.io; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://tile.openstreetmap.org; font-src 'self'; connect-src 'self' https://*.sentry.io https://*.ingest.sentry.io; frame-ancestors 'none';",
   );
   return response;
 }

@@ -59,7 +59,8 @@ export default async function SettingsPage() {
                 defaultValue={prefs.checkIntervalHours}
               />
               <p className="text-xs text-muted-foreground">
-                Minimum hours between alert emails for the same spot
+                Minimum hours between emails for the same spot. Conditions are
+                checked once a day around 6am Pacific.
               </p>
             </div>
           </CardContent>
