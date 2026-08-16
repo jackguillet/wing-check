@@ -180,11 +180,71 @@ describe("evaluateSpot", () => {
     expect(result.hourScores.every((s) => s.directionOk)).toBe(true);
   });
 
-  it("handles no wave data gracefully", () => {
-    const hours = makeHours(3, { waveHeight: null, swellHeight: null });
-    const result = evaluateSpot(hours, defaultCriteria);
+  it("does not treat missing wave data as a free 10 points", () => {
+    const missing = makeHours(3, { waveHeight: null, swellHeight: null });
+    const knownSmall = makeHours(3, { waveHeight: 0.3, swellHeight: 0.3 });
+    const missingResult = evaluateSpot(missing, defaultCriteria);
+    const knownResult = evaluateSpot(knownSmall, defaultCriteria);
 
+    expect(missingResult.hourScores.every((s) => s.waveOk)).toBe(false);
+    expect(knownResult.overallScore).toBeGreaterThan(missingResult.overallScore);
+  });
+
+  it("awards full wave points when no max wave is set, even without data", () => {
+    const criteria = { ...defaultCriteria, maxWaveHeight: null };
+    const hours = makeHours(3, { waveHeight: null });
+    const result = evaluateSpot(hours, criteria);
     expect(result.hourScores.every((s) => s.waveOk)).toBe(true);
+  });
+
+  it("scores a single-value wind band without NaN", () => {
+    const criteria = { ...defaultCriteria, minWindSpeed: 18, maxWindSpeed: 18 };
+    const onTarget = evaluateSpot(makeHours(3, { windSpeed: 18, windGusts: 20 }), criteria);
+    const offTarget = evaluateSpot(makeHours(3, { windSpeed: 12, windGusts: 14 }), criteria);
+
+    for (const s of onTarget.hourScores) {
+      expect(Number.isFinite(s.score)).toBe(true);
+      expect(s.score).toBeGreaterThan(0);
+    }
+    expect(offTarget.hourScores.every((s) => s.score === 0)).toBe(true);
+    expect(offTarget.goNoGo).toBe("no-go");
+  });
+
+  it("treats maxGustFactor of 1 as no extra gusts, without NaN", () => {
+    const criteria = { ...defaultCriteria, maxGustFactor: 1 };
+    const steady = evaluateSpot(
+      makeHours(3, { windSpeed: 20, windGusts: 20 }),
+      criteria,
+    );
+    const gusty = evaluateSpot(
+      makeHours(3, { windSpeed: 20, windGusts: 24 }),
+      criteria,
+    );
+
+    for (const s of steady.hourScores) {
+      expect(Number.isFinite(s.score)).toBe(true);
+      expect(s.score).toBeGreaterThan(0);
+    }
+    expect(steady.overallScore).toBeGreaterThan(gusty.overallScore);
+  });
+
+  it("restricts rideable windows to daylight when sunrise/sunset are provided", () => {
+    const hours = [
+      makeHour({ time: "2026-02-14T06:00", windSpeed: 20, windGusts: 22 }),
+      makeHour({ time: "2026-02-14T07:00", windSpeed: 20, windGusts: 22 }),
+      makeHour({ time: "2026-02-14T12:00", windSpeed: 20, windGusts: 22 }),
+      makeHour({ time: "2026-02-14T13:00", windSpeed: 20, windGusts: 22 }),
+    ];
+    const result = evaluateSpot(
+      hours,
+      defaultCriteria,
+      ["2026-02-14T07:30"],
+      ["2026-02-14T18:00"],
+    );
+
+    expect(result.rideableWindows).toHaveLength(1);
+    expect(result.rideableWindows[0].start).toBe("2026-02-14T12:00");
+    expect(result.hourScores[0].score).toBeGreaterThan(0);
   });
 
   it("penalizes large waves when maxWaveHeight is set", () => {
@@ -375,6 +435,79 @@ describe("evaluateSpot", () => {
     // Should NOT be no-go
     expect(result.goNoGo).not.toBe("no-go");
   });
+
+  describe("remaining windows (nowCivil)", () => {
+    const sunrise = ["2026-02-14T07:00"];
+    const sunset = ["2026-02-14T18:00"];
+
+    it("drops a morning window that already ended", () => {
+      const hours = [
+        makeHour({ time: "2026-02-14T08:00", windSpeed: 20, windGusts: 22 }),
+        makeHour({ time: "2026-02-14T09:00", windSpeed: 20, windGusts: 22 }),
+        makeHour({ time: "2026-02-14T10:00", windSpeed: 20, windGusts: 22 }),
+        makeHour({ time: "2026-02-14T11:00", windSpeed: 20, windGusts: 22 }),
+        makeHour({ time: "2026-02-14T15:00", windSpeed: 5, windGusts: 6 }),
+        makeHour({ time: "2026-02-14T16:00", windSpeed: 5, windGusts: 6 }),
+      ];
+      const result = evaluateSpot(
+        hours,
+        defaultCriteria,
+        sunrise,
+        sunset,
+        "2026-02-14T14:00",
+      );
+
+      expect(result.rideableWindows).toHaveLength(0);
+      expect(result.goNoGo).toBe("no-go");
+      expect(result.overallScore).toBe(0);
+      expect(result.todayDate).toBe("2026-02-14");
+      expect(result.hourScores[0].score).toBeGreaterThan(0);
+    });
+
+    it("keeps an afternoon window that has not started", () => {
+      const hours = [
+        makeHour({ time: "2026-02-14T08:00", windSpeed: 20, windGusts: 22 }),
+        makeHour({ time: "2026-02-14T09:00", windSpeed: 20, windGusts: 22 }),
+        makeHour({ time: "2026-02-14T15:00", windSpeed: 20, windGusts: 22 }),
+        makeHour({ time: "2026-02-14T16:00", windSpeed: 20, windGusts: 22 }),
+        makeHour({ time: "2026-02-14T17:00", windSpeed: 20, windGusts: 22 }),
+      ];
+      const result = evaluateSpot(
+        hours,
+        defaultCriteria,
+        sunrise,
+        sunset,
+        "2026-02-14T14:00",
+      );
+
+      expect(result.goNoGo).toBe("go");
+      expect(result.rideableWindows).toHaveLength(1);
+      expect(result.rideableWindows[0].start).toBe("2026-02-14T15:00");
+    });
+
+    it("labels today by the spot-local date, not the first bucket", () => {
+      const hours = [
+        makeHour({ time: "2026-02-13T16:00", windSpeed: 20, windGusts: 22 }),
+        makeHour({ time: "2026-02-13T17:00", windSpeed: 20, windGusts: 22 }),
+        makeHour({ time: "2026-02-14T15:00", windSpeed: 20, windGusts: 22 }),
+        makeHour({ time: "2026-02-14T16:00", windSpeed: 20, windGusts: 22 }),
+        makeHour({ time: "2026-02-14T17:00", windSpeed: 20, windGusts: 22 }),
+      ];
+      const result = evaluateSpot(
+        hours,
+        defaultCriteria,
+        ["2026-02-13T07:00", "2026-02-14T07:00"],
+        ["2026-02-13T18:00", "2026-02-14T18:00"],
+        "2026-02-14T10:00",
+      );
+
+      expect(result.todayDate).toBe("2026-02-14");
+      expect(result.dayEvaluations[0].date).toBe("2026-02-13");
+      expect(result.dayEvaluations[0].goNoGo).toBe("no-go");
+      expect(result.goNoGo).toBe("go");
+      expect(result.overallScore).toBe(result.dayEvaluations[1].score);
+    });
+  });
 });
 
 describe("nextRideableWindow", () => {
@@ -407,6 +540,11 @@ describe("nextRideableWindow", () => {
   it("skips a window that already ended", () => {
     const next = nextRideableWindow(windows, "2026-08-16T14:00");
     expect(next?.start).toBe("2026-08-17T14:00");
+  });
+
+  it("keeps a window whose last hour is still in progress", () => {
+    const next = nextRideableWindow(windows, "2026-08-16T13:30");
+    expect(next?.start).toBe("2026-08-16T10:00");
   });
 
   it("returns null when every window is over", () => {

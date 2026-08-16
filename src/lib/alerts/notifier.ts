@@ -2,6 +2,10 @@ import type { RideableWindow } from "./evaluator";
 import { degreesToCardinal } from "@/lib/weather/types";
 import { logger } from "@/lib/logger";
 import {
+  formatCivilClock,
+  formatCivilWeekdayDate,
+} from "@/lib/weather/civil-time";
+import {
   DEFAULT_UNITS,
   formatWind,
   type WindSpeedUnit,
@@ -30,19 +34,8 @@ export async function sendAlert({
 
   const windowSummaries = windows
     .map((w) => {
-      const start = new Date(w.start).toLocaleString("en-US", {
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      });
-      const end = new Date(w.end).toLocaleString("en-US", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      });
+      const start = `${formatCivilWeekdayDate(w.start)} ${formatCivilClock(w.start)}`;
+      const end = formatCivilClock(w.end);
       return `${start} – ${end}: ${formatWind(w.avgWind, windSpeedUnit)} avg (gusts ${formatWind(w.avgGusts, windSpeedUnit)}), ${degreesToCardinal(w.dominantDirection)}, score ${w.avgScore}/100`;
     })
     .join("\n");

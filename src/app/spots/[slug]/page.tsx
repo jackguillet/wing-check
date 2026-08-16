@@ -14,6 +14,7 @@ import {
 import { getSpotForecast } from "@/lib/actions/forecasts";
 import { getSession } from "@/lib/auth-session";
 import { evaluateSpot } from "@/lib/alerts/evaluator";
+import { formatCivilWeekdayShort, spotLocalNow } from "@/lib/weather/civil-time";
 import { criteriaSourceLabel } from "@/lib/criteria";
 import { getOrGenerateOverview } from "@/lib/ai/overview";
 import { getDisplayUnits } from "@/lib/actions/settings";
@@ -46,10 +47,9 @@ const goNoGoColors = {
   "no-go": "bg-red-500/10 border-red-500 text-red-700 dark:text-red-400",
 };
 
-function dayLabel(dateStr: string, index: number): string {
-  if (index === 0) return "Today";
-  const d = new Date(dateStr + "T00:00");
-  return d.toLocaleDateString("en-US", { weekday: "short" });
+function dayLabel(dateStr: string, todayDate: string | null): string {
+  if (todayDate && dateStr === todayDate) return "Today";
+  return formatCivilWeekdayShort(dateStr);
 }
 
 function OverviewSkeleton() {
@@ -80,12 +80,14 @@ async function OverviewSection({
   criteria,
   sunrise,
   sunset,
+  nowCivil,
 }: {
   spot: Spot;
   hours: ForecastHour[];
   criteria: AlertCriteria;
   sunrise?: string[];
   sunset?: string[];
+  nowCivil?: string;
 }) {
   let overview = null;
   try {
@@ -95,6 +97,7 @@ async function OverviewSection({
       criteria,
       sunrise,
       sunset,
+      nowCivil,
     );
   } catch (e) {
     logger.error({ err: e }, "Failed to load overview");
@@ -124,27 +127,34 @@ async function OverviewSection({
   );
 }
 
-function ThreeDayBanner({ days }: { days: DayEvaluation[] }) {
+function ThreeDayBanner({
+  days,
+  todayDate,
+}: {
+  days: DayEvaluation[];
+  todayDate: string | null;
+}) {
   const display = days.slice(0, 3);
   return (
     <div className="grid grid-cols-3 gap-3">
-      {display.map((day, i) => {
+      {display.map((day) => {
         const color = goNoGoColors[day.goNoGo];
+        const isToday = todayDate != null && day.date === todayDate;
         return (
           <div
             key={day.date}
-            className={`rounded-lg border-2 p-4 ${color} ${i === 0 ? "ring-2 ring-offset-2 ring-offset-background ring-current" : ""}`}
+            className={`rounded-lg border-2 p-4 ${color} ${isToday ? "ring-2 ring-offset-2 ring-offset-background ring-current" : ""}`}
           >
             <p className="text-xs font-medium opacity-70 mb-1">
-              {dayLabel(day.date, i)}
+              {dayLabel(day.date, todayDate)}
             </p>
             <div className="flex items-center justify-between">
               <p
-                className={`font-bold uppercase ${i === 0 ? "text-lg" : "text-sm"}`}
+                className={`font-bold uppercase ${isToday ? "text-lg" : "text-sm"}`}
               >
                 {day.goNoGo}
               </p>
-              <p className={`font-bold ${i === 0 ? "text-3xl" : "text-2xl"}`}>
+              <p className={`font-bold ${isToday ? "text-3xl" : "text-2xl"}`}>
                 {day.score}
               </p>
             </div>
@@ -194,6 +204,7 @@ export default async function SpotDetailPage({
         criteria,
         forecast.sunrise,
         forecast.sunset,
+        spotLocalNow(forecast.utcOffsetSeconds),
       );
     }
   } catch (e) {
@@ -352,7 +363,10 @@ export default async function SpotDetailPage({
         )}
 
         {evaluation && evaluation.dayEvaluations.length > 0 && (
-          <ThreeDayBanner days={evaluation.dayEvaluations} />
+          <ThreeDayBanner
+            days={evaluation.dayEvaluations}
+            todayDate={evaluation.todayDate}
+          />
         )}
 
         {forecast && (
@@ -363,6 +377,7 @@ export default async function SpotDetailPage({
               criteria={criteria}
               sunrise={forecast.sunrise}
               sunset={forecast.sunset}
+              nowCivil={spotLocalNow(forecast.utcOffsetSeconds)}
             />
           </Suspense>
         )}
@@ -384,6 +399,7 @@ export default async function SpotDetailPage({
             canEditCriteria={isAuthenticated}
             criteriaSource={source}
             clearOverrideAction={clearSpotWindOverride.bind(null, spot.id)}
+            utcOffsetSeconds={forecast.utcOffsetSeconds}
           />
         )}
 

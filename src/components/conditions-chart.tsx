@@ -33,11 +33,13 @@ import type {
   WaveAmplification,
 } from "@/lib/weather/conditions";
 import { format, parseISO } from "date-fns";
+import { civilAbsDiffMinutes, hourIsOpen } from "@/lib/weather/civil-time";
 
 interface ConditionsChartProps {
   hours: ForecastHour[];
   tides: TidePoint[];
   insight: ConditionsInsight;
+  nowCivil: string;
 }
 
 const chartConfig = {
@@ -170,6 +172,7 @@ export function ConditionsChart({
   hours,
   tides,
   insight,
+  nowCivil,
 }: ConditionsChartProps) {
   const [view, setView] = useState<"chart" | "table">("chart");
 
@@ -257,8 +260,7 @@ export function ConditionsChart({
     );
   }
 
-  const now = new Date().toISOString();
-  const tableHours = hours.filter((h) => h.time >= now);
+  const tableHours = hours.filter((h) => hourIsOpen(h.time, nowCivil));
 
   return (
     <Card>
@@ -546,18 +548,16 @@ function findNearestTideForTable(
   tides: TidePoint[],
 ): TidePoint | undefined {
   if (tides.length === 0) return undefined;
-  const t = new Date(time).getTime();
   let best: TidePoint | undefined;
   let bestDist = Infinity;
 
   for (const tide of tides) {
-    const dist = Math.abs(new Date(tide.time).getTime() - t);
+    const dist = civilAbsDiffMinutes(tide.time, time);
     if (dist < bestDist) {
       bestDist = dist;
       best = tide;
     }
   }
 
-  // Only return if within 30 minutes
-  return bestDist <= 30 * 60 * 1000 ? best : undefined;
+  return bestDist <= 30 ? best : undefined;
 }

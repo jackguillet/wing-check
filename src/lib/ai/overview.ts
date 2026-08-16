@@ -47,6 +47,7 @@ export function buildForecastSummary(
   sunrise?: string[],
   sunset?: string[],
   units: DisplayUnits = DEFAULT_UNITS,
+  nowCivil?: string,
 ) {
   // Group hours by day (first 72h)
   const next72h = hours.slice(0, 72);
@@ -98,7 +99,13 @@ export function buildForecastSummary(
   }
 
   // Evaluation results
-  const evaluation = evaluateSpot(hours, criteria, sunrise, sunset);
+  const evaluation = evaluateSpot(
+    hours,
+    criteria,
+    sunrise,
+    sunset,
+    nowCivil,
+  );
 
   const windows = evaluation.rideableWindows.map((w) => ({
     start: w.start,
@@ -140,6 +147,7 @@ async function generateSpotOverview(
   sunrise?: string[],
   sunset?: string[],
   units: DisplayUnits = DEFAULT_UNITS,
+  nowCivil?: string,
 ): Promise<{ overview: string; forecastSummary: string }> {
   const summary = buildForecastSummary(
     spot,
@@ -148,6 +156,7 @@ async function generateSpotOverview(
     sunrise,
     sunset,
     units,
+    nowCivil,
   );
   const forecastSummary = JSON.stringify(summary);
 
@@ -196,11 +205,12 @@ export async function getOrGenerateOverview(
   criteria: AlertCriteria,
   sunrise?: string[],
   sunset?: string[],
+  nowCivil?: string,
 ): Promise<SpotOverview | null> {
   const now = new Date();
   const units = await getDisplayUnits();
   const forecastSummary = JSON.stringify(
-    buildForecastSummary(spot, hours, criteria, sunrise, sunset, units),
+    buildForecastSummary(spot, hours, criteria, sunrise, sunset, units, nowCivil),
   );
 
   const cached = await db
@@ -221,6 +231,7 @@ export async function getOrGenerateOverview(
       sunrise,
       sunset,
       units,
+      nowCivil,
     );
 
     const expired = cached.filter((row) => row.expiresAt <= now);
