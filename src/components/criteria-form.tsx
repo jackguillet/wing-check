@@ -110,6 +110,9 @@ export function CriteriaForm({
                 step="0.1"
                 defaultValue={criteria?.maxGustFactor}
               />
+              <p className="text-xs text-muted-foreground">
+                Soft curve only. Gusts above 50 kt still zero the hour.
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="minConsecutiveHours">Min Hours</Label>
@@ -127,6 +130,9 @@ export function CriteriaForm({
             <DirectionPicker
               defaultValue={criteria?.preferredDirections ?? "[]"}
             />
+            <p className="text-xs text-muted-foreground">
+              If you pick dirs, hours outside the tolerance cannot GO.
+            </p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="directionTolerance">Direction Tolerance (°)</Label>
@@ -139,6 +145,10 @@ export function CriteriaForm({
           </div>
           <div className="space-y-2">
             <Label htmlFor="maxWaveHeight">Max Wave Height (m)</Label>
+            <p className="text-xs text-muted-foreground">
+              Soft: over the max or missing data scores 0 of 10, not a hard
+              zero.
+            </p>
             <Input
               id="maxWaveHeight"
               name="maxWaveHeight"

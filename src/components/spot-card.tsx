@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import type { Spot } from "@/lib/db/schema";
+import type { ClientSpot } from "@/lib/spots/visibility";
 import {
   nextRideableWindow,
   type SpotEvaluation,
@@ -18,7 +18,7 @@ import {
 } from "@/lib/weather/civil-time";
 
 interface SpotCardProps {
-  spot: Spot;
+  spot: ClientSpot;
   evaluation: SpotEvaluation | null;
   isFavorite?: boolean;
   stale?: boolean;

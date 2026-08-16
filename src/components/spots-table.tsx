@@ -13,10 +13,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { Spot } from "@/lib/db/schema";
+import type { ClientSpot } from "@/lib/spots/visibility";
 
 interface SpotsTableProps {
-  spots: Spot[];
+  spots: ClientSpot[];
   favoriteIds: number[];
   isAuthenticated: boolean;
 }
@@ -96,6 +96,11 @@ export function SpotsTable({
                     >
                       {spot.name}
                     </Link>
+                    {spot.visibility === "private" ? (
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        Private
+                      </span>
+                    ) : null}
                   </TableCell>
                   <TableCell>{spot.latitude.toFixed(4)}</TableCell>
                   <TableCell>{spot.longitude.toFixed(4)}</TableCell>

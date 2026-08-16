@@ -134,14 +134,38 @@ describe("evaluateSpot", () => {
     expect(steadyResult.overallScore).toBeGreaterThan(gustyResult.overallScore);
   });
 
-  it("penalizes wrong wind direction", () => {
+  it("zeros an hour 180° off preferred direction so it cannot GO", () => {
     const goodDir = makeHours(3, { windDirection: 270 });
     const badDir = makeHours(3, { windDirection: 90 });
 
     const goodResult = evaluateSpot(goodDir, defaultCriteria);
     const badResult = evaluateSpot(badDir, defaultCriteria);
 
-    expect(goodResult.overallScore).toBeGreaterThan(badResult.overallScore);
+    expect(goodResult.goNoGo).toBe("go");
+    expect(badResult.goNoGo).toBe("no-go");
+    expect(badResult.hourScores.every((s) => s.score === 0)).toBe(true);
+    expect(badResult.hourScores.every((s) => s.reason === "Offshore")).toBe(true);
+    expect(badResult.rideableWindows).toHaveLength(0);
+  });
+
+  it("penalizes direction inside the tolerance band without zeroing", () => {
+    const onDir = makeHours(3, { windDirection: 270 });
+    const edge = makeHours(3, { windDirection: 300 });
+
+    const on = evaluateSpot(onDir, defaultCriteria);
+    const off = evaluateSpot(edge, defaultCriteria);
+
+    expect(off.hourScores.every((s) => s.directionOk && s.score > 0)).toBe(true);
+    expect(on.overallScore).toBeGreaterThan(off.overallScore);
+  });
+
+  it("scores violent rain worse than clear sky", () => {
+    const clear = evaluateSpot(makeHours(3, { weatherCode: 1 }), defaultCriteria);
+    const rain = evaluateSpot(makeHours(3, { weatherCode: 82 }), defaultCriteria);
+
+    expect(rain.hourScores.every((s) => s.weatherOk && s.score > 0)).toBe(true);
+    expect(clear.overallScore).toBeGreaterThan(rain.overallScore);
+    expect(clear.hourScores[0].score - rain.hourScores[0].score).toBe(10);
   });
 
   it("requires minimum consecutive hours", () => {

@@ -16,6 +16,11 @@ import {
 } from "@/lib/criteria";
 import { eq, and, inArray, desc } from "drizzle-orm";
 import { getSession } from "@/lib/auth-session";
+import {
+  toClientSpot,
+  visibleSpotsFilter,
+  type ClientSpot,
+} from "@/lib/spots/visibility";
 
 export async function getSpots() {
   return db.select().from(spots);
@@ -23,6 +28,14 @@ export async function getSpots() {
 
 export async function getSpot(id: number) {
   const rows = await db.select().from(spots).where(eq(spots.id, id));
+  return rows[0] ?? null;
+}
+
+export async function getVisibleSpot(id: number, viewerId?: string | null) {
+  const rows = await db
+    .select()
+    .from(spots)
+    .where(and(eq(spots.id, id), visibleSpotsFilter(viewerId)));
   return rows[0] ?? null;
 }
 
@@ -42,9 +55,22 @@ export async function getSpotBySlug(slug: string) {
   return rows[0] ?? null;
 }
 
-export async function getSpotWithCriteriaBySlug(slug: string) {
-  const spotRows = await db.select().from(spots).where(eq(spots.slug, slug));
-  const spot = spotRows[0];
+export async function getVisibleSpotBySlug(
+  slug: string,
+  viewerId?: string | null,
+) {
+  const rows = await db
+    .select()
+    .from(spots)
+    .where(and(eq(spots.slug, slug), visibleSpotsFilter(viewerId)));
+  return rows[0] ?? null;
+}
+
+export async function getSpotWithCriteriaBySlug(
+  slug: string,
+  viewerId?: string | null,
+) {
+  const spot = await getVisibleSpotBySlug(slug, viewerId);
   if (!spot) return null;
   const criteriaRows = await db
     .select()
@@ -209,19 +235,23 @@ export async function getUserFavoriteSpotIds(): Promise<Set<number>> {
 }
 
 export async function getSpotsWithFavorites(): Promise<{
-  spots: Spot[];
+  spots: ClientSpot[];
   favoriteIds: Set<number>;
 }> {
-  const [allSpots, favoriteIds] = await Promise.all([
-    db.select().from(spots),
+  const session = await getSession();
+  const [visible, favoriteIds] = await Promise.all([
+    db
+      .select()
+      .from(spots)
+      .where(visibleSpotsFilter(session?.user?.id)),
     getUserFavoriteSpotIds(),
   ]);
 
-  allSpots.sort((a, b) => {
+  visible.sort((a, b) => {
     const aFav = favoriteIds.has(a.id) ? 0 : 1;
     const bFav = favoriteIds.has(b.id) ? 0 : 1;
     return aFav - bFav;
   });
 
-  return { spots: allSpots, favoriteIds };
+  return { spots: visible.map(toClientSpot), favoriteIds };
 }

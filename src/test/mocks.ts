@@ -15,6 +15,7 @@ export function mockSpot(overrides: Partial<Spot> = {}): Spot {
     longitude: -122.4194,
     noaaStationId: "9414290",
     notes: null,
+    visibility: "public",
     createdAt: new Date("2024-01-01"),
     ...overrides,
   };

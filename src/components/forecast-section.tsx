@@ -25,6 +25,7 @@ import {
   civilMidpoint,
   formatCivilClock,
   formatCivilWeekdayDate,
+  isDaylightCivil,
   spotLocalNow,
 } from "@/lib/weather/civil-time";
 
@@ -55,44 +56,13 @@ function filterByDayRange(hours: ForecastHour[], days: number): ForecastHour[] {
   return hours.filter((h) => h.time.substring(0, 10) < cutoffStr);
 }
 
-/**
- * Filter hours to daylight only using sunrise/sunset times.
- * Floor sunrise to the hour, ceil sunset to the next hour.
- */
+/** Same daylight rule as the evaluator: sunrise <= time <= sunset. */
 function filterDaylightHours(
   hours: ForecastHour[],
   sunrise: string[],
   sunset: string[],
 ): ForecastHour[] {
-  // Build a map of date -> { sunriseHour, sunsetHour }
-  const dayBounds = new Map<string, { rise: number; set: number }>();
-  for (const sr of sunrise) {
-    const date = sr.substring(0, 10);
-    const h = parseInt(sr.substring(11, 13), 10);
-    // Floor sunrise to the hour
-    dayBounds.set(date, { rise: h, set: dayBounds.get(date)?.set ?? 21 });
-  }
-  for (const ss of sunset) {
-    const date = ss.substring(0, 10);
-    const h = parseInt(ss.substring(11, 13), 10);
-    const m = parseInt(ss.substring(14, 16), 10);
-    // Ceil sunset to next hour
-    const ceilH = m > 0 ? h + 1 : h;
-    const existing = dayBounds.get(date);
-    if (existing) {
-      existing.set = ceilH;
-    } else {
-      dayBounds.set(date, { rise: 5, set: ceilH });
-    }
-  }
-
-  return hours.filter((h) => {
-    const date = h.time.substring(0, 10);
-    const hour = parseInt(h.time.substring(11, 13), 10);
-    const bounds = dayBounds.get(date);
-    if (!bounds) return true; // no sunrise/sunset data, include as fallback
-    return hour >= bounds.rise && hour <= bounds.set;
-  });
+  return hours.filter((h) => isDaylightCivil(h.time, sunrise, sunset));
 }
 
 function filterDaylightScores(
@@ -128,32 +98,7 @@ function filterDaylightTides(
   sunrise: string[],
   sunset: string[],
 ): TidePoint[] {
-  const dayBounds = new Map<string, { rise: number; set: number }>();
-  for (const sr of sunrise) {
-    const date = sr.substring(0, 10);
-    const h = parseInt(sr.substring(11, 13), 10);
-    dayBounds.set(date, { rise: h, set: dayBounds.get(date)?.set ?? 21 });
-  }
-  for (const ss of sunset) {
-    const date = ss.substring(0, 10);
-    const h = parseInt(ss.substring(11, 13), 10);
-    const m = parseInt(ss.substring(14, 16), 10);
-    const ceilH = m > 0 ? h + 1 : h;
-    const existing = dayBounds.get(date);
-    if (existing) {
-      existing.set = ceilH;
-    } else {
-      dayBounds.set(date, { rise: 5, set: ceilH });
-    }
-  }
-
-  return tides.filter((t) => {
-    const date = t.time.substring(0, 10);
-    const hour = parseInt(t.time.substring(11, 13), 10);
-    const bounds = dayBounds.get(date);
-    if (!bounds) return true;
-    return hour >= bounds.rise && hour <= bounds.set;
-  });
+  return tides.filter((t) => isDaylightCivil(t.time, sunrise, sunset));
 }
 
 export function ForecastSection({

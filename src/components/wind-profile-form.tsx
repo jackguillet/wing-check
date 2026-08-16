@@ -102,6 +102,9 @@ export function WindProfileForm({
             <DirectionPicker
               defaultValue={source.preferredDirections ?? "[]"}
             />
+            <p className="text-xs text-muted-foreground">
+              If you pick dirs, hours outside the tolerance cannot GO.
+            </p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="profileTolerance">Direction Tolerance (°)</Label>

@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { spots } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { getSessionFromHeaders } from "@/lib/auth-session";
+import { canViewSpot } from "@/lib/spots/visibility";
 
 export async function GET(
   request: Request,
@@ -28,7 +29,7 @@ export async function GET(
   }
 
   const spot = await db.select().from(spots).where(eq(spots.id, id)).get();
-  if (!spot) {
+  if (!spot || !canViewSpot(spot, session.user.id)) {
     return NextResponse.json({ error: "Spot not found" }, { status: 404 });
   }
 

@@ -83,6 +83,7 @@ export async function createSpot(
       noaaStationId,
       notes: data.notes || null,
       userId: user.id,
+      visibility: formData.get("visibility") === "public" ? "public" : "private",
     })
     .returning();
   const inserted = insertResult[0];
@@ -125,12 +126,37 @@ export async function createSpot(
 
 export async function deleteSpot(id: number) {
   const { user } = await requireSession();
+  const rows = await db.select().from(spots).where(eq(spots.id, id));
+  const spot = rows[0];
+  if (!spot || spot.userId !== user.id) {
+    throw new Error("Spot not found");
+  }
+  if (spot.visibility === "public") {
+    throw new Error("Unpublish this catalog spot before deleting it");
+  }
   await db
     .delete(spots)
     .where(and(eq(spots.id, id), eq(spots.userId, user.id)));
   revalidatePath("/");
   revalidatePath("/spots");
   redirect("/spots");
+}
+
+export async function updateSpotVisibility(spotId: number, formData: FormData) {
+  const { user } = await requireSession();
+  const next = formData.get("visibility") === "public" ? "public" : "private";
+  const rows = await db.select().from(spots).where(eq(spots.id, spotId));
+  const spot = rows[0];
+  if (!spot || spot.userId !== user.id) {
+    throw new Error("Spot not found");
+  }
+  await db
+    .update(spots)
+    .set({ visibility: next })
+    .where(and(eq(spots.id, spotId), eq(spots.userId, user.id)));
+  revalidatePath("/");
+  revalidatePath("/spots");
+  if (spot.slug) revalidatePath(`/spots/${spot.slug}`);
 }
 
 export async function updateSpotCriteria(

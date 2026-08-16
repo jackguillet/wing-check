@@ -1,7 +1,13 @@
 import type { ForecastHour } from "@/lib/weather/types";
 import type { AlertCriteria } from "@/lib/db/schema";
 import { parsePreferredDirections } from "@/lib/directions";
-import { addCivilHours, civilDate, civilMinute, hourIsOpen } from "@/lib/weather/civil-time";
+import {
+  addCivilHours,
+  civilDate,
+  civilMinute,
+  hourIsOpen,
+  isDaylightCivil,
+} from "@/lib/weather/civil-time";
 
 export interface HourScore {
   time: string;
@@ -87,6 +93,18 @@ function angleDifference(a: number, b: number): number {
 const THUNDERSTORM_CODES = new Set([95, 96, 99]);
 const MAX_GUST_ABSOLUTE_KT = 50;
 
+/** Soft 0–10 penalty. Thunderstorms stay a hard zero via weatherOk. */
+const WEATHER_PENALTY: Record<number, number> = {
+  45: 5, // fog
+  48: 5, // depositing rime fog
+  65: 8, // heavy rain
+  82: 10, // violent rain showers
+};
+
+export function weatherPenaltyFor(code: number): number {
+  return WEATHER_PENALTY[code] ?? 0;
+}
+
 function scoreHour(hour: ForecastHour, criteria: AlertCriteria): HourScore {
   const preferredDirs: number[] = parsePreferredDirections(
     criteria.preferredDirections,
@@ -125,8 +143,11 @@ function scoreHour(hour: ForecastHour, criteria: AlertCriteria): HourScore {
             ? "Wave"
             : null;
 
-  // Early exit: wind, gusts, and weather are hard prerequisites
-  if (!windOk || !gustOk || !weatherOk) {
+  // Preferred dirs are a hard gate: a 180° offshore hour cannot GO.
+  const directionHard = preferredDirs.length > 0 && !directionOk;
+
+  // Early exit: wind, gusts, storms, and (when set) direction
+  if (!windOk || !gustOk || !weatherOk || directionHard) {
     return {
       time: hour.time,
       score: 0,
@@ -184,6 +205,8 @@ function scoreHour(hour: ForecastHour, criteria: AlertCriteria): HourScore {
     score += 10 * (1 - hour.waveHeight / criteria.maxWaveHeight);
   }
 
+  score -= weatherPenaltyFor(hour.weatherCode);
+
   return {
     time: hour.time,
     score: Math.max(0, Math.min(100, Math.round(score))),
@@ -201,11 +224,7 @@ function isDaytime(
   sunrise: string[],
   sunset: string[],
 ): boolean {
-  const datePrefix = time.slice(0, 10);
-  const rise = sunrise.find((s) => s.startsWith(datePrefix));
-  const set = sunset.find((s) => s.startsWith(datePrefix));
-  if (!rise || !set) return true;
-  return time >= rise && time <= set;
+  return isDaylightCivil(time, sunrise, sunset);
 }
 
 function findRideableWindows(

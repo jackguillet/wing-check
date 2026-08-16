@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { SpotCard } from "@/components/spot-card";
 import { haversineDistance } from "@/lib/geo";
-import type { Spot } from "@/lib/db/schema";
+import type { ClientSpot } from "@/lib/spots/visibility";
 import {
   bestUpcomingWindowScore,
   type SpotEvaluation,
@@ -13,7 +13,7 @@ import { MapPin, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export interface DashboardSpotData {
-  spot: Spot;
+  spot: ClientSpot;
   evaluation: SpotEvaluation | null;
   isFavorite: boolean;
   stale?: boolean;

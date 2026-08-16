@@ -106,6 +106,22 @@ export function hourIsOpen(hourTime: string, nowCivil: string): boolean {
   return addCivilHours(hourTime, 1) > civilMinute(nowCivil);
 }
 
+/**
+ * Daylight uses the same civil-string compare as the evaluator:
+ * include the hour if `sunrise <= time <= sunset`. No hour flooring.
+ */
+export function isDaylightCivil(
+  time: string,
+  sunrise: string[],
+  sunset: string[],
+): boolean {
+  const datePrefix = civilDate(time);
+  const rise = sunrise.find((s) => s.startsWith(datePrefix));
+  const set = sunset.find((s) => s.startsWith(datePrefix));
+  if (!rise || !set) return true;
+  return civilMinute(time) >= civilMinute(rise) && civilMinute(time) <= civilMinute(set);
+}
+
 export function civilMidpoint(a: string, b: string): string {
   return minutesToCivil((civilToMinutes(a) + civilToMinutes(b)) / 2);
 }

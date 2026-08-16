@@ -78,6 +78,18 @@ export function NewSpotForm({
               </p>
             )}
           </div>
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              name="visibility"
+              value="public"
+              className="mt-1"
+            />
+            <span>
+              List in the public catalog. Leave unchecked to keep this pin
+              private — only you can open the link.
+            </span>
+          </label>
         </CardContent>
       </Card>
 
@@ -137,7 +149,7 @@ export function NewSpotForm({
                 defaultValue={wind.maxGustFactor}
               />
               <p className="text-xs text-muted-foreground">
-                Higher ratios score lower; gusts at this ratio score 0 points
+                Soft curve only. Gusts above 50 kt still zero the hour.
               </p>
             </div>
             <div className="space-y-2">
@@ -158,6 +170,9 @@ export function NewSpotForm({
             <DirectionPicker
               defaultValue={wind.preferredDirections ?? "[]"}
             />
+            <p className="text-xs text-muted-foreground">
+              If you pick dirs, hours outside the tolerance cannot GO.
+            </p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="directionTolerance">
