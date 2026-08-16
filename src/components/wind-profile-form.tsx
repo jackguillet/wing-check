@@ -14,8 +14,10 @@ import { defaultCriteria } from "@/lib/alerts/evaluator";
 
 export function WindProfileForm({
   profile,
+  next,
 }: {
   profile: CriteriaFields | null;
+  next?: string;
 }) {
   const { windSpeedUnit } = useUnits();
   const windLabel = windUnitLabel(windSpeedUnit);
@@ -42,6 +44,7 @@ export function WindProfileForm({
           </p>
         )}
         <form action={updateWindProfile} className="space-y-4">
+          {next ? <input type="hidden" name="next" value={next} /> : null}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="profileMinWind">

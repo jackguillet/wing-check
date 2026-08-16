@@ -22,7 +22,11 @@ export default async function SpotsPage() {
         )}
       </div>
 
-      <SpotsTable spots={spots} favoriteIds={Array.from(favoriteIds)} />
+      <SpotsTable
+        spots={spots}
+        favoriteIds={Array.from(favoriteIds)}
+        isAuthenticated={isAuthenticated}
+      />
     </div>
   );
 }

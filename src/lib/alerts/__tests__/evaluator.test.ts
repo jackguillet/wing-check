@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { evaluateSpot, nextRideableWindow, type HourScore, type RideableWindow, type DayEvaluation } from "../evaluator";
+import { evaluateSpot, nextRideableWindow, bestUpcomingWindowScore, type HourScore, type RideableWindow, type DayEvaluation } from "../evaluator";
 import type { ForecastHour } from "@/lib/weather/types";
 import type { AlertCriteria } from "@/lib/db/schema";
 
@@ -436,6 +436,23 @@ describe("evaluateSpot", () => {
     expect(result.goNoGo).not.toBe("no-go");
   });
 
+  it("labels a zero hour with the failing constraint", () => {
+    const light = evaluateSpot(makeHours(1, { windSpeed: 4, windGusts: 5 }), defaultCriteria);
+    expect(light.hourScores[0].reason).toBe("Light");
+    const storm = evaluateSpot(
+      makeHours(1, { windSpeed: 20, windGusts: 22, weatherCode: 95 }),
+      defaultCriteria,
+    );
+    expect(storm.hourScores[0].reason).toBe("Storm");
+  });
+
+  it("stores window end as the exclusive last hour + 1h", () => {
+    const hours = makeHours(3, { windSpeed: 20, windGusts: 22, windDirection: 270 });
+    const result = evaluateSpot(hours, defaultCriteria);
+    expect(result.rideableWindows[0].start).toBe("2026-02-14T10:00");
+    expect(result.rideableWindows[0].end).toBe("2026-02-14T13:00");
+  });
+
   describe("remaining windows (nowCivil)", () => {
     const sunrise = ["2026-02-14T07:00"];
     const sunset = ["2026-02-14T18:00"];
@@ -514,7 +531,7 @@ describe("nextRideableWindow", () => {
   const windows: RideableWindow[] = [
     {
       start: "2026-08-16T10:00",
-      end: "2026-08-16T13:00",
+      end: "2026-08-16T14:00",
       hours: 3,
       avgScore: 80,
       avgWind: 18,
@@ -523,7 +540,7 @@ describe("nextRideableWindow", () => {
     },
     {
       start: "2026-08-17T14:00",
-      end: "2026-08-17T17:00",
+      end: "2026-08-17T18:00",
       hours: 3,
       avgScore: 70,
       avgWind: 16,
@@ -553,5 +570,53 @@ describe("nextRideableWindow", () => {
 
   it("returns null for an empty list", () => {
     expect(nextRideableWindow([])).toBeNull();
+  });
+});
+
+describe("bestUpcomingWindowScore", () => {
+  function window(start: string, end: string, avgScore: number): RideableWindow {
+    return {
+      start,
+      end,
+      hours: 2,
+      avgScore,
+      avgWind: 16,
+      avgGusts: 20,
+      dominantDirection: 270,
+    };
+  }
+
+  it("picks the best window that starts inside the 72h horizon", () => {
+    const evaluation = {
+      overallScore: 55,
+      goNoGo: "marginal" as const,
+      hourScores: [],
+      rideableWindows: [
+        window("2026-08-16T10:00", "2026-08-16T12:00", 55),
+        window("2026-08-18T10:00", "2026-08-18T12:00", 88),
+        window("2026-08-20T10:00", "2026-08-20T12:00", 95),
+      ],
+      bestWindow: null,
+      dayEvaluations: [],
+      todayDate: "2026-08-16",
+    };
+
+    expect(bestUpcomingWindowScore(evaluation, 72)).toBe(88);
+  });
+
+  it("returns 0 when nothing is in range", () => {
+    const evaluation = {
+      overallScore: 0,
+      goNoGo: "no-go" as const,
+      hourScores: [],
+      rideableWindows: [
+        window("2026-08-20T10:00", "2026-08-20T12:00", 95),
+      ],
+      bestWindow: null,
+      dayEvaluations: [],
+      todayDate: "2026-08-16",
+    };
+
+    expect(bestUpcomingWindowScore(evaluation, 72)).toBe(0);
   });
 });

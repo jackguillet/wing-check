@@ -10,14 +10,18 @@ interface ForecastControlsState {
   setDaylightOnly: (v: boolean) => void;
 }
 
-const ForecastControlsContext = createContext<ForecastControlsState | null>(null);
+const ForecastControlsContext = createContext<ForecastControlsState | null>(
+  null,
+);
 
 export function ForecastControlsProvider({ children }: { children: ReactNode }) {
   const [dayRange, setDayRange] = useState(3);
   const [daylightOnly, setDaylightOnly] = useState(true);
 
   return (
-    <ForecastControlsContext.Provider value={{ dayRange, setDayRange, daylightOnly, setDaylightOnly }}>
+    <ForecastControlsContext.Provider
+      value={{ dayRange, setDayRange, daylightOnly, setDaylightOnly }}
+    >
       {children}
     </ForecastControlsContext.Provider>
   );
@@ -25,22 +29,32 @@ export function ForecastControlsProvider({ children }: { children: ReactNode }) 
 
 export function useForecastControls() {
   const ctx = useContext(ForecastControlsContext);
-  if (!ctx) throw new Error("useForecastControls must be used within ForecastControlsProvider");
+  if (!ctx)
+    throw new Error(
+      "useForecastControls must be used within ForecastControlsProvider",
+    );
   return ctx;
 }
 
 export function ForecastToggles() {
-  const { dayRange, setDayRange, daylightOnly, setDaylightOnly } = useForecastControls();
+  const { dayRange, setDayRange, daylightOnly, setDaylightOnly } =
+    useForecastControls();
 
   return (
-    <>
-      <div className="flex items-center gap-1 rounded-lg border p-1">
+    <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+      <div
+        className="flex items-center gap-1 rounded-lg border p-1 w-full sm:w-auto"
+        role="group"
+        aria-label="Forecast day range"
+      >
         {([1, 3, 5, 7] as const).map((d) => (
           <button
             key={d}
             type="button"
             onClick={() => setDayRange(d)}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+            aria-pressed={dayRange === d}
+            aria-label={`${d} day forecast`}
+            className={`min-h-11 flex-1 sm:flex-none rounded-md px-3 py-2 text-sm font-medium transition-colors ${
               dayRange === d
                 ? "bg-primary text-primary-foreground"
                 : "text-muted-foreground hover:text-foreground"
@@ -50,11 +64,16 @@ export function ForecastToggles() {
           </button>
         ))}
       </div>
-      <div className="flex items-center gap-1 rounded-lg border p-1">
+      <div
+        className="flex items-center gap-1 rounded-lg border p-1 w-full sm:w-auto"
+        role="group"
+        aria-label="Daylight filter"
+      >
         <button
           type="button"
           onClick={() => setDaylightOnly(true)}
-          className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+          aria-pressed={daylightOnly}
+          className={`min-h-11 flex-1 flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
             daylightOnly
               ? "bg-primary text-primary-foreground"
               : "text-muted-foreground hover:text-foreground"
@@ -66,7 +85,8 @@ export function ForecastToggles() {
         <button
           type="button"
           onClick={() => setDaylightOnly(false)}
-          className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+          aria-pressed={!daylightOnly}
+          className={`min-h-11 flex-1 flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
             !daylightOnly
               ? "bg-primary text-primary-foreground"
               : "text-muted-foreground hover:text-foreground"
@@ -76,6 +96,6 @@ export function ForecastToggles() {
           24 Hours
         </button>
       </div>
-    </>
+    </div>
   );
 }

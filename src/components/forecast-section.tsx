@@ -355,6 +355,7 @@ export function ForecastSection({
             hours={filteredHours}
             hourScores={filteredScores}
             nowCivil={nowCivil}
+            criteria={criteria}
           />
         </TabsContent>
 

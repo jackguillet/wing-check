@@ -3,7 +3,6 @@ import {
   addCivilHours,
   civilDate,
   civilMinute,
-  hourIsOpen,
 } from "@/lib/weather/civil-time";
 
 /** Daily cron can see tomorrow morning; keep the look-ahead inside one Hobby run. */
@@ -28,7 +27,7 @@ export function upcomingGoWindows(
   const horizon = addCivilHours(now, horizonHours);
   return windows.filter((w) => {
     if (w.avgScore < 70) return false;
-    if (!hourIsOpen(w.end, now)) return false;
+    if (civilMinute(w.end) <= now) return false;
     return civilMinute(w.start) < horizon;
   });
 }

@@ -57,7 +57,8 @@ export default function SignUpPage() {
           <CardContent className="space-y-4">
             <p className="text-sm">
               Check your inbox at {email} and click the verification link
-              before signing in.
+              before signing in. After that, set your wind kit so scores
+              match how you ride.
             </p>
             <Link href="/sign-in" className="text-sm text-primary underline">
               Back to sign in

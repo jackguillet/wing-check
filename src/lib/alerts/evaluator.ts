@@ -1,7 +1,7 @@
 import type { ForecastHour } from "@/lib/weather/types";
 import type { AlertCriteria } from "@/lib/db/schema";
 import { parsePreferredDirections } from "@/lib/directions";
-import { civilDate, hourIsOpen } from "@/lib/weather/civil-time";
+import { addCivilHours, civilDate, civilMinute, hourIsOpen } from "@/lib/weather/civil-time";
 
 export interface HourScore {
   time: string;
@@ -11,6 +11,7 @@ export interface HourScore {
   directionOk: boolean;
   waveOk: boolean;
   weatherOk: boolean;
+  reason: string | null;
 }
 
 export interface RideableWindow {
@@ -35,9 +36,27 @@ export function nextRideableWindow(
 ): RideableWindow | null {
   if (windows.length === 0) return null;
   const upcoming = windows
-    .filter((w) => (nowIso ? hourIsOpen(w.end, nowIso) : true))
+    .filter((w) => (nowIso ? civilMinute(w.end) > civilMinute(nowIso) : true))
     .sort((a, b) => a.start.localeCompare(b.start));
   return upcoming[0] ?? null;
+}
+
+/** Best remaining window score starting within `horizonHours` of today's midnight. */
+export function bestUpcomingWindowScore(
+  evaluation: SpotEvaluation,
+  horizonHours = 72,
+): number {
+  const origin = evaluation.todayDate
+    ? `${evaluation.todayDate}T00:00`
+    : evaluation.rideableWindows[0]?.start;
+  if (!origin) return 0;
+  const cutoff = addCivilHours(origin, horizonHours);
+  let best = 0;
+  for (const w of evaluation.rideableWindows) {
+    if (civilMinute(w.start) >= cutoff) continue;
+    if (w.avgScore > best) best = w.avgScore;
+  }
+  return best;
 }
 
 export interface DayEvaluation {
@@ -92,12 +111,27 @@ function scoreHour(hour: ForecastHour, criteria: AlertCriteria): HourScore {
 
   const weatherOk = !THUNDERSTORM_CODES.has(hour.weatherCode);
 
+  const reason = !weatherOk
+    ? "Storm"
+    : !windOk
+      ? hour.windSpeed < criteria.minWindSpeed
+        ? "Light"
+        : "Nuke"
+      : !gustOk
+        ? "Nuke"
+        : !directionOk
+          ? "Offshore"
+          : !waveOk
+            ? "Wave"
+            : null;
+
   // Early exit: wind, gusts, and weather are hard prerequisites
   if (!windOk || !gustOk || !weatherOk) {
     return {
       time: hour.time,
       score: 0,
       windOk, gustOk, directionOk, waveOk, weatherOk,
+      reason,
     };
   }
 
@@ -158,6 +192,7 @@ function scoreHour(hour: ForecastHour, criteria: AlertCriteria): HourScore {
     directionOk,
     waveOk,
     weatherOk,
+    reason,
   };
 }
 
@@ -224,7 +259,7 @@ function findRideableWindows(
 
         windows.push({
           start: hourScores[windowStart].time,
-          end: hourScores[i - 1].time,
+          end: addCivilHours(hourScores[i - 1].time, 1),
           hours: windowHours,
           avgScore: Math.round(avgScore),
           avgWind: Math.round(avgWind * 10) / 10,
