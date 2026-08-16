@@ -6,9 +6,10 @@ import {
   alertCriteria,
   userAlertCriteria,
   userSpots,
+  preferences,
 } from "@/lib/db/schema";
 import type { Spot, AlertCriteria, UserAlertCriteria } from "@/lib/db/schema";
-import { resolveCriteria } from "@/lib/criteria";
+import { resolveCriteria, windProfileFromPrefs } from "@/lib/criteria";
 import { eq, and, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -98,19 +99,35 @@ export async function getResolvedCriteriaMap(
   spotIds: number[],
   userId?: string | null,
 ): Promise<Map<number, AlertCriteria>> {
-  const [spotMap, userMap] = await Promise.all([
+  const [spotMap, userMap, userDefault] = await Promise.all([
     getSpotsWithCriteria(spotIds),
     userId ? getUserCriteriaMap(userId, spotIds) : Promise.resolve(new Map()),
+    userId ? getUserWindProfile(userId) : Promise.resolve(null),
   ]);
 
   const result = new Map<number, AlertCriteria>();
   for (const id of spotIds) {
     result.set(
       id,
-      resolveCriteria(id, userMap.get(id), spotMap.get(id)?.criteria),
+      resolveCriteria(
+        id,
+        userMap.get(id),
+        userDefault,
+        spotMap.get(id)?.criteria,
+      ),
     );
   }
   return result;
+}
+
+export async function getUserWindProfile(userId: string) {
+  const rows = await db
+    .select()
+    .from(preferences)
+    .where(eq(preferences.userId, userId));
+  const row = rows[0];
+  if (!row) return null;
+  return windProfileFromPrefs(row);
 }
 
 /** Batch fetch spots with criteria — avoids N+1 for dashboard */

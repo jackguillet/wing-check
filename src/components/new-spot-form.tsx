@@ -12,6 +12,8 @@ import { DirectionPicker } from "@/components/direction-picker";
 import { SpotLocationPicker } from "@/components/spot-location-picker";
 import { useUnits } from "@/components/units-provider";
 import { fromKnots, roundTo, windUnitLabel } from "@/lib/units";
+import { defaultCriteria } from "@/lib/alerts/evaluator";
+import type { CriteriaFields } from "@/lib/criteria";
 
 const initialState: SpotFormState = {};
 
@@ -22,10 +24,15 @@ function fieldError(
   return state.fieldErrors?.[field]?.[0];
 }
 
-export function NewSpotForm() {
+export function NewSpotForm({
+  defaultWind,
+}: {
+  defaultWind?: CriteriaFields | null;
+}) {
   const { windSpeedUnit } = useUnits();
   const windLabel = windUnitLabel(windSpeedUnit);
   const [state, formAction, pending] = useActionState(createSpot, initialState);
+  const wind = defaultWind ?? defaultCriteria;
 
   return (
     <form action={formAction} className="space-y-6">
@@ -89,7 +96,9 @@ export function NewSpotForm() {
                 name="minWindSpeed"
                 type="number"
                 step="0.5"
-                defaultValue={roundTo(fromKnots(10, windSpeedUnit))}
+                defaultValue={roundTo(
+                  fromKnots(wind.minWindSpeed, windSpeedUnit),
+                )}
               />
               {fieldError(state, "minWindSpeed") && (
                 <p className="text-xs text-destructive">
@@ -106,7 +115,9 @@ export function NewSpotForm() {
                 name="maxWindSpeed"
                 type="number"
                 step="0.5"
-                defaultValue={roundTo(fromKnots(25, windSpeedUnit))}
+                defaultValue={roundTo(
+                  fromKnots(wind.maxWindSpeed, windSpeedUnit),
+                )}
               />
               {fieldError(state, "maxWindSpeed") && (
                 <p className="text-xs text-destructive">
@@ -123,7 +134,7 @@ export function NewSpotForm() {
                 name="maxGustFactor"
                 type="number"
                 step="0.1"
-                defaultValue="2.5"
+                defaultValue={wind.maxGustFactor}
               />
               <p className="text-xs text-muted-foreground">
                 Higher ratios score lower; gusts at this ratio score 0 points
@@ -135,7 +146,7 @@ export function NewSpotForm() {
                 id="minConsecutiveHours"
                 name="minConsecutiveHours"
                 type="number"
-                defaultValue="2"
+                defaultValue={wind.minConsecutiveHours}
               />
             </div>
           </div>
@@ -144,7 +155,9 @@ export function NewSpotForm() {
 
           <div className="space-y-2">
             <Label>Preferred Wind Directions</Label>
-            <DirectionPicker defaultValue="[]" />
+            <DirectionPicker
+              defaultValue={wind.preferredDirections ?? "[]"}
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="directionTolerance">
@@ -154,7 +167,7 @@ export function NewSpotForm() {
               id="directionTolerance"
               name="directionTolerance"
               type="number"
-              defaultValue="45"
+              defaultValue={wind.directionTolerance}
             />
           </div>
           <div className="space-y-2">
@@ -165,6 +178,7 @@ export function NewSpotForm() {
               type="number"
               step="0.1"
               placeholder="Leave empty for no limit"
+              defaultValue={wind.maxWaveHeight ?? ""}
             />
           </div>
         </CardContent>
