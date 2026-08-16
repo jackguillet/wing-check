@@ -1,6 +1,6 @@
 import {
   getSpotsWithFavorites,
-  getSpotsWithCriteria,
+  getResolvedCriteriaMap,
 } from "@/lib/actions/spots";
 import {
   getSpotForecast,
@@ -43,7 +43,7 @@ export default async function DashboardPage() {
 
   const spotIds = spots.map((s) => s.id);
   const [criteriaMap, cachedForecasts] = await Promise.all([
-    getSpotsWithCriteria(spotIds),
+    getResolvedCriteriaMap(spotIds, session?.user?.id),
     getCachedForecastsBySpotIds(spotIds),
   ]);
 
@@ -77,8 +77,7 @@ export default async function DashboardPage() {
       return { spot, evaluation: null, isFavorite };
     }
 
-    const spotCriteria = criteriaMap.get(spot.id);
-    const criteria: AlertCriteria = spotCriteria?.criteria ?? {
+    const criteria: AlertCriteria = criteriaMap.get(spot.id) ?? {
       id: 0,
       spotId: spot.id,
       ...defaultCriteria,

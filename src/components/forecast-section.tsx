@@ -32,6 +32,7 @@ interface ForecastSectionProps {
   lat: number;
   lng: number;
   isOwner: boolean;
+  canEditCriteria?: boolean;
 }
 
 /** Filter hours to only include those within the given day range from the first hour. */
@@ -160,6 +161,7 @@ export function ForecastSection({
   lat,
   lng,
   isOwner,
+  canEditCriteria = isOwner,
 }: ForecastSectionProps) {
   const { dayRange, daylightOnly } = useForecastControls();
   const { windSpeedUnit } = useUnits();
@@ -355,8 +357,8 @@ export function ForecastSection({
         <TabsList>
           <TabsTrigger value="chart">Wind Chart</TabsTrigger>
           <TabsTrigger value="table">Forecast Table</TabsTrigger>
-          {isOwner && (
-            <TabsTrigger value="criteria">Alert Criteria</TabsTrigger>
+          {canEditCriteria && (
+            <TabsTrigger value="criteria">My Wind</TabsTrigger>
           )}
         </TabsList>
 
@@ -374,7 +376,7 @@ export function ForecastSection({
           <ForecastTable hours={filteredHours} hourScores={filteredScores} />
         </TabsContent>
 
-        {isOwner && (
+        {canEditCriteria && (
           <TabsContent value="criteria">
             <CriteriaForm spotId={spotId} criteria={rawCriteria} />
           </TabsContent>

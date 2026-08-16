@@ -3,12 +3,14 @@ import { db } from "@/lib/db";
 import {
   spots,
   alertCriteria,
+  userAlertCriteria,
   alertHistory,
   preferences,
   userSpots,
 } from "@/lib/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { evaluateSpot } from "@/lib/alerts/evaluator";
+import { resolveCriteria } from "@/lib/criteria";
 import { sendAlert } from "@/lib/alerts/notifier";
 import { getAppUrl } from "@/lib/app-url";
 import { parseDisplayUnits } from "@/lib/units";
@@ -79,6 +81,19 @@ export async function GET(request: Request) {
       .where(inArray(alertCriteria.spotId, uniqueSpotIds));
     const criteriaBySpot = new Map(allCriteria.map((c) => [c.spotId, c]));
 
+    const allUserCriteria = await db
+      .select()
+      .from(userAlertCriteria)
+      .where(
+        and(
+          inArray(userAlertCriteria.userId, enabledUserIds),
+          inArray(userAlertCriteria.spotId, uniqueSpotIds),
+        ),
+      );
+    const userCriteriaByKey = new Map(
+      allUserCriteria.map((c) => [`${c.userId}:${c.spotId}`, c]),
+    );
+
     // Bulk fetch: all recent alert history for enabled users
     const allHistory = await db
       .select()
@@ -119,8 +134,11 @@ export async function GET(request: Request) {
       const prefs = prefsMap.get(sub.userId);
       if (!prefs) continue;
 
-      const criteria = criteriaBySpot.get(sub.spot.id);
-      if (!criteria) continue;
+      const criteria = resolveCriteria(
+        sub.spot.id,
+        userCriteriaByKey.get(`${sub.userId}:${sub.spot.id}`),
+        criteriaBySpot.get(sub.spot.id),
+      );
 
       const forecast = forecastCache.get(sub.spot.id);
       if (!forecast) continue;

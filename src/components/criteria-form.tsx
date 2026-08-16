@@ -32,7 +32,11 @@ export function CriteriaForm({ spotId, criteria }: CriteriaFormProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Alert Criteria</CardTitle>
+        <CardTitle>My wind for this spot</CardTitle>
+        <p className="text-sm text-muted-foreground font-normal">
+          These numbers score the forecast and drive your email alerts. Other
+          riders keep their own.
+        </p>
       </CardHeader>
       <CardContent>
         <form action={formAction} className="space-y-4">
