@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
-import { getSpotForecast } from "@/lib/actions/forecasts";
+import { getSpotForecast } from "@/lib/data/forecasts";
+import { getSessionFromHeaders } from "@/lib/auth-session";
 import { logger } from "@/lib/logger";
 import * as Sentry from "@sentry/nextjs";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ spotId: string }> },
 ) {
   const { spotId } = await params;
@@ -13,8 +14,12 @@ export async function GET(
     return NextResponse.json({ error: "Invalid spot ID" }, { status: 400 });
   }
 
+  const session = await getSessionFromHeaders(request.headers);
+
   try {
-    const forecast = await getSpotForecast(id);
+    const forecast = await getSpotForecast(id, {
+      allowLive: !!session?.user,
+    });
     if (!forecast) {
       return NextResponse.json({ error: "Spot not found" }, { status: 404 });
     }

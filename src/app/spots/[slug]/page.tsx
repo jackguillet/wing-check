@@ -1,24 +1,26 @@
 import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
 import {
-  getSpot,
-  getSpotWithCriteriaBySlug,
-  getResolvedCriteriaDetails,
   deleteSpot,
   updateSpotNotes,
-  getUserSpotPrefs,
   toggleFavorite,
   toggleSpotAlerts,
   clearSpotWindOverride,
-  getLatestSpotAlert,
 } from "@/lib/actions/spots";
-import { getSpotForecast } from "@/lib/actions/forecasts";
+import {
+  getSpot,
+  getSpotWithCriteriaBySlug,
+  getResolvedCriteriaDetails,
+  getUserSpotPrefs,
+  getLatestSpotAlert,
+} from "@/lib/data/spots";
+import { getSpotForecast } from "@/lib/data/forecasts";
 import { getSession } from "@/lib/auth-session";
 import { evaluateSpot } from "@/lib/alerts/evaluator";
 import { formatCivilWeekdayShort, spotLocalNow } from "@/lib/weather/civil-time";
 import { criteriaSourceLabel } from "@/lib/criteria";
 import { getOrGenerateOverview } from "@/lib/ai/overview";
-import { getDisplayUnits, getPreferences } from "@/lib/actions/settings";
+import { getDisplayUnits, getPreferences } from "@/lib/data/settings";
 import { UnitsProvider } from "@/components/units-provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -305,8 +307,11 @@ export default async function SpotDetailPage({
                 </form>
                 <SpotAlertToggle
                   enabled={!!userSpotPrefs?.alertsEnabled}
-                  masterEnabled={!!alertPrefs?.alertsEnabled}
-                  alertEmail={alertPrefs?.email ?? null}
+                  masterEnabled={
+                    !!alertPrefs?.alertsEnabled &&
+                    !!session?.user.emailVerified
+                  }
+                  alertEmail={session?.user.email ?? null}
                   lastAlertLabel={
                     latestAlert
                       ? latestAlert.sentAt.toLocaleString("en-US", {

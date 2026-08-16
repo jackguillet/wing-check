@@ -1,16 +1,16 @@
 import {
   getSpotsWithFavorites,
   getResolvedCriteriaMap,
-} from "@/lib/actions/spots";
+} from "@/lib/data/spots";
 import {
   getSpotForecast,
   getCachedForecastsBySpotIds,
-} from "@/lib/actions/forecasts";
+} from "@/lib/data/forecasts";
 import { evaluateSpot, defaultCriteria } from "@/lib/alerts/evaluator";
 import { spotLocalNow } from "@/lib/weather/civil-time";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { UnitsProvider } from "@/components/units-provider";
-import { getDisplayUnits } from "@/lib/actions/settings";
+import { getDisplayUnits } from "@/lib/data/settings";
 import { getSession } from "@/lib/auth-session";
 import type { AlertCriteria } from "@/lib/db/schema";
 import type { SpotForecast } from "@/lib/weather/types";
@@ -51,13 +51,15 @@ export default async function DashboardPage() {
     getCachedForecastsBySpotIds(spotIds),
   ]);
 
-  const favoriteIdsNeedingFetch = spots
-    .filter((spot) => favoriteIds.has(spot.id))
-    .filter((spot) => {
-      const cached = cachedForecasts.get(spot.id);
-      return !cached || cached.stale;
-    })
-    .map((spot) => spot.id);
+  const favoriteIdsNeedingFetch = session
+    ? spots
+        .filter((spot) => favoriteIds.has(spot.id))
+        .filter((spot) => {
+          const cached = cachedForecasts.get(spot.id);
+          return !cached || cached.stale;
+        })
+        .map((spot) => spot.id)
+    : [];
 
   const liveFavorites = await Promise.all(
     favoriteIdsNeedingFetch.map(async (id) => {

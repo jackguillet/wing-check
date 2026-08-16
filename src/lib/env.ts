@@ -1,45 +1,62 @@
 import { z } from "zod";
 
-const envSchema = z.object({
-  // Database
+const optionalUrl = z.string().url().optional().or(z.literal(""));
+
+const baseSchema = z.object({
   TURSO_DATABASE_URL: z.string().min(1, "TURSO_DATABASE_URL is required"),
   TURSO_AUTH_TOKEN: z.string().min(1, "TURSO_AUTH_TOKEN is required"),
-
-  // Auth
-  BETTER_AUTH_SECRET: z.string().min(1, "BETTER_AUTH_SECRET is required"),
-  BETTER_AUTH_URL: z.string().url().optional(),
-
-  // Optional but validated when present
-  CRON_SECRET: z.string().optional(),
-  RESEND_API_KEY: z.string().optional(),
+  BETTER_AUTH_SECRET: z
+    .string()
+    .min(32, "BETTER_AUTH_SECRET must be at least 32 characters"),
+  BETTER_AUTH_URL: optionalUrl,
   ANTHROPIC_API_KEY: z.string().optional(),
   SENTRY_DSN: z.string().optional(),
   NEXT_PUBLIC_SENTRY_DSN: z.string().optional(),
-  UPSTASH_REDIS_REST_URL: z.string().url().optional(),
+});
+
+const productionSchema = baseSchema.extend({
+  CRON_SECRET: z.string().min(1, "CRON_SECRET is required"),
+  RESEND_API_KEY: z.string().min(1, "RESEND_API_KEY is required"),
+  MAPBOX_ACCESS_TOKEN: z.string().min(1, "MAPBOX_ACCESS_TOKEN is required"),
+  UPSTASH_REDIS_REST_URL: z.string().url("UPSTASH_REDIS_REST_URL must be a URL"),
+  UPSTASH_REDIS_REST_TOKEN: z.string().min(1, "UPSTASH_REDIS_REST_TOKEN is required"),
+});
+
+const developmentSchema = baseSchema.extend({
+  CRON_SECRET: z.string().optional(),
+  RESEND_API_KEY: z.string().optional(),
+  MAPBOX_ACCESS_TOKEN: z.string().optional(),
+  UPSTASH_REDIS_REST_URL: optionalUrl,
   UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
 });
 
-export type Env = z.infer<typeof envSchema>;
+export type Env = z.infer<typeof productionSchema>;
 
 let validated = false;
+
+function isStrictProduction() {
+  if (process.env.VERCEL_ENV === "production") return true;
+  if (process.env.NODE_ENV !== "production") return false;
+  // `next build` sets NODE_ENV=production; don't fail the compile.
+  if (process.env.NEXT_PHASE?.includes("build")) return false;
+  return !process.env.VERCEL;
+}
 
 export function validateEnv() {
   if (validated) return;
 
-  const result = envSchema.safeParse(process.env);
+  const schema = isStrictProduction() ? productionSchema : developmentSchema;
+  const result = schema.safeParse(process.env);
   if (!result.success) {
     const missing = result.error.issues
       .map((i) => `  - ${i.path.join(".")}: ${i.message}`)
       .join("\n");
-    console.error(`\n❌ Environment validation failed:\n${missing}\n`);
+    console.error(`\nEnvironment validation failed:\n${missing}\n`);
 
-    if (process.env.NODE_ENV === "production") {
-      throw new Error(`Missing required environment variables:\n${missing}`);
+    if (isStrictProduction()) {
+      throw new Error("Missing required environment variables");
     }
   }
 
   validated = true;
 }
-
-// Auto-validate on import
-validateEnv();

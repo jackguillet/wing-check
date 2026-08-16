@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthLimiter, getApiLimiter } from "@/lib/rate-limit";
+import {
+  getAuthLimiter,
+  getApiLimiter,
+  getSessionLimiter,
+} from "@/lib/rate-limit";
 
 const PROTECTED_ROUTES = ["/settings", "/spots/new"];
 
@@ -38,7 +42,11 @@ export async function proxy(request: NextRequest) {
 
   // Rate limiting for auth endpoints
   if (pathname.startsWith("/api/auth")) {
-    const limiter = getAuthLimiter();
+    const strict =
+      /sign-in|sign-up|forget-password|reset-password|request-password-reset|send-verification/.test(
+        pathname,
+      );
+    const limiter = strict ? getAuthLimiter() : getSessionLimiter();
     if (limiter) {
       const ip = getClientIp(request);
       const { success, remaining } = await limiter.limit(ip);

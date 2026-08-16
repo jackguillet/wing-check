@@ -1,4 +1,4 @@
-import { getSpotsWithFavorites } from "@/lib/actions/spots";
+import { getSpotsWithFavorites } from "@/lib/data/spots";
 import { getSession } from "@/lib/auth-session";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";

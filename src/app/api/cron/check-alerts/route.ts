@@ -7,6 +7,7 @@ import {
   alertHistory,
   preferences,
   userSpots,
+  user,
 } from "@/lib/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { evaluateSpot } from "@/lib/alerts/evaluator";
@@ -20,7 +21,7 @@ import {
 } from "@/lib/alerts/policy";
 import { getAppUrl } from "@/lib/app-url";
 import { parseDisplayUnits } from "@/lib/units";
-import { getSpotForecast } from "@/lib/actions/forecasts";
+import { getSpotForecast } from "@/lib/data/forecasts";
 import { logger } from "@/lib/logger";
 import * as Sentry from "@sentry/nextjs";
 
@@ -41,10 +42,31 @@ export async function GET(request: Request) {
 
   try {
     const allPrefs = await db.select().from(preferences);
-    const enabledPrefs = allPrefs.filter((p) => p.alertsEnabled && p.email);
+    const candidateIds = allPrefs
+      .filter((p) => p.alertsEnabled)
+      .map((p) => p.userId);
+
+    const verifiedUsers =
+      candidateIds.length === 0
+        ? []
+        : await db
+            .select({
+              id: user.id,
+              email: user.email,
+              emailVerified: user.emailVerified,
+            })
+            .from(user)
+            .where(inArray(user.id, candidateIds));
+    const verifiedById = new Map(
+      verifiedUsers
+        .filter((u) => u.emailVerified && u.email)
+        .map((u) => [u.id, u]),
+    );
+
+    const enabledPrefs = allPrefs.filter((p) => verifiedById.has(p.userId));
 
     if (enabledPrefs.length === 0) {
-      logger.info("No users with alerts enabled");
+      logger.info("No verified users with alerts enabled");
       return NextResponse.json({ message: "No users with alerts enabled" });
     }
 
@@ -119,7 +141,8 @@ export async function GET(request: Request) {
 
     for (const sub of allSubscriptions) {
       const prefs = prefsMap.get(sub.userId);
-      if (!prefs?.email) continue;
+      const account = verifiedById.get(sub.userId);
+      if (!prefs || !account?.email) continue;
 
       const criteria = resolveCriteria(
         sub.spot.id,
@@ -167,7 +190,8 @@ export async function GET(request: Request) {
       const result = await sendAlert({
         spotName: sub.spot.name,
         windows: toSend,
-        email: prefs.email,
+        email: account.email,
+        userId: account.id,
         spotUrl: `${appUrl}${spotPath}`,
         windSpeedUnit: parseDisplayUnits(
           prefs.windSpeedUnit,

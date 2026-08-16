@@ -1,5 +1,3 @@
-"use server";
-
 import { db } from "@/lib/db";
 import { forecastCache, spots } from "@/lib/db/schema";
 import { eq, and, gt, inArray } from "drizzle-orm";
@@ -53,7 +51,9 @@ function buildForecastFromCache(
 
 export async function getSpotForecast(
   spotId: number,
+  options: { allowLive?: boolean } = {},
 ): Promise<(SpotForecast & { stale?: boolean }) | null> {
+  const allowLive = options.allowLive !== false;
   const spotRows = await db.select().from(spots).where(eq(spots.id, spotId));
   const spot = spotRows[0];
   if (!spot) return null;
@@ -70,6 +70,15 @@ export async function getSpotForecast(
 
   if (cached) {
     return buildForecastFromCache(spot, cached);
+  }
+
+  if (!allowLive) {
+    const staleRows = await db
+      .select()
+      .from(forecastCache)
+      .where(eq(forecastCache.spotId, spotId));
+    const stale = staleRows[0];
+    return stale ? buildForecastFromCache(spot, stale, true) : null;
   }
 
   // Fetch fresh data

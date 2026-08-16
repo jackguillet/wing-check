@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { auth } from "./auth";
 
 export async function getSession() {
@@ -7,10 +8,14 @@ export async function getSession() {
   });
 }
 
+export async function getSessionFromHeaders(headerStore: Headers) {
+  return auth.api.getSession({ headers: headerStore });
+}
+
 export async function requireSession() {
   const session = await getSession();
   if (!session) {
-    throw new Error("Unauthorized");
+    redirect("/sign-in");
   }
   return session;
 }

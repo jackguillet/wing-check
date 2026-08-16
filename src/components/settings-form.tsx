@@ -4,7 +4,6 @@ import { useState } from "react";
 import { updatePreferences } from "@/lib/actions/settings";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -15,12 +14,22 @@ import {
 } from "@/components/ui/select";
 import type { Preferences } from "@/lib/db/schema";
 
-export function SettingsForm({ prefs }: { prefs: Preferences }) {
+export function SettingsForm({
+  prefs,
+  accountEmail,
+  emailVerified,
+}: {
+  prefs: Preferences;
+  accountEmail: string;
+  emailVerified: boolean;
+}) {
   const [windSpeedUnit, setWindSpeedUnit] = useState(prefs.windSpeedUnit);
   const [temperatureUnit, setTemperatureUnit] = useState(
     prefs.temperatureUnit,
   );
-  const [alertsEnabled, setAlertsEnabled] = useState(prefs.alertsEnabled);
+  const [alertsEnabled, setAlertsEnabled] = useState(
+    prefs.alertsEnabled && emailVerified,
+  );
 
   return (
     <form action={updatePreferences} className="space-y-6">
@@ -30,18 +39,12 @@ export function SettingsForm({ prefs }: { prefs: Preferences }) {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">Alert email</Label>
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              placeholder="your@email.com"
-              defaultValue={prefs.email ?? ""}
-              required={alertsEnabled}
-            />
+            <Label>Account email</Label>
+            <p className="text-sm">{accountEmail}</p>
             <p className="text-xs text-muted-foreground">
-              GO emails (score 70+) go here. Arm individual spots with the
-              bell on each forecast page.
+              {emailVerified
+                ? "Verified. GO emails are sent only to this address."
+                : "Check your inbox and verify this address before alerts can be turned on."}
             </p>
           </div>
           <div className="flex items-center space-x-2">
@@ -49,6 +52,7 @@ export function SettingsForm({ prefs }: { prefs: Preferences }) {
               type="checkbox"
               id="alertsEnabled"
               checked={alertsEnabled}
+              disabled={!emailVerified}
               onChange={(e) => setAlertsEnabled(e.target.checked)}
               className="h-4 w-4 rounded border-input"
             />

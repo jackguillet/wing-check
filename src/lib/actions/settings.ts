@@ -4,63 +4,19 @@ import { db } from "@/lib/db";
 import { preferences } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { getSession, requireSession } from "@/lib/auth-session";
+import { requireSession } from "@/lib/auth-session";
 import {
   updatePreferencesSchema,
   updateCriteriaSchema,
   formDataToObject,
 } from "@/lib/validations";
-import {
-  DEFAULT_UNITS,
-  formWindsToKnots,
-  parseDisplayUnits,
-  type DisplayUnits,
-} from "@/lib/units";
-
-export async function getDisplayUnits(): Promise<DisplayUnits> {
-  const session = await getSession();
-  if (!session?.user) return DEFAULT_UNITS;
-
-  const rows = await db
-    .select({
-      windSpeedUnit: preferences.windSpeedUnit,
-      temperatureUnit: preferences.temperatureUnit,
-    })
-    .from(preferences)
-    .where(eq(preferences.userId, session.user.id));
-
-  const row = rows[0];
-  if (!row) return DEFAULT_UNITS;
-  return parseDisplayUnits(row.windSpeedUnit, row.temperatureUnit);
-}
-
-export async function getPreferences() {
-  const { user } = await requireSession();
-
-  const rows = await db
-    .select()
-    .from(preferences)
-    .where(eq(preferences.userId, user.id));
-
-  if (rows.length === 0) {
-    const result = await db
-      .insert(preferences)
-      .values({
-        userId: user.id,
-        email: user.email,
-        alertsEnabled: false,
-        checkIntervalHours: 6,
-        windSpeedUnit: "knots",
-        temperatureUnit: "celsius",
-      })
-      .returning();
-    return result[0];
-  }
-  return rows[0];
-}
+import { formWindsToKnots } from "@/lib/units";
+import { getDisplayUnits, getPreferences } from "@/lib/data/settings";
+import { limitMutation } from "@/lib/rate-limit";
 
 export async function updatePreferences(formData: FormData) {
   const { user } = await requireSession();
+  await limitMutation(user.id, "update-preferences", 30, "1 h");
   const prefs = await getPreferences();
 
   const parsed = updatePreferencesSchema.safeParse(formDataToObject(formData));
@@ -72,15 +28,14 @@ export async function updatePreferences(formData: FormData) {
   const data = parsed.data;
 
   const alertsEnabled = data.alertsEnabled === "on";
-  const email = data.email || user.email;
-  if (alertsEnabled && !email) {
-    throw new Error("Add an email address before enabling alerts");
+  if (alertsEnabled && !user.emailVerified) {
+    throw new Error("Verify your email before enabling alerts");
   }
 
   await db
     .update(preferences)
     .set({
-      email: email || null,
+      email: user.email,
       alertsEnabled,
       windSpeedUnit: data.windSpeedUnit,
       temperatureUnit: data.temperatureUnit,
@@ -93,6 +48,7 @@ export async function updatePreferences(formData: FormData) {
 
 export async function updateWindProfile(formData: FormData) {
   const { user } = await requireSession();
+  await limitMutation(user.id, "update-wind-profile", 30, "1 h");
   const prefs = await getPreferences();
   const units = await getDisplayUnits();
 

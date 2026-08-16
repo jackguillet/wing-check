@@ -1,6 +1,5 @@
 import type { RideableWindow } from "./evaluator";
 import { degreesToCardinal } from "@/lib/weather/types";
-import { logger } from "@/lib/logger";
 import {
   formatCivilClock,
   formatCivilWeekdayDate,
@@ -10,11 +9,15 @@ import {
   formatWind,
   type WindSpeedUnit,
 } from "@/lib/units";
+import { requireResendKey } from "@/lib/mail";
+import { getAppUrl } from "@/lib/app-url";
+import { createUnsubscribeToken } from "./unsubscribe";
 
 interface AlertPayload {
   spotName: string;
   windows: RideableWindow[];
   email: string;
+  userId: string;
   spotUrl?: string;
   windSpeedUnit?: WindSpeedUnit;
 }
@@ -23,14 +26,12 @@ export async function sendAlert({
   spotName,
   windows,
   email,
+  userId,
   spotUrl,
   windSpeedUnit = DEFAULT_UNITS.windSpeedUnit,
 }: AlertPayload) {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    logger.warn("RESEND_API_KEY not set, skipping email alert");
-    return null;
-  }
+  const apiKey = requireResendKey();
+  if (!apiKey) return null;
 
   const windowSummaries = windows
     .map((w) => {
@@ -48,11 +49,17 @@ export async function sendAlert({
     ? ` ${formatCivilWeekdayDate(first.start)} ${formatCivilClock(first.start)}`
     : "";
 
+  const unsubUrl = `${getAppUrl()}/api/alerts/unsubscribe?token=${createUnsubscribeToken(userId)}`;
+
   const result = await resend.emails.send({
     from: "Wing Check <alerts@wingcheck.dev>",
     to: email,
     subject: `Wind alert: ${spotName} looks rideable${subjectWhen}`,
-    text: `Good conditions forecast at ${spotName}:\n\n${windowSummaries}\n\n${spotUrl ? `View the forecast: ${spotUrl}` : "Check your dashboard for full details."}`,
+    text: `Good conditions forecast at ${spotName}:\n\n${windowSummaries}\n\n${spotUrl ? `View the forecast: ${spotUrl}\n\n` : ""}Unsubscribe: ${unsubUrl}`,
+    headers: {
+      "List-Unsubscribe": `<${unsubUrl}>`,
+      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    },
   });
 
   return result;
