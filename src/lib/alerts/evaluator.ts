@@ -22,6 +22,19 @@ export interface RideableWindow {
   dominantDirection: number;
 }
 
+/** Next window that has not already ended. Windows are spot-local ISO times. */
+export function nextRideableWindow(
+  windows: RideableWindow[],
+  nowIso?: string,
+): RideableWindow | null {
+  if (windows.length === 0) return null;
+  const now = nowIso ?? new Date().toISOString().slice(0, 16);
+  const upcoming = windows
+    .filter((w) => w.end >= now)
+    .sort((a, b) => a.start.localeCompare(b.start));
+  return upcoming[0] ?? null;
+}
+
 export interface DayEvaluation {
   date: string;              // "2026-02-14"
   score: number;

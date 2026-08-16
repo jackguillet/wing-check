@@ -1,9 +1,18 @@
+"use client";
+
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { Spot } from "@/lib/db/schema";
-import type { SpotEvaluation, DayEvaluation } from "@/lib/alerts/evaluator";
+import {
+  nextRideableWindow,
+  type SpotEvaluation,
+} from "@/lib/alerts/evaluator";
 import { Heart } from "lucide-react";
+import { format, parseISO } from "date-fns";
+import { degreesToCardinal } from "@/lib/weather/types";
+import { useUnits } from "@/components/units-provider";
+import { formatWind } from "@/lib/units";
 
 interface SpotCardProps {
   spot: Spot;
@@ -16,9 +25,17 @@ function GoNoGoBadge({ status }: { status: "go" | "marginal" | "no-go" }) {
     case "go":
       return <Badge className="bg-green-600 text-white text-sm px-3">GO</Badge>;
     case "marginal":
-      return <Badge className="bg-yellow-500 text-black text-sm px-3">MARGINAL</Badge>;
+      return (
+        <Badge className="bg-yellow-500 text-black text-sm px-3">
+          MARGINAL
+        </Badge>
+      );
     case "no-go":
-      return <Badge variant="outline" className="text-muted-foreground text-sm px-3">NO-GO</Badge>;
+      return (
+        <Badge variant="outline" className="text-muted-foreground text-sm px-3">
+          NO-GO
+        </Badge>
+      );
   }
 }
 
@@ -34,15 +51,27 @@ function dayLabel(dateStr: string, index: number): string {
   return d.toLocaleDateString("en-US", { weekday: "short" });
 }
 
+function formatWindowRange(startIso: string, endIso: string): string {
+  const start = parseISO(startIso);
+  const end = parseISO(endIso);
+  return `${format(start, "EEE HH:mm")}–${format(end, "HH:mm")}`;
+}
+
 export function SpotCard({ spot, evaluation, isFavorite }: SpotCardProps) {
+  const { windSpeedUnit } = useUnits();
   const days = evaluation?.dayEvaluations.slice(0, 3) ?? [];
+  const nextWindow = evaluation
+    ? nextRideableWindow(evaluation.rideableWindows)
+    : null;
 
   return (
     <Link href={`/spots/${spot.slug}`}>
       <Card className="transition-colors hover:bg-accent/50">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-lg flex items-center gap-1.5">
-            {isFavorite && <Heart className="h-4 w-4 fill-red-500 text-red-500 shrink-0" />}
+            {isFavorite && (
+              <Heart className="h-4 w-4 fill-red-500 text-red-500 shrink-0" />
+            )}
             {spot.name}
           </CardTitle>
           {evaluation && <GoNoGoBadge status={evaluation.goNoGo} />}
@@ -52,9 +81,13 @@ export function SpotCard({ spot, evaluation, isFavorite }: SpotCardProps) {
             <div className="grid grid-cols-3 gap-2 text-center text-sm">
               {days.map((day, i) => (
                 <div key={day.date} className="space-y-1">
-                  <p className="text-muted-foreground text-xs">{dayLabel(day.date, i)}</p>
+                  <p className="text-muted-foreground text-xs">
+                    {dayLabel(day.date, i)}
+                  </p>
                   <div className="flex items-center justify-center gap-1.5">
-                    <span className={`inline-block h-2 w-2 rounded-full ${statusDot[day.goNoGo]}`} />
+                    <span
+                      className={`inline-block h-2 w-2 rounded-full ${statusDot[day.goNoGo]}`}
+                    />
                     <span className="font-medium">{day.score}</span>
                   </div>
                 </div>
@@ -68,6 +101,23 @@ export function SpotCard({ spot, evaluation, isFavorite }: SpotCardProps) {
           ) : (
             <p className="text-sm text-muted-foreground">Forecast unavailable</p>
           )}
+
+          {evaluation && nextWindow && (
+            <p className="text-sm mt-3">
+              {formatWindowRange(nextWindow.start, nextWindow.end)}
+              <span className="text-muted-foreground">
+                {" "}
+                · {formatWind(nextWindow.avgWind, windSpeedUnit, 0)}{" "}
+                {degreesToCardinal(nextWindow.dominantDirection)}
+              </span>
+            </p>
+          )}
+          {evaluation && !nextWindow && (
+            <p className="text-sm text-muted-foreground mt-3">
+              No rideable window ahead
+            </p>
+          )}
+
           <p className="text-xs text-muted-foreground mt-2">
             {spot.latitude.toFixed(3)}°, {spot.longitude.toFixed(3)}°
           </p>
