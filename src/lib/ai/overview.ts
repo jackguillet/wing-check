@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { db } from "@/lib/db";
 import { spotOverviews } from "@/lib/db/schema";
-import { eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { evaluateSpot } from "@/lib/alerts/evaluator";
 import type { ForecastHour } from "@/lib/weather/types";
 import {
@@ -10,7 +10,6 @@ import {
 } from "@/lib/weather/types";
 import type { AlertCriteria, Spot, SpotOverview } from "@/lib/db/schema";
 import { formatWingSize, type WingBand } from "@/lib/wings";
-import { getSession } from "@/lib/auth-session";
 import { logger } from "@/lib/logger";
 import * as Sentry from "@sentry/nextjs";
 import {
@@ -192,6 +191,7 @@ async function generateSpotOverview(
       model: MODEL,
       max_tokens: 300,
       system: `You are a concise wing foiling weather analyst writing for experienced riders.
+Use only the dates and numbers in the forecast data. Do not invent another month or season.
 Write a single short paragraph (50-80 words max) summarizing today's conditions:
 wind range, direction, best window, recommended wing size if given, and swell if relevant.
 If suggestedWindows is present, mention that a wing they do not own would make the day GO.
@@ -222,6 +222,67 @@ ${forecastSummary}`,
   return { overview, forecastSummary };
 }
 
+export function pickCachedOverview<
+  T extends { forecastSummary: string; expiresAt: Date },
+>(
+  rows: T[],
+  forecastSummary: string,
+  now: Date,
+): { fresh: T | null; matchingExpired: T | null } {
+  let matchingExpired: T | null = null;
+  for (const row of rows) {
+    if (row.forecastSummary !== forecastSummary) continue;
+    if (row.expiresAt > now) return { fresh: row, matchingExpired: null };
+    if (!matchingExpired || row.expiresAt > matchingExpired.expiresAt) {
+      matchingExpired = row;
+    }
+  }
+  return { fresh: null, matchingExpired };
+}
+
+export function fallbackOverviewText(
+  summary: ReturnType<typeof buildForecastSummary>,
+): string {
+  const ev = summary.evaluation;
+  const verdict =
+    ev.goNoGo === "go"
+      ? "GO"
+      : ev.goNoGo === "marginal"
+        ? "MARGINAL"
+        : "NO-GO";
+  const today = summary.days[0];
+  const wind = today
+    ? `${today.windRange} ${today.dominantDirection}`
+    : "no daylight hours loaded";
+  const best = [...ev.rideableWindows].sort((a, b) => b.score - a.score)[0];
+  const window = best
+    ? `Best remaining window ${best.start}–${best.end}, ${best.avgWind}, score ${best.score}/100.`
+    : "No remaining rideable window.";
+  const suggested = ev.suggestedWindows[0];
+  const maybe =
+    !best && suggested?.wing
+      ? ` A ${suggested.wing} you do not own would open a window.`
+      : "";
+  return `${summary.spot.name}: ${wind}. ${window}${maybe} **Bottom line:** ${verdict} (${ev.overallScore}/100).`;
+}
+
+function syntheticOverview(
+  spotId: number,
+  overview: string,
+  forecastSummary: string,
+  now: Date,
+): SpotOverview {
+  return {
+    id: 0,
+    spotId,
+    overview,
+    model: "fallback",
+    generatedAt: now,
+    expiresAt: now,
+    forecastSummary,
+  };
+}
+
 // ── Get or generate (cached) overview ────────────────────────────────
 
 export async function getOrGenerateOverview(
@@ -236,34 +297,30 @@ export async function getOrGenerateOverview(
 ): Promise<SpotOverview | null> {
   const now = new Date();
   const units = DEFAULT_UNITS;
-  const forecastSummary = JSON.stringify(
-    buildForecastSummary(
-      spot,
-      hours,
-      criteria,
-      sunrise,
-      sunset,
-      units,
-      nowCivil,
-      quiver,
-      missing,
-    ),
+  const summary = buildForecastSummary(
+    spot,
+    hours,
+    criteria,
+    sunrise,
+    sunset,
+    units,
+    nowCivil,
+    quiver,
+    missing,
   );
+  const forecastSummary = JSON.stringify(summary);
 
   const cached = await db
     .select()
     .from(spotOverviews)
     .where(eq(spotOverviews.spotId, spot.id));
 
-  const matching = cached.find(
-    (row) => row.forecastSummary === forecastSummary && row.expiresAt > now,
+  const { fresh, matchingExpired } = pickCachedOverview(
+    cached,
+    forecastSummary,
+    now,
   );
-  if (matching) return matching;
-
-  const session = await getSession();
-  if (!session?.user) {
-    return cached[0] ?? null;
-  }
+  if (fresh) return fresh;
 
   try {
     const { overview } = await generateSpotOverview(
@@ -278,14 +335,10 @@ export async function getOrGenerateOverview(
       missing,
     );
 
-    const expired = cached.filter((row) => row.expiresAt <= now);
-    if (expired.length > 0) {
-      await db.delete(spotOverviews).where(
-        inArray(
-          spotOverviews.id,
-          expired.map((row) => row.id),
-        ),
-      );
+    if (cached.length > 0) {
+      await db
+        .delete(spotOverviews)
+        .where(eq(spotOverviews.spotId, spot.id));
     }
 
     const generatedAt = new Date();
@@ -310,8 +363,12 @@ export async function getOrGenerateOverview(
       "Failed to generate overview",
     );
     Sentry.captureException(error);
-    // Fall back to stale overview if available
-    const stale = cached[0];
-    return stale ?? null;
+    if (matchingExpired) return matchingExpired;
+    return syntheticOverview(
+      spot.id,
+      fallbackOverviewText(summary),
+      forecastSummary,
+      now,
+    );
   }
 }
