@@ -119,7 +119,8 @@ export async function createSpot(
 
   revalidatePath("/");
   revalidatePath("/spots");
-  redirect("/spots");
+  revalidatePath(`/spots/${slug}`);
+  redirect(`/spots/${slug}`);
 }
 
 export async function deleteSpot(id: number) {

@@ -11,6 +11,7 @@ import { spotLocalNow } from "@/lib/weather/civil-time";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { UnitsProvider } from "@/components/units-provider";
 import { getDisplayUnits } from "@/lib/data/settings";
+import { getUserWindProfile } from "@/lib/data/spots";
 import { getSession } from "@/lib/auth-session";
 import type { AlertCriteria } from "@/lib/db/schema";
 import type { SpotForecast } from "@/lib/weather/types";
@@ -80,7 +81,7 @@ export default async function DashboardPage() {
         : cachedForecasts.get(spot.id);
 
     if (!forecast) {
-      return { spot, evaluation: null, isFavorite };
+      return { spot, evaluation: null, isFavorite, stale: false };
     }
 
     const criteria: AlertCriteria = criteriaMap.get(spot.id) ?? {
@@ -97,11 +98,15 @@ export default async function DashboardPage() {
         forecast.sunset,
         spotLocalNow(forecast.utcOffsetSeconds),
       );
-      return { spot, evaluation, isFavorite };
+      return { spot, evaluation, isFavorite, stale: !!forecast.stale };
     } catch {
-      return { spot, evaluation: null, isFavorite };
+      return { spot, evaluation: null, isFavorite, stale: false };
     }
   });
+
+  const kit = session?.user
+    ? await getUserWindProfile(session.user.id)
+    : null;
 
   return (
     <div className="space-y-6">
@@ -109,7 +114,11 @@ export default async function DashboardPage() {
         <h1 className="text-3xl font-bold">Dashboard</h1>
       </div>
       <UnitsProvider units={units}>
-        <DashboardShell spotData={spotData} />
+        <DashboardShell
+          spotData={spotData}
+          isAuthenticated={isAuthenticated}
+          hasKit={!!kit}
+        />
       </UnitsProvider>
     </div>
   );

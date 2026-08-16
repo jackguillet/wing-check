@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { preferences } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/auth-session";
 import {
   updatePreferencesSchema,
@@ -77,6 +78,11 @@ export async function updateWindProfile(formData: FormData) {
 
   revalidatePath("/settings");
   revalidatePath("/", "layout");
+
+  const next = formData.get("next");
+  if (typeof next === "string" && next.startsWith("/") && !next.startsWith("//")) {
+    redirect(next);
+  }
 }
 
 export async function clearWindProfile() {

@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
+import type { Metadata } from "next";
 import {
   deleteSpot,
   updateSpotNotes,
@@ -9,6 +10,7 @@ import {
 } from "@/lib/actions/spots";
 import {
   getSpot,
+  getSpotBySlug,
   getSpotWithCriteriaBySlug,
   getResolvedCriteriaDetails,
   getUserSpotPrefs,
@@ -16,7 +18,7 @@ import {
 } from "@/lib/data/spots";
 import { getSpotForecast } from "@/lib/data/forecasts";
 import { getSession } from "@/lib/auth-session";
-import { evaluateSpot } from "@/lib/alerts/evaluator";
+import { evaluateSpot, type DayEvaluation } from "@/lib/alerts/evaluator";
 import { formatCivilWeekdayShort, spotLocalNow } from "@/lib/weather/civil-time";
 import { criteriaSourceLabel } from "@/lib/criteria";
 import { getOrGenerateOverview } from "@/lib/ai/overview";
@@ -36,13 +38,28 @@ import ReactMarkdown from "react-markdown";
 import { Heart, Sparkles, Clock, Sunrise, Sunset, AlertTriangle } from "lucide-react";
 import { DeleteSpotButton } from "@/components/delete-spot-button";
 import { SpotAlertToggle } from "@/components/spot-alert-toggle";
+import { ScoringGuide } from "@/components/scoring-guide";
 import { cn } from "@/lib/utils";
 import { logger } from "@/lib/logger";
 import * as Sentry from "@sentry/nextjs";
 
 export const dynamic = "force-dynamic";
 
-import type { DayEvaluation } from "@/lib/alerts/evaluator";
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const spot = /^\d+$/.test(slug)
+    ? await getSpot(parseInt(slug))
+    : await getSpotBySlug(slug);
+  if (!spot) return { title: "Spot · Wing Check" };
+  return {
+    title: `${spot.name} · Wing Check`,
+    description: `Wind forecast and go/no-go score for ${spot.name}.`,
+  };
+}
 
 const goNoGoColors = {
   go: "bg-green-600/10 border-green-600 text-green-700 dark:text-green-400",
@@ -160,6 +177,7 @@ function ThreeDayBanner({
               </p>
               <p className={`font-bold ${isToday ? "text-3xl" : "text-2xl"}`}>
                 {day.score}
+                <span className="text-sm font-medium opacity-70">/100</span>
               </p>
             </div>
           </div>
@@ -229,7 +247,7 @@ export default async function SpotDetailPage({
     <UnitsProvider units={units}>
     <ForecastControlsProvider>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
             <h1 className="text-3xl font-bold">{spot.name}</h1>
             <p className="text-muted-foreground">
@@ -281,14 +299,22 @@ export default async function SpotDetailPage({
                 );
               })()}
           </div>
-          <div className="flex items-center gap-2">
-            <ForecastToggles />
+          <div className="flex flex-col gap-3 md:items-end">
+            <div className="flex items-center gap-2 flex-wrap">
+              <ScoringGuide />
             {isAuthenticated && (
               <>
                 <form action={toggleFavoriteAction}>
                   <Button
                     variant="ghost"
                     size="icon"
+                    className="size-11"
+                    aria-label={
+                      userSpotPrefs?.isFavorite
+                        ? "Remove from favorites"
+                        : "Add to favorites"
+                    }
+                    aria-pressed={!!userSpotPrefs?.isFavorite}
                     title={
                       userSpotPrefs?.isFavorite
                         ? "Remove from favorites"
@@ -335,6 +361,8 @@ export default async function SpotDetailPage({
                 deleteAction={deleteAction}
               />
             )}
+            </div>
+            <ForecastToggles />
           </div>
         </div>
 

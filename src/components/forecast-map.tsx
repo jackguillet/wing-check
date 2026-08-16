@@ -76,7 +76,7 @@ export function ForecastMap({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [sliderIndex, setSliderIndex] = useState(0);
-  const [playing, setPlaying] = useState(true);
+  const [playing, setPlaying] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const imgRef = useRef<HTMLImageElement | null>(null);
@@ -195,9 +195,16 @@ export function ForecastMap({
     return () => ro.disconnect();
   }, [draw]);
 
+  useEffect(() => {
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (!reduce.matches) setPlaying(true);
+  }, []);
+
   // Auto-play interval
   useEffect(() => {
     if (!playing || maxIndex === 0) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (reduce.matches) return;
     const id = setInterval(() => {
       setSliderIndex((i) => (i >= maxIndex ? 0 : i + 1));
     }, 200);
@@ -224,7 +231,12 @@ export function ForecastMap({
               Satellite image unavailable
             </div>
           )}
-          <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
+          <canvas
+            ref={canvasRef}
+            className="absolute inset-0 w-full h-full"
+            role="img"
+            aria-label="Animated wind direction at this spot. Use play and the slider to step through hours."
+          />
         </div>
 
         {current && (
@@ -256,6 +268,7 @@ export function ForecastMap({
                 setSliderIndex(Number(e.target.value));
               }}
               className="w-full accent-primary"
+              aria-label="Forecast hour"
             />
           </div>
           {current && (

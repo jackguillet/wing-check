@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Heart, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -17,9 +18,14 @@ import type { Spot } from "@/lib/db/schema";
 interface SpotsTableProps {
   spots: Spot[];
   favoriteIds: number[];
+  isAuthenticated: boolean;
 }
 
-export function SpotsTable({ spots, favoriteIds }: SpotsTableProps) {
+export function SpotsTable({
+  spots,
+  favoriteIds,
+  isAuthenticated,
+}: SpotsTableProps) {
   const [search, setSearch] = useState("");
   const favSet = new Set(favoriteIds);
 
@@ -31,7 +37,9 @@ export function SpotsTable({ spots, favoriteIds }: SpotsTableProps) {
   if (spots.length === 0) {
     return (
       <p className="text-muted-foreground">
-        No spots yet. Add your first one!
+        {isAuthenticated
+          ? "No spots yet. Add your first one to start scoring a forecast."
+          : "No public spots are listed yet. Sign up to add your own."}
       </p>
     );
   }
@@ -39,8 +47,12 @@ export function SpotsTable({ spots, favoriteIds }: SpotsTableProps) {
   return (
     <div className="space-y-4">
       <div className="relative">
+        <Label htmlFor="spot-search" className="sr-only">
+          Search spots
+        </Label>
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
+          id="spot-search"
           placeholder="Search spots..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -57,7 +69,9 @@ export function SpotsTable({ spots, favoriteIds }: SpotsTableProps) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-8"></TableHead>
+                <TableHead className="w-8">
+                  <span className="sr-only">Favorite</span>
+                </TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Latitude</TableHead>
                 <TableHead>Longitude</TableHead>
@@ -69,7 +83,10 @@ export function SpotsTable({ spots, favoriteIds }: SpotsTableProps) {
                 <TableRow key={spot.id}>
                   <TableCell className="w-8 px-2">
                     {favSet.has(spot.id) && (
-                      <Heart className="h-4 w-4 fill-red-500 text-red-500" />
+                      <Heart
+                        className="h-4 w-4 fill-red-500 text-red-500"
+                        aria-label="Favorite"
+                      />
                     )}
                   </TableCell>
                   <TableCell>

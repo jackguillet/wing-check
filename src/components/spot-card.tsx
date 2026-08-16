@@ -21,6 +21,8 @@ interface SpotCardProps {
   spot: Spot;
   evaluation: SpotEvaluation | null;
   isFavorite?: boolean;
+  stale?: boolean;
+  distanceKm?: number;
 }
 
 function GoNoGoBadge({ status }: { status: "go" | "marginal" | "no-go" }) {
@@ -57,7 +59,13 @@ function formatWindowRange(startIso: string, endIso: string): string {
   return `${formatCivilWeekdayShort(startIso)} ${formatCivilClock(startIso)}–${formatCivilClock(endIso)}`;
 }
 
-export function SpotCard({ spot, evaluation, isFavorite }: SpotCardProps) {
+export function SpotCard({
+  spot,
+  evaluation,
+  isFavorite,
+  stale,
+  distanceKm,
+}: SpotCardProps) {
   const { windSpeedUnit } = useUnits();
   const days = evaluation?.dayEvaluations.slice(0, 3) ?? [];
   const nextWindow = evaluation
@@ -67,11 +75,21 @@ export function SpotCard({ spot, evaluation, isFavorite }: SpotCardProps) {
 
   return (
     <Link href={`/spots/${spot.slug}`}>
-      <Card className="transition-colors hover:bg-accent/50">
+      <Card
+        className="transition-colors hover:bg-accent/50"
+        title={
+          evaluation
+            ? `Today ${evaluation.overallScore}/100 — best remaining daylight window vs your kit. GO is 70+.`
+            : undefined
+        }
+      >
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-lg flex items-center gap-1.5">
             {isFavorite && (
-              <Heart className="h-4 w-4 fill-red-500 text-red-500 shrink-0" />
+              <Heart
+                className="h-4 w-4 fill-red-500 text-red-500 shrink-0"
+                aria-label="Favorite"
+              />
             )}
             {spot.name}
           </CardTitle>
@@ -88,15 +106,20 @@ export function SpotCard({ spot, evaluation, isFavorite }: SpotCardProps) {
                   <div className="flex items-center justify-center gap-1.5">
                     <span
                       className={`inline-block h-2 w-2 rounded-full ${statusDot[day.goNoGo]}`}
+                      aria-hidden
                     />
-                    <span className="font-medium">{day.score}</span>
+                    <span className="font-medium">
+                      {day.score}
+                      <span className="text-muted-foreground text-xs">/100</span>
+                    </span>
                   </div>
+                  <p className="sr-only">{day.goNoGo}</p>
                 </div>
               ))}
             </div>
           ) : evaluation ? (
             <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Score</span>
+              <span className="text-muted-foreground">Today</span>
               <span className="font-medium">{evaluation.overallScore}/100</span>
             </div>
           ) : (
@@ -120,7 +143,11 @@ export function SpotCard({ spot, evaluation, isFavorite }: SpotCardProps) {
           )}
 
           <p className="text-xs text-muted-foreground mt-2">
+            {distanceKm != null
+              ? `${distanceKm < 10 ? distanceKm.toFixed(1) : Math.round(distanceKm)} km · `
+              : null}
             {spot.latitude.toFixed(3)}°, {spot.longitude.toFixed(3)}°
+            {stale ? " · cached" : null}
           </p>
         </CardContent>
       </Card>

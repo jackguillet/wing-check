@@ -1,5 +1,16 @@
-/** Wind speed color: red (too light) → green (sweet spot) → red (too strong) */
-export function getWindColor(speed: number): string {
+/** Wind speed color relative to the rider's kit band, with a generic fallback. */
+export function getWindColor(
+  speed: number,
+  minWind?: number | null,
+  maxWind?: number | null,
+): string {
+  if (minWind != null && maxWind != null && maxWind >= minWind) {
+    if (speed < minWind * 0.7) return "#ef4444";
+    if (speed < minWind) return "#f97316";
+    if (speed <= maxWind) return "#22c55e";
+    if (speed <= maxWind * 1.15) return "#eab308";
+    return "#ef4444";
+  }
   if (speed < 6) return "#ef4444";
   if (speed < 10) return "#f97316";
   if (speed < 12) return "#eab308";
