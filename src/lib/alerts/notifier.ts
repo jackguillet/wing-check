@@ -1,12 +1,18 @@
 import type { RideableWindow } from "./evaluator";
 import { degreesToCardinal } from "@/lib/weather/types";
 import { logger } from "@/lib/logger";
+import {
+  DEFAULT_UNITS,
+  formatWind,
+  type WindSpeedUnit,
+} from "@/lib/units";
 
 interface AlertPayload {
   spotName: string;
   windows: RideableWindow[];
   email: string;
   spotUrl?: string;
+  windSpeedUnit?: WindSpeedUnit;
 }
 
 export async function sendAlert({
@@ -14,6 +20,7 @@ export async function sendAlert({
   windows,
   email,
   spotUrl,
+  windSpeedUnit = DEFAULT_UNITS.windSpeedUnit,
 }: AlertPayload) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
@@ -36,7 +43,7 @@ export async function sendAlert({
         minute: "2-digit",
         hour12: false,
       });
-      return `${start} – ${end}: ${w.avgWind}kt avg (gusts ${w.avgGusts}kt), ${degreesToCardinal(w.dominantDirection)}, score ${w.avgScore}/100`;
+      return `${start} – ${end}: ${formatWind(w.avgWind, windSpeedUnit)} avg (gusts ${formatWind(w.avgGusts, windSpeedUnit)}), ${degreesToCardinal(w.dominantDirection)}, score ${w.avgScore}/100`;
     })
     .join("\n");
 

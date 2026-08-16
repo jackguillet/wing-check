@@ -19,32 +19,36 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ForecastHour } from "@/lib/weather/types";
 import type { AlertCriteria } from "@/lib/db/schema";
 import { format, parseISO } from "date-fns";
+import { useUnits } from "@/components/units-provider";
+import { fromKnots, windUnitLabel } from "@/lib/units";
 
 interface WindChartProps {
   hours: ForecastHour[];
   criteria: AlertCriteria | null;
 }
 
-const chartConfig = {
-  windSpeed: {
-    label: "Wind Speed (kt)",
-    color: "var(--chart-1)",
-  },
-  windGusts: {
-    label: "Gusts (kt)",
-    color: "var(--chart-2)",
-  },
-} satisfies ChartConfig;
-
 export function WindChart({ hours, criteria }: WindChartProps) {
-  const minWind = criteria?.minWindSpeed ?? 10;
-  const maxWind = criteria?.maxWindSpeed ?? 25;
+  const { windSpeedUnit } = useUnits();
+  const unit = windUnitLabel(windSpeedUnit);
+  const minWind = fromKnots(criteria?.minWindSpeed ?? 10, windSpeedUnit);
+  const maxWind = fromKnots(criteria?.maxWindSpeed ?? 25, windSpeedUnit);
+
+  const chartConfig = {
+    windSpeed: {
+      label: `Wind Speed (${unit})`,
+      color: "var(--chart-1)",
+    },
+    windGusts: {
+      label: `Gusts (${unit})`,
+      color: "var(--chart-2)",
+    },
+  } satisfies ChartConfig;
 
   const data = hours.map((h) => ({
     time: h.time,
     label: format(parseISO(h.time), "EEE HH:mm"),
-    windSpeed: h.windSpeed,
-    windGusts: h.windGusts,
+    windSpeed: fromKnots(h.windSpeed, windSpeedUnit),
+    windGusts: fromKnots(h.windGusts, windSpeedUnit),
   }));
 
   return (
@@ -67,7 +71,7 @@ export function WindChart({ hours, criteria }: WindChartProps) {
               textAnchor="end"
               height={60}
             />
-            <YAxis tick={{ fontSize: 11 }} width={48} unit=" kt" />
+            <YAxis tick={{ fontSize: 11 }} width={56} unit={` ${unit}`} />
             <ChartTooltip content={<ChartTooltipContent />} />
             <ReferenceArea
               y1={minWind}

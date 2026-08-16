@@ -10,6 +10,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { DirectionPicker } from "@/components/direction-picker";
 import { SpotLocationPicker } from "@/components/spot-location-picker";
+import { useUnits } from "@/components/units-provider";
+import { fromKnots, roundTo, windUnitLabel } from "@/lib/units";
 
 const initialState: SpotFormState = {};
 
@@ -21,6 +23,8 @@ function fieldError(
 }
 
 export function NewSpotForm() {
+  const { windSpeedUnit } = useUnits();
+  const windLabel = windUnitLabel(windSpeedUnit);
   const [state, formAction, pending] = useActionState(createSpot, initialState);
 
   return (
@@ -77,13 +81,15 @@ export function NewSpotForm() {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="minWindSpeed">Min Wind Speed (kt)</Label>
+              <Label htmlFor="minWindSpeed">
+                Min Wind Speed ({windLabel})
+              </Label>
               <Input
                 id="minWindSpeed"
                 name="minWindSpeed"
                 type="number"
                 step="0.5"
-                defaultValue="10"
+                defaultValue={roundTo(fromKnots(10, windSpeedUnit))}
               />
               {fieldError(state, "minWindSpeed") && (
                 <p className="text-xs text-destructive">
@@ -92,13 +98,15 @@ export function NewSpotForm() {
               )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="maxWindSpeed">Max Wind Speed (kt)</Label>
+              <Label htmlFor="maxWindSpeed">
+                Max Wind Speed ({windLabel})
+              </Label>
               <Input
                 id="maxWindSpeed"
                 name="maxWindSpeed"
                 type="number"
                 step="0.5"
-                defaultValue="25"
+                defaultValue={roundTo(fromKnots(25, windSpeedUnit))}
               />
               {fieldError(state, "maxWindSpeed") && (
                 <p className="text-xs text-destructive">

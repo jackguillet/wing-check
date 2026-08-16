@@ -14,6 +14,8 @@ import {
   updateCriteriaSchema,
   formDataToObject,
 } from "@/lib/validations";
+import { getDisplayUnits } from "@/lib/actions/settings";
+import { formWindsToKnots } from "@/lib/units";
 
 export type SpotFormState = {
   error?: string;
@@ -106,8 +108,11 @@ export async function createSpot(
   formData: FormData,
 ): Promise<SpotFormState> {
   const { user } = await requireSession();
+  const units = await getDisplayUnits();
 
-  const parsed = createSpotSchema.safeParse(formDataToObject(formData));
+  const parsed = createSpotSchema.safeParse(
+    formWindsToKnots(formDataToObject(formData), units.windSpeedUnit),
+  );
   if (!parsed.success) {
     return {
       error: parsed.error.issues.map((i) => i.message).join(", "),
@@ -191,7 +196,10 @@ export async function updateSpotCriteria(
     return { error: "Spot not found" };
   }
 
-  const parsed = updateCriteriaSchema.safeParse(formDataToObject(formData));
+  const units = await getDisplayUnits();
+  const parsed = updateCriteriaSchema.safeParse(
+    formWindsToKnots(formDataToObject(formData), units.windSpeedUnit),
+  );
   if (!parsed.success) {
     return {
       error: parsed.error.issues.map((i) => i.message).join(", "),

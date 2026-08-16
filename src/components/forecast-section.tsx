@@ -16,6 +16,8 @@ import { computeConditionsInsight } from "@/lib/weather/conditions";
 import type { AlertCriteria } from "@/lib/db/schema";
 import type { HourScore, RideableWindow } from "@/lib/alerts/evaluator";
 import { CriteriaForm } from "@/components/criteria-form";
+import { useUnits } from "@/components/units-provider";
+import { formatWind } from "@/lib/units";
 
 interface ForecastSectionProps {
   hours: ForecastHour[];
@@ -160,6 +162,7 @@ export function ForecastSection({
   isOwner,
 }: ForecastSectionProps) {
   const { dayRange, daylightOnly } = useForecastControls();
+  const { windSpeedUnit } = useUnits();
 
   const rangeFilteredHours = useMemo(
     () => filterByDayRange(hours, dayRange),
@@ -255,7 +258,8 @@ export function ForecastSection({
                           })}
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          {w.hours}h · {w.avgWind}kt avg · gusts {w.avgGusts}kt
+                          {w.hours}h · {formatWind(w.avgWind, windSpeedUnit)} avg
+                          · gusts {formatWind(w.avgGusts, windSpeedUnit)}
                           · {degreesToCardinal(w.dominantDirection)}
                         </p>
                         {(() => {

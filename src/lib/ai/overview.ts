@@ -9,8 +9,17 @@ import {
   weatherCodeToDescription,
 } from "@/lib/weather/types";
 import type { AlertCriteria, Spot, SpotOverview } from "@/lib/db/schema";
+import { getDisplayUnits } from "@/lib/actions/settings";
 import { logger } from "@/lib/logger";
 import * as Sentry from "@sentry/nextjs";
+import {
+  DEFAULT_UNITS,
+  formatTemp,
+  formatWind,
+  fromKnots,
+  windUnitLabel,
+  type DisplayUnits,
+} from "@/lib/units";
 
 const MODEL = "claude-sonnet-4-20250514";
 const OVERVIEW_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours max; also keyed on forecast summary
@@ -37,6 +46,7 @@ export function buildForecastSummary(
   criteria: AlertCriteria,
   sunrise?: string[],
   sunset?: string[],
+  units: DisplayUnits = DEFAULT_UNITS,
 ) {
   // Group hours by day (first 72h)
   const next72h = hours.slice(0, 72);
@@ -78,10 +88,10 @@ export function buildForecastSummary(
 
     days.push({
       date,
-      windRange: `${Math.min(...winds).toFixed(0)}-${Math.max(...winds).toFixed(0)} kt`,
-      gustRange: `${Math.min(...gusts).toFixed(0)}-${Math.max(...gusts).toFixed(0)} kt`,
+      windRange: `${fromKnots(Math.min(...winds), units.windSpeedUnit).toFixed(0)}-${fromKnots(Math.max(...winds), units.windSpeedUnit).toFixed(0)} ${windUnitLabel(units.windSpeedUnit)}`,
+      gustRange: `${fromKnots(Math.min(...gusts), units.windSpeedUnit).toFixed(0)}-${fromKnots(Math.max(...gusts), units.windSpeedUnit).toFixed(0)} ${windUnitLabel(units.windSpeedUnit)}`,
       dominantDirection: degreesToCardinal(Math.round(avgDir)),
-      tempRange: `${Math.min(...temps).toFixed(0)}-${Math.max(...temps).toFixed(0)}°C`,
+      tempRange: `${formatTemp(Math.min(...temps), units.temperatureUnit)}-${formatTemp(Math.max(...temps), units.temperatureUnit)}`,
       weather: weatherCodes,
       swellSummary,
     });
@@ -94,8 +104,8 @@ export function buildForecastSummary(
     start: w.start,
     end: w.end,
     hours: w.hours,
-    avgWind: w.avgWind,
-    avgGusts: w.avgGusts,
+    avgWind: formatWind(w.avgWind, units.windSpeedUnit),
+    avgGusts: formatWind(w.avgGusts, units.windSpeedUnit),
     direction: degreesToCardinal(w.dominantDirection),
     score: w.avgScore,
   }));
@@ -107,7 +117,7 @@ export function buildForecastSummary(
       coordinates: `${spot.latitude.toFixed(4)}°, ${spot.longitude.toFixed(4)}°`,
     },
     criteria: {
-      windRange: `${criteria.minWindSpeed}-${criteria.maxWindSpeed} kt`,
+      windRange: `${formatWind(criteria.minWindSpeed, units.windSpeedUnit, 0)}-${formatWind(criteria.maxWindSpeed, units.windSpeedUnit, 0)}`,
       maxGustFactor: criteria.maxGustFactor,
       preferredDirections: criteria.preferredDirections,
       maxWaveHeight: criteria.maxWaveHeight,
@@ -129,8 +139,16 @@ async function generateSpotOverview(
   criteria: AlertCriteria,
   sunrise?: string[],
   sunset?: string[],
+  units: DisplayUnits = DEFAULT_UNITS,
 ): Promise<{ overview: string; forecastSummary: string }> {
-  const summary = buildForecastSummary(spot, hours, criteria, sunrise, sunset);
+  const summary = buildForecastSummary(
+    spot,
+    hours,
+    criteria,
+    sunrise,
+    sunset,
+    units,
+  );
   const forecastSummary = JSON.stringify(summary);
 
   const client = getClient();
@@ -180,8 +198,9 @@ export async function getOrGenerateOverview(
   sunset?: string[],
 ): Promise<SpotOverview | null> {
   const now = new Date();
+  const units = await getDisplayUnits();
   const forecastSummary = JSON.stringify(
-    buildForecastSummary(spot, hours, criteria, sunrise, sunset),
+    buildForecastSummary(spot, hours, criteria, sunrise, sunset, units),
   );
 
   const cached = await db
@@ -201,6 +220,7 @@ export async function getOrGenerateOverview(
       criteria,
       sunrise,
       sunset,
+      units,
     );
 
     // Delete old entries
