@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { evaluateSpot, nextRideableWindow, bestUpcomingWindowScore, type HourScore, type RideableWindow, type DayEvaluation } from "../evaluator";
 import type { ForecastHour } from "@/lib/weather/types";
 import type { AlertCriteria } from "@/lib/db/schema";
+import { bandForWing, missingQuiver, resolveQuiver } from "@/lib/wings";
 
 function makeHour(overrides: Partial<ForecastHour> = {}): ForecastHour {
   return {
@@ -564,6 +565,7 @@ describe("nextRideableWindow", () => {
       avgWind: 18,
       avgGusts: 22,
       dominantDirection: 270,
+      recommendedWing: null,
     },
     {
       start: "2026-08-17T14:00",
@@ -573,6 +575,7 @@ describe("nextRideableWindow", () => {
       avgWind: 16,
       avgGusts: 20,
       dominantDirection: 250,
+      recommendedWing: null,
     },
   ];
 
@@ -610,6 +613,7 @@ describe("bestUpcomingWindowScore", () => {
       avgWind: 16,
       avgGusts: 20,
       dominantDirection: 270,
+      recommendedWing: null,
     };
   }
 
@@ -684,5 +688,154 @@ describe("rider schedule", () => {
     );
     expect(result.goNoGo).toBe("go");
     expect(result.rideableWindows[0].start).toBe("2026-02-14T08:00");
+  });
+});
+
+describe("quiver scoring", () => {
+  const quiver = resolveQuiver([6, 5, 4], 80);
+  const six = bandForWing(6, 80);
+  const four = bandForWing(4, 80);
+
+  it("scores a 12 kt hour against the 6m, not the wide default midpoint", () => {
+    const hours = makeHours(3, { windSpeed: 12, windGusts: 14, windDirection: 270 });
+    const withQuiver = evaluateSpot(hours, defaultCriteria, undefined, undefined, undefined, undefined, undefined, quiver);
+    const without = evaluateSpot(hours, defaultCriteria);
+
+    expect(withQuiver.hourScores.every((s) => s.recommendedWing === 6)).toBe(true);
+    expect(withQuiver.overallScore).toBeGreaterThan(without.overallScore);
+    expect(withQuiver.goNoGo).toBe("go");
+    expect(withQuiver.bestWindow?.recommendedWing).toBe(6);
+  });
+
+  it("picks the 4m on a stronger hour", () => {
+    const hours = makeHours(3, { windSpeed: 22, windGusts: 25, windDirection: 270 });
+    const result = evaluateSpot(hours, defaultCriteria, undefined, undefined, undefined, undefined, undefined, quiver);
+    expect(result.hourScores.every((s) => s.recommendedWing === 4)).toBe(true);
+    expect(result.goNoGo).toBe("go");
+  });
+
+  it("stays no-go when the only wing is too small", () => {
+    const hours = makeHours(3, { windSpeed: 12, windGusts: 14, windDirection: 270 });
+    const result = evaluateSpot(
+      hours,
+      defaultCriteria,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      [four],
+    );
+    expect(result.goNoGo).toBe("no-go");
+    expect(result.hourScores.every((s) => s.score === 0)).toBe(true);
+    expect(result.hourScores.every((s) => s.reason === "Light")).toBe(true);
+  });
+
+  it("zeros a gap between non-overlapping wings", () => {
+    const tiny = { sizeM2: 7, minWindSpeed: 8, maxWindSpeed: 12 };
+    const small = { sizeM2: 3, minWindSpeed: 26, maxWindSpeed: 35 };
+    const hours = makeHours(3, { windSpeed: 18, windGusts: 20, windDirection: 270 });
+    const result = evaluateSpot(
+      hours,
+      defaultCriteria,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      [tiny, small],
+    );
+    expect(result.hourScores.every((s) => s.score === 0)).toBe(true);
+    expect(result.hourScores.every((s) => s.reason === "No wing")).toBe(true);
+  });
+
+  it("leaves recommendedWing null when no quiver is passed", () => {
+    const hours = makeHours(3, { windSpeed: 18, windGusts: 20, windDirection: 270 });
+    const result = evaluateSpot(hours, defaultCriteria);
+    expect(result.hourScores.every((s) => s.recommendedWing === null)).toBe(true);
+    expect(result.bestWindow?.recommendedWing ?? null).toBeNull();
+  });
+
+  it("suggests a larger wing when only a 5m is in the bag", () => {
+    const five = bandForWing(5, 80);
+    const missing = missingQuiver([5], 80);
+    const hours = makeHours(3, { windSpeed: 11, windGusts: 13, windDirection: 270 });
+    const result = evaluateSpot(
+      hours,
+      defaultCriteria,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      [five],
+      missing,
+    );
+
+    expect(result.goNoGo).not.toBe("go");
+    expect(result.hourScores.every((s) => s.suggestedWing != null)).toBe(true);
+    expect(result.hourScores[0].suggestedWing!).toBeGreaterThan(5);
+    expect(result.hourScores[0].suggestedScore).toBeGreaterThanOrEqual(70);
+    expect(result.suggestedWindows.length).toBeGreaterThan(0);
+    expect(result.suggestedWindows[0].recommendedWing).toBeGreaterThan(5);
+    expect(result.dayEvaluations[0].suggestedWindow?.recommendedWing).toBeGreaterThan(5);
+  });
+
+  it("does not suggest a wing for an offshore hour", () => {
+    const five = bandForWing(5, 80);
+    const hours = makeHours(3, { windSpeed: 16, windGusts: 18, windDirection: 90 });
+    const result = evaluateSpot(
+      hours,
+      defaultCriteria,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      [five],
+      missingQuiver([5], 80),
+    );
+    expect(result.hourScores.every((s) => s.reason === "Offshore")).toBe(true);
+    expect(result.hourScores.every((s) => s.suggestedWing === null)).toBe(true);
+    expect(result.suggestedWindows).toHaveLength(0);
+  });
+
+  it("does not suggest when the owned quiver already GO", () => {
+    const hours = makeHours(3, { windSpeed: 13, windGusts: 15, windDirection: 270 });
+    const six = bandForWing(6, 80);
+    const result = evaluateSpot(
+      hours,
+      defaultCriteria,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      [six],
+      missingQuiver([6], 80),
+    );
+    expect(result.goNoGo).toBe("go");
+    expect(result.hourScores.every((s) => s.suggestedWing === null)).toBe(true);
+    expect(result.suggestedWindows).toHaveLength(0);
+  });
+
+  it("does not change gust/direction/storm gates", () => {
+    const hours = makeHours(3, {
+      windSpeed: 12,
+      windGusts: 14,
+      windDirection: 90,
+    });
+    const result = evaluateSpot(
+      hours,
+      defaultCriteria,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      [six],
+    );
+    expect(result.hourScores.every((s) => s.reason === "Offshore")).toBe(true);
+    expect(result.goNoGo).toBe("no-go");
   });
 });

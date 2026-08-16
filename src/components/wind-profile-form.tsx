@@ -39,8 +39,9 @@ export function WindProfileForm({
         <CardTitle>My default wind</CardTitle>
         <p className="text-sm text-muted-foreground font-normal">
           Used to score every spot unless you save a custom window on that
-          spot. Leave this unset to keep using each spot&apos;s catalog
-          default.
+          spot. If you add a quiver below, wind is scored against those
+          wings instead of this min/max. Leave this unset to keep using
+          each spot&apos;s catalog default.
         </p>
       </CardHeader>
       <CardContent className="space-y-4">

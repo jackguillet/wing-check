@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { kitPresets, preferences } from "@/lib/db/schema";
+import { kitPresets, preferences, wings } from "@/lib/db/schema";
 import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -14,11 +14,15 @@ import {
   formDataToObject,
   kitPresetNameSchema,
   MAX_KIT_PRESETS,
+  riderWeightKgSchema,
+  wingSizeSchema,
+  MAX_WINGS,
 } from "@/lib/validations";
 import { formWindsToKnots } from "@/lib/units";
 import { getDisplayUnits, getPreferences } from "@/lib/data/settings";
 import { limitMutation } from "@/lib/rate-limit";
 import { kitsMatch, windProfileFromPrefs, type KitWindFields } from "@/lib/criteria";
+import { lbsToKg } from "@/lib/wings";
 
 function revalidateKitSurfaces() {
   revalidatePath("/settings");
@@ -270,6 +274,74 @@ export async function deleteKitPreset(formData: FormData) {
       .where(eq(preferences.userId, user.id));
   }
 
+  revalidateKitSurfaces();
+}
+
+function roundWingSize(size: number): number {
+  return Math.round(size * 10) / 10;
+}
+
+export async function updateRiderWeight(formData: FormData) {
+  const { user } = await requireSession();
+  await limitMutation(user.id, "update-rider-weight", 30, "1 h");
+  await getPreferences();
+  const unit = String(formData.get("weightUnit") ?? "kg");
+  const raw = Number(formData.get("weight"));
+  if (!Number.isFinite(raw) || raw <= 0) {
+    throw new Error("Enter a rider weight");
+  }
+  const kg = unit === "lb" ? lbsToKg(raw) : raw;
+  const parsed = riderWeightKgSchema.safeParse(kg);
+  if (!parsed.success) {
+    throw new Error(
+      `Validation failed: ${parsed.error.issues.map((i) => i.message).join(", ")}`,
+    );
+  }
+  await db
+    .update(preferences)
+    .set({ riderWeightKg: Math.round(parsed.data * 10) / 10 })
+    .where(eq(preferences.userId, user.id));
+  revalidateKitSurfaces();
+}
+
+export async function addWing(formData: FormData) {
+  const { user } = await requireSession();
+  await limitMutation(user.id, "add-wing", 30, "1 h");
+  const parsed = wingSizeSchema.safeParse(formData.get("sizeM2"));
+  if (!parsed.success) {
+    throw new Error(
+      `Validation failed: ${parsed.error.issues.map((i) => i.message).join(", ")}`,
+    );
+  }
+  const sizeM2 = roundWingSize(parsed.data);
+  const [{ n }] = await db
+    .select({ n: sql<number>`count(*)` })
+    .from(wings)
+    .where(eq(wings.userId, user.id));
+  if (Number(n) >= MAX_WINGS) {
+    throw new Error(`You can save at most ${MAX_WINGS} wings`);
+  }
+  const [existing] = await db
+    .select({ id: wings.id })
+    .from(wings)
+    .where(and(eq(wings.userId, user.id), eq(wings.sizeM2, sizeM2)));
+  if (existing) {
+    throw new Error(`You already have a ${sizeM2}m wing`);
+  }
+  await db.insert(wings).values({ userId: user.id, sizeM2 });
+  revalidateKitSurfaces();
+}
+
+export async function deleteWing(formData: FormData) {
+  const { user } = await requireSession();
+  await limitMutation(user.id, "delete-wing", 30, "1 h");
+  const id = Number(formData.get("id"));
+  if (!Number.isInteger(id) || id < 1) {
+    throw new Error("Missing wing");
+  }
+  await db
+    .delete(wings)
+    .where(and(eq(wings.id, id), eq(wings.userId, user.id)));
   revalidateKitSurfaces();
 }
 

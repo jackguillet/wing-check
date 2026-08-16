@@ -61,6 +61,7 @@ export function mockPreferences(
     sessionEndHour: null,
     preferredTide: null,
     activeKitName: null,
+    riderWeightKg: null,
     ...overrides,
   };
 }

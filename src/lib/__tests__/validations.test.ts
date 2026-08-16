@@ -7,6 +7,8 @@ import {
   updateSpotSchema,
   formDataToObject,
   kitPresetNameSchema,
+  riderWeightKgSchema,
+  wingSizeSchema,
 } from "../validations";
 
 describe("createSpotSchema", () => {
@@ -257,6 +259,32 @@ describe("kitPresetNameSchema", () => {
 
   it("rejects names longer than 40 characters", () => {
     expect(kitPresetNameSchema.safeParse("x".repeat(41)).success).toBe(false);
+  });
+});
+
+describe("riderWeightKgSchema", () => {
+  it("accepts a typical rider weight", () => {
+    const result = riderWeightKgSchema.safeParse("80");
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data).toBe(80);
+  });
+
+  it("rejects weights outside 30–200 kg", () => {
+    expect(riderWeightKgSchema.safeParse("20").success).toBe(false);
+    expect(riderWeightKgSchema.safeParse("250").success).toBe(false);
+  });
+});
+
+describe("wingSizeSchema", () => {
+  it("accepts a 5.0m wing", () => {
+    const result = wingSizeSchema.safeParse("5");
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data).toBe(5);
+  });
+
+  it("rejects sizes outside the quiver range", () => {
+    expect(wingSizeSchema.safeParse("1").success).toBe(false);
+    expect(wingSizeSchema.safeParse("12").success).toBe(false);
   });
 });
 

@@ -7,9 +7,10 @@ import {
   getVisibleSpotBySlug,
 } from "@/lib/data/spots";
 import { getCachedForecastsBySpotIds } from "@/lib/data/forecasts";
-import { getPreferences } from "@/lib/data/settings";
+import { getPreferences, getWingsForUser } from "@/lib/data/settings";
 import { riderScheduleFromPrefs } from "@/lib/criteria";
 import { evaluateSpot, defaultCriteria } from "@/lib/alerts/evaluator";
+import { formatWingSize, formatWouldBeGo, quiverPair } from "@/lib/wings";
 import { spotLocalNow } from "@/lib/weather/civil-time";
 import { parseCompareSlugs } from "@/lib/spots/compare";
 import { ComparePicker } from "@/components/compare-picker";
@@ -58,12 +59,22 @@ export default async function ComparePage({
 
   const prefs = viewerId ? await getPreferences() : null;
   const rider = prefs ? riderScheduleFromPrefs(prefs) : null;
+  const wingRows = viewerId ? await getWingsForUser(viewerId) : [];
+  const ownedSizes = wingRows.map((w) => w.sizeM2);
   const cached = await getCachedForecastsBySpotIds(loaded.map((s) => s.id));
 
   const columns = await Promise.all(
     loaded.map(async (spot) => {
-      const { criteria } = await getResolvedCriteriaDetails(spot.id, viewerId);
+      const { criteria, source } = await getResolvedCriteriaDetails(
+        spot.id,
+        viewerId,
+      );
       const forecast = cached.get(spot.id);
+      const { quiver, missing } = quiverPair(
+        source,
+        ownedSizes,
+        prefs?.riderWeightKg,
+      );
       const evaluation = forecast
         ? evaluateSpot(
             forecast.hours,
@@ -73,6 +84,8 @@ export default async function ComparePage({
             spotLocalNow(forecast.utcOffsetSeconds),
             rider,
             forecast.tides,
+            quiver,
+            missing,
           )
         : null;
       return { spot, evaluation };
@@ -144,6 +157,13 @@ export default async function ComparePage({
                         {w ? (
                           <p className="text-xs text-muted-foreground mt-1">
                             {w.start.slice(11, 16)}–{w.end.slice(11, 16)}
+                            {w.recommendedWing != null
+                              ? ` · ${formatWingSize(w.recommendedWing)}`
+                              : ""}
+                          </p>
+                        ) : day.suggestedWindow?.recommendedWing != null ? (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {formatWouldBeGo(day.suggestedWindow.recommendedWing)}
                           </p>
                         ) : (
                           <p className="text-xs text-muted-foreground mt-1">

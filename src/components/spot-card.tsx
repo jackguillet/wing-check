@@ -12,6 +12,7 @@ import { Heart } from "lucide-react";
 import { degreesToCardinal } from "@/lib/weather/types";
 import { useUnits } from "@/components/units-provider";
 import { formatWind } from "@/lib/units";
+import { formatWingSize, formatWouldBeGo } from "@/lib/wings";
 import {
   civilDate,
   formatCivilClock,
@@ -140,10 +141,30 @@ export function SpotCard({
                 {" "}
                 · {formatWind(nextWindow.avgWind, windSpeedUnit, 0)}{" "}
                 {degreesToCardinal(nextWindow.dominantDirection)}
+                {nextWindow.recommendedWing != null
+                  ? ` · ${formatWingSize(nextWindow.recommendedWing)}`
+                  : ""}
               </span>
             </p>
           )}
-          {evaluation && !nextWindow && (
+          {evaluation && !nextWindow && evaluation.suggestedWindows[0] && (
+            <p className="text-sm mt-3">
+              {evaluation.suggestedWindows[0].recommendedWing != null
+                ? formatWouldBeGo(evaluation.suggestedWindows[0].recommendedWing)
+                : "A missing wing would open a window"}
+              <span className="text-muted-foreground">
+                {" "}
+                ·{" "}
+                {formatWindowRange(
+                  evaluation.suggestedWindows[0].start,
+                  evaluation.suggestedWindows[0].end,
+                )}
+              </span>
+            </p>
+          )}
+          {evaluation &&
+            !nextWindow &&
+            !evaluation.suggestedWindows[0] && (
             <p className="text-sm text-muted-foreground mt-3">
               No rideable window ahead
             </p>

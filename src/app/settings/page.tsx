@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
-import { getKitPresets, getPreferences } from "@/lib/data/settings";
+import { getKitPresets, getPreferences, getWings } from "@/lib/data/settings";
+import { QuiverCard } from "@/components/quiver-card";
 import { getUserAlertHistory } from "@/lib/data/spots";
 import { AlertHistoryList } from "@/components/alert-history-list";
 import { requireSession } from "@/lib/auth-session";
@@ -18,13 +19,15 @@ export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
   const headerStore = await headers();
-  const [{ user, session }, prefs, listed, alerts, presets] = await Promise.all([
-    requireSession(),
-    getPreferences(),
-    auth.api.listSessions({ headers: headerStore }),
-    getUserAlertHistory(20),
-    getKitPresets(),
-  ]);
+  const [{ user, session }, prefs, listed, alerts, presets, userWings] =
+    await Promise.all([
+      requireSession(),
+      getPreferences(),
+      auth.api.listSessions({ headers: headerStore }),
+      getUserAlertHistory(20),
+      getKitPresets(),
+      getWings(),
+    ]);
   const units = parseDisplayUnits(prefs.windSpeedUnit, prefs.temperatureUnit);
   const profile = windProfileFromPrefs(prefs);
   const sessions: SessionRow[] = (listed ?? []).map((s) => ({
@@ -52,6 +55,10 @@ export default async function SettingsPage() {
           sessionEndHour={prefs.sessionEndHour}
           preferredTide={prefs.preferredTide}
           activeKitName={prefs.activeKitName}
+        />
+        <QuiverCard
+          wings={userWings}
+          riderWeightKg={prefs.riderWeightKg}
         />
         <KitPresetsCard
           presets={presets}

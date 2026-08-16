@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isValidDirectionList } from "@/lib/directions";
+import { MAX_WING_SIZE_M2, MIN_WING_SIZE_M2 } from "@/lib/wings";
 
 const preferredDirectionsField = z
   .string()
@@ -98,6 +99,18 @@ export const kitPresetNameSchema = z
   .max(40, "Name too long");
 
 export const MAX_KIT_PRESETS = 20;
+
+export const riderWeightKgSchema = z.coerce
+  .number()
+  .min(30, "Weight must be at least 30 kg")
+  .max(200, "Weight must be at most 200 kg");
+
+export const wingSizeSchema = z.coerce
+  .number()
+  .min(MIN_WING_SIZE_M2, `Wing size must be at least ${MIN_WING_SIZE_M2} m²`)
+  .max(MAX_WING_SIZE_M2, `Wing size must be at most ${MAX_WING_SIZE_M2} m²`);
+
+export { MAX_WINGS } from "@/lib/wings";
 
 export const spotNotesSchema = createSpotSchema.shape.notes;
 

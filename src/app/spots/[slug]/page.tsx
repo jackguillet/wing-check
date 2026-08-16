@@ -32,7 +32,17 @@ import { spotLocalNow } from "@/lib/weather/civil-time";
 import { criteriaKitLabel, riderScheduleFromPrefs } from "@/lib/criteria";
 import { HONEST_TIDE_MAX_KM } from "@/lib/weather/noaa-stations";
 import { getOrGenerateOverview } from "@/lib/ai/overview";
-import { getDisplayUnits, getPreferences } from "@/lib/data/settings";
+import {
+  getDisplayUnits,
+  getPreferences,
+  getWings,
+  getWingsForUser,
+} from "@/lib/data/settings";
+import {
+  criteriaWithQuiverEnvelope,
+  quiverPair,
+  type WingBand,
+} from "@/lib/wings";
 import { UnitsProvider } from "@/components/units-provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -79,8 +89,14 @@ export async function generateMetadata({
       description: `Wind forecast and go/no-go score for ${spot.name}.`,
     };
   }
-  const { criteria } = await getResolvedCriteriaDetails(spot.id, viewerId);
+  const { criteria, source } = await getResolvedCriteriaDetails(spot.id, viewerId);
   const prefs = viewerId ? await getPreferences() : null;
+  const wingRows = viewerId ? await getWingsForUser(viewerId) : [];
+  const { quiver: scoringQuiver, missing: missingQuiverBands } = quiverPair(
+    source,
+    wingRows.map((w) => w.sizeM2),
+    prefs?.riderWeightKg,
+  );
   const evaluation = evaluateSpot(
     cached.hours,
     criteria,
@@ -89,6 +105,8 @@ export async function generateMetadata({
     spotLocalNow(cached.utcOffsetSeconds),
     prefs ? riderScheduleFromPrefs(prefs) : null,
     cached.tides,
+    scoringQuiver,
+    missingQuiverBands,
   );
   const verdict = evaluation.goNoGo.toUpperCase();
   return {
@@ -126,6 +144,8 @@ async function OverviewSection({
   sunrise,
   sunset,
   nowCivil,
+  quiver,
+  missing,
 }: {
   spot: Spot;
   hours: ForecastHour[];
@@ -133,6 +153,8 @@ async function OverviewSection({
   sunrise?: string[];
   sunset?: string[];
   nowCivil?: string;
+  quiver?: WingBand[] | null;
+  missing?: WingBand[] | null;
 }) {
   let overview = null;
   try {
@@ -143,6 +165,8 @@ async function OverviewSection({
       sunrise,
       sunset,
       nowCivil,
+      quiver,
+      missing,
     );
   } catch (e) {
     logger.error({ err: e }, "Failed to load overview");
@@ -200,17 +224,24 @@ export default async function SpotDetailPage({
   const { spot } = spotData;
   const isOwner = session?.user?.id === spot.userId;
   const isAuthenticated = !!session?.user;
-  const [userSpotPrefs, alertPrefs, latestAlert] = isAuthenticated
+  const [userSpotPrefs, alertPrefs, latestAlert, wingRows] = isAuthenticated
     ? await Promise.all([
         getUserSpotPrefs(spot.id),
         getPreferences(),
         getLatestSpotAlert(spot.id),
+        getWings(),
       ])
-    : [null, null, null];
+    : [null, null, null, []];
   const { criteria, source } = await getResolvedCriteriaDetails(
     spot.id,
     session?.user?.id,
   );
+  const { quiver: scoringQuiver, missing: missingQuiverBands } = quiverPair(
+    source,
+    wingRows.map((w) => w.sizeM2),
+    alertPrefs?.riderWeightKg,
+  );
+  const displayCriteria = criteriaWithQuiverEnvelope(criteria, scoringQuiver);
 
   let forecast = null;
   let evaluation = null;
@@ -246,6 +277,8 @@ export default async function SpotDetailPage({
         spotLocalNow(forecast.utcOffsetSeconds),
         alertPrefs ? riderScheduleFromPrefs(alertPrefs) : null,
         forecast.tides,
+        scoringQuiver,
+        missingQuiverBands,
       );
     } catch (e) {
       logger.error({ err: e, spotId: spot.id }, "Failed to evaluate forecast");
@@ -269,7 +302,12 @@ export default async function SpotDetailPage({
               {spot.latitude.toFixed(4)}°, {spot.longitude.toFixed(4)}°
             </p>
             <p className="text-sm text-muted-foreground mt-1">
-              {criteriaKitLabel(source, criteria, alertPrefs?.activeKitName)}
+              {criteriaKitLabel(
+                source,
+                displayCriteria,
+                alertPrefs?.activeKitName,
+                scoringQuiver?.map((w) => w.sizeM2),
+              )}
               {spot.visibility === "private" ? " · Private" : null}
             </p>
             {forecast?.tideStation ? (
@@ -499,6 +537,8 @@ export default async function SpotDetailPage({
               sunrise={forecast.sunrise}
               sunset={forecast.sunset}
               nowCivil={spotLocalNow(forecast.utcOffsetSeconds)}
+              quiver={scoringQuiver}
+              missing={missingQuiverBands}
             />
           </Suspense>
         )}
@@ -509,10 +549,11 @@ export default async function SpotDetailPage({
             tides={forecast.tides}
             sunrise={forecast.sunrise}
             sunset={forecast.sunset}
-            criteria={criteria}
+            criteria={displayCriteria}
             rawCriteria={criteria}
             hourScores={evaluation?.hourScores}
             rideableWindows={evaluation?.rideableWindows}
+            suggestedWindows={evaluation?.suggestedWindows}
             spotId={spot.id}
             lat={spot.latitude}
             lng={spot.longitude}

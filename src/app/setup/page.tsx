@@ -1,5 +1,6 @@
 import { requireSession } from "@/lib/auth-session";
-import { getPreferences, getDisplayUnits } from "@/lib/data/settings";
+import { getPreferences, getDisplayUnits, getWings } from "@/lib/data/settings";
+import { QuiverCard } from "@/components/quiver-card";
 import { windProfileFromPrefs } from "@/lib/criteria";
 import { UnitsProvider } from "@/components/units-provider";
 import { WindProfileForm } from "@/components/wind-profile-form";
@@ -8,10 +9,11 @@ import { SettingsForm } from "@/components/settings-form";
 export const dynamic = "force-dynamic";
 
 export default async function SetupPage() {
-  const [{ user }, prefs, units] = await Promise.all([
+  const [{ user }, prefs, units, userWings] = await Promise.all([
     requireSession(),
     getPreferences(),
     getDisplayUnits(),
+    getWings(),
   ]);
   const profile = windProfileFromPrefs(prefs);
 
@@ -21,8 +23,8 @@ export default async function SetupPage() {
         <div>
           <h1 className="text-3xl font-bold">Set your kit</h1>
           <p className="text-muted-foreground mt-2">
-            Two minutes: units and the wind you ride. Every spot will score
-            against this unless you override it.
+            Two minutes: units, the wind you ride, and the wings you own.
+            A light day can still be GO if you have a large wing.
           </p>
         </div>
         <SettingsForm
@@ -38,6 +40,10 @@ export default async function SetupPage() {
           sessionEndHour={prefs.sessionEndHour}
           preferredTide={prefs.preferredTide}
           activeKitName={prefs.activeKitName}
+        />
+        <QuiverCard
+          wings={userWings}
+          riderWeightKg={prefs.riderWeightKg}
         />
       </div>
     </UnitsProvider>
