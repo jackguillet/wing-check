@@ -3,16 +3,18 @@ import { notFound, redirect } from "next/navigation";
 import {
   getSpot,
   getSpotWithCriteriaBySlug,
-  getResolvedCriteriaMap,
+  getResolvedCriteriaDetails,
   deleteSpot,
   updateSpotNotes,
   getUserSpotPrefs,
   toggleFavorite,
   toggleSpotAlerts,
+  clearSpotWindOverride,
 } from "@/lib/actions/spots";
 import { getSpotForecast } from "@/lib/actions/forecasts";
 import { getSession } from "@/lib/auth-session";
-import { evaluateSpot, defaultCriteria } from "@/lib/alerts/evaluator";
+import { evaluateSpot } from "@/lib/alerts/evaluator";
+import { criteriaSourceLabel } from "@/lib/criteria";
 import { getOrGenerateOverview } from "@/lib/ai/overview";
 import { getDisplayUnits } from "@/lib/actions/settings";
 import { UnitsProvider } from "@/components/units-provider";
@@ -177,15 +179,10 @@ export default async function SpotDetailPage({
   const userSpotPrefs = isAuthenticated
     ? await getUserSpotPrefs(spot.id)
     : null;
-  const resolvedMap = await getResolvedCriteriaMap(
-    [spot.id],
+  const { criteria, source } = await getResolvedCriteriaDetails(
+    spot.id,
     session?.user?.id,
   );
-  const criteria: AlertCriteria = resolvedMap.get(spot.id) ?? {
-    id: 0,
-    spotId: spot.id,
-    ...defaultCriteria,
-  };
 
   let forecast = null;
   let evaluation = null;
@@ -218,6 +215,9 @@ export default async function SpotDetailPage({
             <h1 className="text-3xl font-bold">{spot.name}</h1>
             <p className="text-muted-foreground">
               {spot.latitude.toFixed(4)}°, {spot.longitude.toFixed(4)}°
+            </p>
+            <p className="text-sm text-muted-foreground mt-1">
+              {criteriaSourceLabel(source)}
             </p>
             {forecast &&
               (() => {
@@ -382,6 +382,8 @@ export default async function SpotDetailPage({
             lng={spot.longitude}
             isOwner={isOwner}
             canEditCriteria={isAuthenticated}
+            criteriaSource={source}
+            clearOverrideAction={clearSpotWindOverride.bind(null, spot.id)}
           />
         )}
 

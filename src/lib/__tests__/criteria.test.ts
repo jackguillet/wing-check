@@ -3,29 +3,31 @@ import {
   resolveCriteria,
   asAlertCriteria,
   windProfileFromPrefs,
+  criteriaSource,
+  criteriaSourceLabel,
 } from "../criteria";
 import { defaultCriteria } from "../alerts/evaluator";
 
-describe("resolveCriteria", () => {
-  const spot = {
-    ...defaultCriteria,
-    minWindSpeed: 12,
-    maxWindSpeed: 28,
-    preferredDirections: "[270]",
-  };
-  const user = {
-    ...defaultCriteria,
-    minWindSpeed: 18,
-    maxWindSpeed: 30,
-    preferredDirections: "[45]",
-  };
+const spot = {
+  ...defaultCriteria,
+  minWindSpeed: 12,
+  maxWindSpeed: 28,
+  preferredDirections: "[270]",
+};
+const user = {
+  ...defaultCriteria,
+  minWindSpeed: 18,
+  maxWindSpeed: 30,
+  preferredDirections: "[45]",
+};
+const kit = {
+  ...defaultCriteria,
+  minWindSpeed: 14,
+  maxWindSpeed: 22,
+  preferredDirections: "[90]",
+};
 
-  const kit = {
-    ...defaultCriteria,
-    minWindSpeed: 14,
-    maxWindSpeed: 22,
-    preferredDirections: "[90]",
-  };
+describe("resolveCriteria", () => {
 
   it("prefers a per-spot override", () => {
     const resolved = resolveCriteria(7, user, kit, spot);
@@ -51,6 +53,21 @@ describe("resolveCriteria", () => {
     const resolved = resolveCriteria(7, null, null, null);
     expect(resolved.minWindSpeed).toBe(defaultCriteria.minWindSpeed);
     expect(resolved.maxWindSpeed).toBe(defaultCriteria.maxWindSpeed);
+  });
+});
+
+describe("criteriaSource", () => {
+  it("names the layer that won", () => {
+    expect(criteriaSource(user, kit, spot)).toBe("spot-override");
+    expect(criteriaSource(null, kit, spot)).toBe("user-default");
+    expect(criteriaSource(null, null, spot)).toBe("catalog");
+    expect(criteriaSource(null, null, null)).toBe("app");
+  });
+
+  it("has a readable label for each layer", () => {
+    expect(criteriaSourceLabel("spot-override")).toMatch(/custom window/i);
+    expect(criteriaSourceLabel("user-default")).toMatch(/default kit/i);
+    expect(criteriaSourceLabel("catalog")).toMatch(/catalog/i);
   });
 });
 

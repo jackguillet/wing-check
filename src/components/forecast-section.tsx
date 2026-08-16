@@ -18,6 +18,7 @@ import type { HourScore, RideableWindow } from "@/lib/alerts/evaluator";
 import { CriteriaForm } from "@/components/criteria-form";
 import { useUnits } from "@/components/units-provider";
 import { formatWind } from "@/lib/units";
+import type { CriteriaSource } from "@/lib/criteria";
 
 interface ForecastSectionProps {
   hours: ForecastHour[];
@@ -33,6 +34,8 @@ interface ForecastSectionProps {
   lng: number;
   isOwner: boolean;
   canEditCriteria?: boolean;
+  criteriaSource?: CriteriaSource;
+  clearOverrideAction?: () => Promise<void>;
 }
 
 /** Filter hours to only include those within the given day range from the first hour. */
@@ -162,6 +165,8 @@ export function ForecastSection({
   lng,
   isOwner,
   canEditCriteria = isOwner,
+  criteriaSource,
+  clearOverrideAction,
 }: ForecastSectionProps) {
   const { dayRange, daylightOnly } = useForecastControls();
   const { windSpeedUnit } = useUnits();
@@ -378,7 +383,12 @@ export function ForecastSection({
 
         {canEditCriteria && (
           <TabsContent value="criteria">
-            <CriteriaForm spotId={spotId} criteria={rawCriteria} />
+            <CriteriaForm
+              spotId={spotId}
+              criteria={rawCriteria}
+              source={criteriaSource}
+              clearOverrideAction={clearOverrideAction}
+            />
           </TabsContent>
         )}
       </Tabs>
