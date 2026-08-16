@@ -17,11 +17,12 @@ import {
   getUserSpotPrefs,
   getLatestSpotAlert,
 } from "@/lib/data/spots";
-import { getSpotForecast } from "@/lib/data/forecasts";
+import { getSpotForecast, getCachedForecastsBySpotIds } from "@/lib/data/forecasts";
 import { getSession } from "@/lib/auth-session";
-import { evaluateSpot, type DayEvaluation } from "@/lib/alerts/evaluator";
-import { formatCivilWeekdayShort, spotLocalNow } from "@/lib/weather/civil-time";
-import { criteriaSourceLabel } from "@/lib/criteria";
+import { evaluateSpot } from "@/lib/alerts/evaluator";
+import { spotLocalNow } from "@/lib/weather/civil-time";
+import { criteriaKitLabel, riderScheduleFromPrefs } from "@/lib/criteria";
+import { HONEST_TIDE_MAX_KM } from "@/lib/weather/noaa-stations";
 import { getOrGenerateOverview } from "@/lib/ai/overview";
 import { getDisplayUnits, getPreferences } from "@/lib/data/settings";
 import { UnitsProvider } from "@/components/units-provider";
@@ -40,6 +41,7 @@ import { Heart, Sparkles, Clock, Sunrise, Sunset, AlertTriangle } from "lucide-r
 import { DeleteSpotButton } from "@/components/delete-spot-button";
 import { SpotAlertToggle } from "@/components/spot-alert-toggle";
 import { ScoringGuide } from "@/components/scoring-guide";
+import { SevenDayStrip } from "@/components/seven-day-strip";
 import { cn } from "@/lib/utils";
 import { logger } from "@/lib/logger";
 import * as Sentry from "@sentry/nextjs";
@@ -60,22 +62,29 @@ export async function generateMetadata({
   if (!spot) {
     return { title: "Spot · Wing Check" };
   }
+  const cached = (await getCachedForecastsBySpotIds([spot.id])).get(spot.id);
+  if (!cached) {
+    return {
+      title: `${spot.name} · Wing Check`,
+      description: `Wind forecast and go/no-go score for ${spot.name}.`,
+    };
+  }
+  const { criteria } = await getResolvedCriteriaDetails(spot.id, viewerId);
+  const prefs = viewerId ? await getPreferences() : null;
+  const evaluation = evaluateSpot(
+    cached.hours,
+    criteria,
+    cached.sunrise,
+    cached.sunset,
+    spotLocalNow(cached.utcOffsetSeconds),
+    prefs ? riderScheduleFromPrefs(prefs) : null,
+    cached.tides,
+  );
+  const verdict = evaluation.goNoGo.toUpperCase();
   return {
-    title: `${spot.name} · Wing Check`,
-    description: `Wind forecast and go/no-go score for ${spot.name}.`,
+    title: `${spot.name} · ${verdict} ${evaluation.overallScore} · Wing Check`,
+    description: `${verdict} ${evaluation.overallScore}/100 today at ${spot.name}.`,
   };
-}
-
-const goNoGoColors = {
-  go: "bg-green-600/10 border-green-600 text-green-700 dark:text-green-400",
-  marginal:
-    "bg-yellow-500/10 border-yellow-500 text-yellow-700 dark:text-yellow-400",
-  "no-go": "bg-red-500/10 border-red-500 text-red-700 dark:text-red-400",
-};
-
-function dayLabel(dateStr: string, todayDate: string | null): string {
-  if (todayDate && dateStr === todayDate) return "Today";
-  return formatCivilWeekdayShort(dateStr);
 }
 
 function OverviewSkeleton() {
@@ -153,51 +162,17 @@ async function OverviewSection({
   );
 }
 
-function ThreeDayBanner({
-  days,
-  todayDate,
-}: {
-  days: DayEvaluation[];
-  todayDate: string | null;
-}) {
-  const display = days.slice(0, 3);
-  return (
-    <div className="grid grid-cols-3 gap-3">
-      {display.map((day) => {
-        const color = goNoGoColors[day.goNoGo];
-        const isToday = todayDate != null && day.date === todayDate;
-        return (
-          <div
-            key={day.date}
-            className={`rounded-lg border-2 p-4 ${color} ${isToday ? "ring-2 ring-offset-2 ring-offset-background ring-current" : ""}`}
-          >
-            <p className="text-xs font-medium opacity-70 mb-1">
-              {dayLabel(day.date, todayDate)}
-            </p>
-            <div className="flex items-center justify-between">
-              <p
-                className={`font-bold uppercase ${isToday ? "text-lg" : "text-sm"}`}
-              >
-                {day.goNoGo}
-              </p>
-              <p className={`font-bold ${isToday ? "text-3xl" : "text-2xl"}`}>
-                {day.score}
-                <span className="text-sm font-medium opacity-70">/100</span>
-              </p>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
+
 
 export default async function SpotDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ day?: string }>;
 }) {
   const { slug } = await params;
+  const { day: dayParam } = await searchParams;
 
   // Backward-compat: if slug is all digits, look up by numeric ID and redirect
   const session = await getSession();
@@ -238,6 +213,8 @@ export default async function SpotDetailPage({
         forecast.sunrise,
         forecast.sunset,
         spotLocalNow(forecast.utcOffsetSeconds),
+        alertPrefs ? riderScheduleFromPrefs(alertPrefs) : null,
+        forecast.tides,
       );
     }
   } catch (e) {
@@ -252,7 +229,7 @@ export default async function SpotDetailPage({
 
   return (
     <UnitsProvider units={units}>
-    <ForecastControlsProvider>
+    <ForecastControlsProvider initialDate={dayParam && /^\d{4}-\d{2}-\d{2}$/.test(dayParam) ? dayParam : null}>
       <div className="space-y-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
@@ -261,9 +238,21 @@ export default async function SpotDetailPage({
               {spot.latitude.toFixed(4)}°, {spot.longitude.toFixed(4)}°
             </p>
             <p className="text-sm text-muted-foreground mt-1">
-              {criteriaSourceLabel(source)}
+              {criteriaKitLabel(source, criteria)}
               {spot.visibility === "private" ? " · Private" : null}
             </p>
+            {forecast?.tideStation ? (
+              <p className="text-xs text-muted-foreground mt-1">
+                {Number.isNaN(forecast.tideStation.km) ||
+                forecast.tideStation.km > HONEST_TIDE_MAX_KM
+                  ? `Tide unavailable — nearest NOAA station ${forecast.tideStation.name} is too far`
+                  : `Tide: ${forecast.tideStation.name} · ${forecast.tideStation.km} km`}
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground mt-1">
+                Tide unavailable for this spot
+              </p>
+            )}
             {forecast &&
               (() => {
                 const now = new Date();
@@ -425,7 +414,7 @@ export default async function SpotDetailPage({
         )}
 
         {evaluation && evaluation.dayEvaluations.length > 0 && (
-          <ThreeDayBanner
+          <SevenDayStrip
             days={evaluation.dayEvaluations}
             todayDate={evaluation.todayDate}
           />

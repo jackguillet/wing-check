@@ -44,10 +44,17 @@ export interface ConditionsInsight {
 
 // ── Tide Phases ────────────────────────────────────────────────────
 
-/** Detect local extremes (H/L) in tide data by scanning for sign changes in the derivative. */
+/** Prefer NOAA published H/L; fall back to derivative peaks. */
 function findExtremes(
   tides: TidePoint[],
 ): { index: number; type: "H" | "L" }[] {
+  const published = tides
+    .map((t, index) =>
+      t.type === "H" || t.type === "L" ? { index, type: t.type } : null,
+    )
+    .filter((e): e is { index: number; type: "H" | "L" } => e != null);
+  if (published.length > 0) return published;
+
   if (tides.length < 3) return [];
   const extremes: { index: number; type: "H" | "L" }[] = [];
 

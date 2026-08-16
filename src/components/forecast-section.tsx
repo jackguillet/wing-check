@@ -56,6 +56,10 @@ function filterByDayRange(hours: ForecastHour[], days: number): ForecastHour[] {
   return hours.filter((h) => h.time.substring(0, 10) < cutoffStr);
 }
 
+function filterByDate(hours: ForecastHour[], date: string): ForecastHour[] {
+  return hours.filter((h) => h.time.substring(0, 10) === date);
+}
+
 /** Same daylight rule as the evaluator: sunrise <= time <= sunset. */
 function filterDaylightHours(
   hours: ForecastHour[],
@@ -119,13 +123,16 @@ export function ForecastSection({
   clearOverrideAction,
   utcOffsetSeconds,
 }: ForecastSectionProps) {
-  const { dayRange, daylightOnly } = useForecastControls();
+  const { dayRange, daylightOnly, selectedDate } = useForecastControls();
   const { windSpeedUnit } = useUnits();
   const nowCivil = spotLocalNow(utcOffsetSeconds);
 
   const rangeFilteredHours = useMemo(
-    () => filterByDayRange(hours, dayRange),
-    [hours, dayRange],
+    () =>
+      selectedDate
+        ? filterByDate(hours, selectedDate)
+        : filterByDayRange(hours, dayRange),
+    [hours, dayRange, selectedDate],
   );
 
   const filteredHours = useMemo(
@@ -138,31 +145,38 @@ export function ForecastSection({
 
   const filteredScores = useMemo(() => {
     if (!hourScores) return undefined;
-    const rangeScores = filterByDayRange(
-      hourScores.map((s) => ({ time: s.time }) as ForecastHour),
-      dayRange,
+    const rangeHours = hourScores.map((s) => ({ time: s.time }) as ForecastHour);
+    const rangeScores = (
+      selectedDate
+        ? filterByDate(rangeHours, selectedDate)
+        : filterByDayRange(rangeHours, dayRange)
     ).map((h) => h.time);
     const rangeSet = new Set(rangeScores);
     const byRange = hourScores.filter((s) => rangeSet.has(s.time));
     return daylightOnly
       ? filterDaylightScores(byRange, sunrise, sunset)
       : byRange;
-  }, [hourScores, dayRange, sunrise, sunset, daylightOnly]);
+  }, [hourScores, dayRange, selectedDate, sunrise, sunset, daylightOnly]);
 
   const filteredTides = useMemo(() => {
-    const byRange = filterTidesByDayRange(tides, hours, dayRange);
+    const byRange = selectedDate
+      ? tides.filter((t) => t.time.substring(0, 10) === selectedDate)
+      : filterTidesByDayRange(tides, hours, dayRange);
     return daylightOnly
       ? filterDaylightTides(byRange, sunrise, sunset)
       : byRange;
-  }, [tides, hours, dayRange, daylightOnly, sunrise, sunset]);
+  }, [tides, hours, dayRange, selectedDate, daylightOnly, sunrise, sunset]);
 
   const filteredWindows = useMemo(() => {
     if (!rideableWindows) return undefined;
+    if (selectedDate) {
+      return rideableWindows.filter((w) => w.start.substring(0, 10) === selectedDate);
+    }
     if (hours.length === 0) return rideableWindows;
     const firstDate = hours[0].time.substring(0, 10);
     const cutoffStr = addCivilDays(firstDate, dayRange);
     return rideableWindows.filter((w) => w.start.substring(0, 10) < cutoffStr);
-  }, [rideableWindows, hours, dayRange]);
+  }, [rideableWindows, hours, dayRange, selectedDate]);
 
   const conditionsInsight = useMemo(
     () => computeConditionsInsight(filteredHours, filteredTides),

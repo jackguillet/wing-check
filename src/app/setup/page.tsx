@@ -30,7 +30,14 @@ export default async function SetupPage() {
           accountEmail={user.email}
           emailVerified={user.emailVerified}
         />
-        <WindProfileForm profile={profile} next="/" />
+        <WindProfileForm
+          profile={profile}
+          next="/"
+          skill={prefs.skill}
+          sessionStartHour={prefs.sessionStartHour}
+          sessionEndHour={prefs.sessionEndHour}
+          preferredTide={prefs.preferredTide}
+        />
       </div>
     </UnitsProvider>
   );

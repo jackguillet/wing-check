@@ -12,7 +12,11 @@ import {
 import { eq, and, inArray } from "drizzle-orm";
 import { evaluateSpot } from "@/lib/alerts/evaluator";
 import { spotLocalNow } from "@/lib/weather/civil-time";
-import { resolveCriteria, windProfileFromPrefs } from "@/lib/criteria";
+import {
+  resolveCriteria,
+  riderScheduleFromPrefs,
+  windProfileFromPrefs,
+} from "@/lib/criteria";
 import { sendAlert } from "@/lib/alerts/notifier";
 import {
   upcomingGoWindows,
@@ -161,6 +165,8 @@ export async function GET(request: Request) {
         forecast.sunrise,
         forecast.sunset,
         nowCivil,
+        riderScheduleFromPrefs(prefs),
+        forecast.tides,
       );
 
       const upcoming = upcomingGoWindows(evaluation.rideableWindows, nowCivil);

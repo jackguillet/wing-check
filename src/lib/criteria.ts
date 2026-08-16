@@ -3,6 +3,14 @@ import { defaultCriteria } from "@/lib/alerts/evaluator";
 
 export type CriteriaFields = Omit<AlertCriteria, "id" | "spotId">;
 
+export const SKILL_KITS = {
+  beginner: { minWindSpeed: 14, maxWindSpeed: 22 },
+  intermediate: { minWindSpeed: 10, maxWindSpeed: 25 },
+  advanced: { minWindSpeed: 8, maxWindSpeed: 30 },
+} as const;
+
+export type RiderSkill = keyof typeof SKILL_KITS;
+
 export function asAlertCriteria(
   spotId: number,
   source: CriteriaFields | null | undefined,
@@ -44,6 +52,23 @@ export function criteriaSourceLabel(source: CriteriaSource): string {
   }
 }
 
+export function criteriaKitLabel(
+  source: CriteriaSource,
+  criteria: Pick<AlertCriteria, "minWindSpeed" | "maxWindSpeed">,
+): string {
+  const band = `${Math.round(criteria.minWindSpeed)}–${Math.round(criteria.maxWindSpeed)} kt`;
+  switch (source) {
+    case "spot-override":
+      return `Custom window · ${band}`;
+    case "user-default":
+      return `Your default kit · ${band}`;
+    case "catalog":
+      return `Catalog default · ${band}`;
+    case "app":
+      return `App default · ${band}`;
+  }
+}
+
 /**
  * Spot override → rider default kit → catalog default → app default.
  */
@@ -73,6 +98,24 @@ export function resolveCriteriaWithSource(
       spotCriteria,
     ),
     source: criteriaSource(spotOverride, userDefault, spotCriteria),
+  };
+}
+
+export function riderScheduleFromPrefs(prefs: {
+  sessionStartHour: number | null;
+  sessionEndHour: number | null;
+  preferredTide: string | null;
+}): import("@/lib/alerts/evaluator").RiderSchedule {
+  const tide =
+    prefs.preferredTide === "rising" ||
+    prefs.preferredTide === "falling" ||
+    prefs.preferredTide === "mid"
+      ? prefs.preferredTide
+      : null;
+  return {
+    sessionStartHour: prefs.sessionStartHour,
+    sessionEndHour: prefs.sessionEndHour,
+    preferredTide: tide,
   };
 }
 

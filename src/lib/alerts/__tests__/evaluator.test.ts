@@ -17,6 +17,8 @@ function makeHour(overrides: Partial<ForecastHour> = {}): ForecastHour {
     swellHeight: 0.8,
     swellDirection: 270,
     swellPeriod: 10,
+    precipitation: 0,
+    cloudCover: 20,
     ...overrides,
   };
 }
@@ -642,5 +644,44 @@ describe("bestUpcomingWindowScore", () => {
     };
 
     expect(bestUpcomingWindowScore(evaluation, 72)).toBe(0);
+  });
+});
+
+describe("rider schedule", () => {
+  it("does not GO on an afternoon window for a mornings-only rider", () => {
+    const hours = [
+      makeHour({ time: "2026-02-14T15:00", windSpeed: 20, windGusts: 22 }),
+      makeHour({ time: "2026-02-14T16:00", windSpeed: 20, windGusts: 22 }),
+      makeHour({ time: "2026-02-14T17:00", windSpeed: 20, windGusts: 22 }),
+    ];
+    const result = evaluateSpot(
+      hours,
+      defaultCriteria,
+      ["2026-02-14T07:00"],
+      ["2026-02-14T18:00"],
+      "2026-02-14T08:00",
+      { sessionStartHour: 7, sessionEndHour: 11 },
+    );
+    expect(result.goNoGo).toBe("no-go");
+    expect(result.rideableWindows).toHaveLength(0);
+    expect(result.hourScores.every((s) => s.score > 50)).toBe(true);
+  });
+
+  it("keeps a morning window for a mornings-only rider", () => {
+    const hours = [
+      makeHour({ time: "2026-02-14T08:00", windSpeed: 20, windGusts: 22 }),
+      makeHour({ time: "2026-02-14T09:00", windSpeed: 20, windGusts: 22 }),
+      makeHour({ time: "2026-02-14T10:00", windSpeed: 20, windGusts: 22 }),
+    ];
+    const result = evaluateSpot(
+      hours,
+      defaultCriteria,
+      ["2026-02-14T07:00"],
+      ["2026-02-14T18:00"],
+      "2026-02-14T07:30",
+      { sessionStartHour: 7, sessionEndHour: 11 },
+    );
+    expect(result.goNoGo).toBe("go");
+    expect(result.rideableWindows[0].start).toBe("2026-02-14T08:00");
   });
 });

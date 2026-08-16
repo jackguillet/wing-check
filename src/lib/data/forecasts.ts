@@ -7,6 +7,10 @@ import {
   mergeForecasts,
 } from "@/lib/weather/open-meteo";
 import { fetchTidePredictions } from "@/lib/weather/noaa-tides";
+import {
+  HONEST_TIDE_MAX_KM,
+  getTideStationInfo,
+} from "@/lib/weather/noaa-stations";
 import { OpenMeteoWeatherResponseSchema } from "@/lib/weather/types";
 import type {
   ForecastHour,
@@ -19,8 +23,25 @@ import { addCivilDays, civilDate, spotLocalNow, toYyyymmdd } from "@/lib/weather
 
 const CACHE_DURATION_MS = 60 * 60 * 1000; // 1 hour
 
+function honestTides(
+  tides: TidePoint[],
+  station: SpotForecast["tideStation"],
+): { tides: TidePoint[]; tideStation: SpotForecast["tideStation"] } {
+  if (!station || Number.isNaN(station.km) || station.km > HONEST_TIDE_MAX_KM) {
+    return { tides: [], tideStation: station ?? null };
+  }
+  return { tides, tideStation: station };
+}
+
+async function resolveTideStation(
+  spot: { noaaStationId: string | null; latitude: number; longitude: number },
+): Promise<SpotForecast["tideStation"]> {
+  if (!spot.noaaStationId) return null;
+  return getTideStationInfo(spot.noaaStationId, spot.latitude, spot.longitude);
+}
+
 function buildForecastFromCache(
-  spot: { id: number; name: string },
+  spot: { id: number; name: string; noaaStationId?: string | null; latitude?: number; longitude?: number },
   cached: {
     weatherData: string;
     marineData: string | null;
@@ -28,13 +49,15 @@ function buildForecastFromCache(
     fetchedAt: Date;
   },
   stale = false,
+  tideStation: SpotForecast["tideStation"] = null,
 ): SpotForecast & { stale?: boolean } {
   const weatherData = OpenMeteoWeatherResponseSchema.parse(
     JSON.parse(cached.weatherData),
   );
   const marineData = cached.marineData ? JSON.parse(cached.marineData) : null;
   const hours: ForecastHour[] = mergeForecasts(weatherData, marineData);
-  const tides: TidePoint[] = cached.tideData ? JSON.parse(cached.tideData) : [];
+  const rawTides: TidePoint[] = cached.tideData ? JSON.parse(cached.tideData) : [];
+  const { tides, tideStation: shown } = honestTides(rawTides, tideStation);
   return {
     spotId: spot.id,
     spotName: spot.name,
@@ -45,6 +68,7 @@ function buildForecastFromCache(
     utcOffsetSeconds: weatherData.utc_offset_seconds,
     sunrise: weatherData.daily?.sunrise ?? [],
     sunset: weatherData.daily?.sunset ?? [],
+    tideStation: shown,
     ...(stale ? { stale: true } : {}),
   };
 }
@@ -69,7 +93,8 @@ export async function getSpotForecast(
   const cached = cachedRows[0];
 
   if (cached) {
-    return buildForecastFromCache(spot, cached);
+    const station = await resolveTideStation(spot);
+    return buildForecastFromCache(spot, cached, false, station);
   }
 
   if (!allowLive) {
@@ -78,7 +103,9 @@ export async function getSpotForecast(
       .from(forecastCache)
       .where(eq(forecastCache.spotId, spotId));
     const stale = staleRows[0];
-    return stale ? buildForecastFromCache(spot, stale, true) : null;
+    if (!stale) return null;
+    const station = await resolveTideStation(spot);
+    return buildForecastFromCache(spot, stale, true, station);
   }
 
   // Fetch fresh data
@@ -88,13 +115,14 @@ export async function getSpotForecast(
       fetchMarineForecast(spot.latitude, spot.longitude),
     ]);
 
+    const tideStation = await resolveTideStation(spot);
     let tides: TidePoint[] = [];
-    if (spot.noaaStationId) {
+    if (tideStation && tideStation.km <= HONEST_TIDE_MAX_KM) {
       const localToday = civilDate(
         spotLocalNow(weather.utc_offset_seconds),
       );
       tides = await fetchTidePredictions(
-        spot.noaaStationId,
+        tideStation.id,
         toYyyymmdd(localToday),
         toYyyymmdd(addCivilDays(localToday, 14)),
       );
@@ -128,6 +156,7 @@ export async function getSpotForecast(
       utcOffsetSeconds: weather.utc_offset_seconds,
       sunrise: weather.daily?.sunrise ?? [],
       sunset: weather.daily?.sunset ?? [],
+      tideStation,
     };
   } catch (error) {
     logger.error(
@@ -145,7 +174,8 @@ export async function getSpotForecast(
 
     if (stale) {
       logger.info({ spotId }, "Serving stale forecast from cache");
-      return buildForecastFromCache(spot, stale, true);
+      const station = await resolveTideStation(spot);
+      return buildForecastFromCache(spot, stale, true, station);
     }
 
     throw error;
@@ -185,16 +215,19 @@ export async function getCachedForecastsBySpotIds(
     }
   }
 
-  for (const [spotId, cached] of latestBySpot) {
-    const spot = spotsById.get(spotId);
-    if (!spot) continue;
-    try {
-      const stale = cached.expiresAt.getTime() <= now;
-      result.set(spotId, buildForecastFromCache(spot, cached, stale));
-    } catch (error) {
-      logger.warn({ err: error, spotId }, "Skipping unreadable forecast cache row");
-    }
-  }
+  await Promise.all(
+    [...latestBySpot.entries()].map(async ([spotId, cached]) => {
+      const spot = spotsById.get(spotId);
+      if (!spot) return;
+      try {
+        const stale = cached.expiresAt.getTime() <= now;
+        const station = await resolveTideStation(spot);
+        result.set(spotId, buildForecastFromCache(spot, cached, stale, station));
+      } catch (error) {
+        logger.warn({ err: error, spotId }, "Skipping unreadable forecast cache row");
+      }
+    }),
+  );
 
   return result;
 }

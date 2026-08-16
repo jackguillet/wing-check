@@ -9,15 +9,23 @@ import { Separator } from "@/components/ui/separator";
 import { DirectionPicker } from "@/components/direction-picker";
 import { useUnits } from "@/components/units-provider";
 import { fromKnots, roundTo, windUnitLabel } from "@/lib/units";
-import type { CriteriaFields } from "@/lib/criteria";
+import { SKILL_KITS, type CriteriaFields, type RiderSkill } from "@/lib/criteria";
 import { defaultCriteria } from "@/lib/alerts/evaluator";
 
 export function WindProfileForm({
   profile,
   next,
+  skill,
+  sessionStartHour,
+  sessionEndHour,
+  preferredTide,
 }: {
   profile: CriteriaFields | null;
   next?: string;
+  skill?: string | null;
+  sessionStartHour?: number | null;
+  sessionEndHour?: number | null;
+  preferredTide?: string | null;
 }) {
   const { windSpeedUnit } = useUnits();
   const windLabel = windUnitLabel(windSpeedUnit);
@@ -45,6 +53,80 @@ export function WindProfileForm({
         )}
         <form action={updateWindProfile} className="space-y-4">
           {next ? <input type="hidden" name="next" value={next} /> : null}
+          <div className="space-y-2">
+            <Label htmlFor="skill">Skill</Label>
+            <select
+              id="skill"
+              name="skill"
+              defaultValue={skill ?? ""}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              onChange={(e) => {
+                const kit = SKILL_KITS[e.target.value as RiderSkill];
+                if (!kit) return;
+                const min = document.getElementById(
+                  "profileMinWind",
+                ) as HTMLInputElement | null;
+                const max = document.getElementById(
+                  "profileMaxWind",
+                ) as HTMLInputElement | null;
+                if (min) min.value = String(roundTo(fromKnots(kit.minWindSpeed, windSpeedUnit)));
+                if (max) max.value = String(roundTo(fromKnots(kit.maxWindSpeed, windSpeedUnit)));
+              }}
+            >
+              <option value="">Not set</option>
+              <option value="beginner">Beginner (tighter band)</option>
+              <option value="intermediate">Intermediate</option>
+              <option value="advanced">Advanced (wider band)</option>
+            </select>
+            <p className="text-xs text-muted-foreground">
+              Picking a skill fills a conservative or wider wind band. You can
+              still edit the numbers.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="sessionStartHour">Ride from (hour)</Label>
+              <Input
+                id="sessionStartHour"
+                name="sessionStartHour"
+                type="number"
+                min={0}
+                max={23}
+                placeholder="e.g. 7"
+                defaultValue={sessionStartHour ?? ""}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="sessionEndHour">Ride until (hour)</Label>
+              <Input
+                id="sessionEndHour"
+                name="sessionEndHour"
+                type="number"
+                min={0}
+                max={23}
+                placeholder="e.g. 11"
+                defaultValue={sessionEndHour ?? ""}
+              />
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Leave blank for any daylight hour. A mornings-only rider (7–11)
+            will not get a GO for a 3–6pm window.
+          </p>
+          <div className="space-y-2">
+            <Label htmlFor="preferredTide">Tide preference</Label>
+            <select
+              id="preferredTide"
+              name="preferredTide"
+              defaultValue={preferredTide ?? ""}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="">Any tide</option>
+              <option value="rising">Incoming / rising</option>
+              <option value="falling">Outgoing / falling</option>
+              <option value="mid">High or low slack</option>
+            </select>
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="profileMinWind">
