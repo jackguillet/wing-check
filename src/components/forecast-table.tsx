@@ -17,10 +17,12 @@ import { getWindColor, getGustColor } from "@/lib/weather/colors";
 import { format, parseISO, isSameDay } from "date-fns";
 import { useUnits } from "@/components/units-provider";
 import { formatTemp, fromKnots, windUnitLabel } from "@/lib/units";
+import { hourIsOpen } from "@/lib/weather/civil-time";
 
 interface ForecastTableProps {
   hours: ForecastHour[];
   hourScores?: HourScore[];
+  nowCivil: string;
 }
 
 function scoreBadge(score: number) {
@@ -29,11 +31,14 @@ function scoreBadge(score: number) {
   return <Badge variant="outline" className="text-muted-foreground">{score}</Badge>;
 }
 
-export function ForecastTable({ hours, hourScores }: ForecastTableProps) {
+export function ForecastTable({
+  hours,
+  hourScores,
+  nowCivil,
+}: ForecastTableProps) {
   const { windSpeedUnit, temperatureUnit } = useUnits();
   const windLabel = windUnitLabel(windSpeedUnit);
-  const now = new Date().toISOString();
-  const upcoming = hours.filter((h) => h.time >= now);
+  const upcoming = hours.filter((h) => hourIsOpen(h.time, nowCivil));
   const scoreMap = new Map(hourScores?.map((s) => [s.time, s]));
   const colCount = hourScores ? 8 : 7;
 

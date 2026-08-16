@@ -6,6 +6,8 @@ import {
   type ForecastHour,
   kmhToKnots,
 } from "./types";
+import { civilMinute } from "./civil-time";
+import { logger } from "@/lib/logger";
 
 const WEATHER_BASE = "https://api.open-meteo.com/v1/forecast";
 const MARINE_BASE = "https://marine-api.open-meteo.com/v1/marine";
@@ -42,6 +44,7 @@ export async function fetchMarineForecast(
     longitude: longitude.toString(),
     hourly:
       "wave_height,wave_direction,wave_period,swell_wave_height,swell_wave_direction,swell_wave_period",
+    timezone: "auto",
     forecast_days: "14",
   });
 
@@ -59,19 +62,50 @@ export function mergeForecasts(
   weather: OpenMeteoWeatherResponse,
   marine: OpenMeteoMarineResponse | null
 ): ForecastHour[] {
-  return weather.hourly.time.map((time, i) => ({
-    time,
-    temperature: weather.hourly.temperature_2m[i],
-    windSpeed: kmhToKnots(weather.hourly.wind_speed_10m[i]),
-    windDirection: weather.hourly.wind_direction_10m[i],
-    windGusts: kmhToKnots(weather.hourly.wind_gusts_10m[i]),
-    weatherCode: weather.hourly.weather_code[i],
-    waveHeight: marine?.hourly.wave_height[i] ?? null,
-    waveDirection: marine?.hourly.wave_direction[i] ?? null,
-    wavePeriod: marine?.hourly.wave_period[i] ?? null,
-    swellHeight: marine?.hourly.swell_wave_height[i] ?? null,
-    swellDirection: marine?.hourly.swell_wave_direction[i] ?? null,
-    swellPeriod: marine?.hourly.swell_wave_period[i] ?? null,
-    pressureMsl: weather.hourly.pressure_msl?.[i] ?? null,
-  }));
+  const marineIndex = new Map<string, number>();
+  if (marine) {
+    for (let i = 0; i < marine.hourly.time.length; i++) {
+      marineIndex.set(civilMinute(marine.hourly.time[i]), i);
+    }
+  }
+
+  let unmatched = 0;
+  const hours = weather.hourly.time.map((time, i) => {
+    const mi = marine ? marineIndex.get(civilMinute(time)) : undefined;
+    if (marine && mi === undefined) unmatched += 1;
+    const m = marine?.hourly;
+    return {
+      time,
+      temperature: weather.hourly.temperature_2m[i],
+      windSpeed: kmhToKnots(weather.hourly.wind_speed_10m[i]),
+      windDirection: weather.hourly.wind_direction_10m[i],
+      windGusts: kmhToKnots(weather.hourly.wind_gusts_10m[i]),
+      weatherCode: weather.hourly.weather_code[i],
+      waveHeight: mi != null ? (m?.wave_height[mi] ?? null) : null,
+      waveDirection: mi != null ? (m?.wave_direction[mi] ?? null) : null,
+      wavePeriod: mi != null ? (m?.wave_period[mi] ?? null) : null,
+      swellHeight: mi != null ? (m?.swell_wave_height[mi] ?? null) : null,
+      swellDirection: mi != null ? (m?.swell_wave_direction[mi] ?? null) : null,
+      swellPeriod: mi != null ? (m?.swell_wave_period[mi] ?? null) : null,
+      pressureMsl: weather.hourly.pressure_msl?.[i] ?? null,
+    };
+  });
+
+  if (
+    !process.env.VITEST &&
+    marine &&
+    hours.length > 0 &&
+    unmatched / hours.length > 0.2
+  ) {
+    logger.warn(
+      {
+        unmatched,
+        total: hours.length,
+        missRate: Math.round((unmatched / hours.length) * 100) / 100,
+      },
+      "Marine hours failed to join weather by timestamp",
+    );
+  }
+
+  return hours;
 }

@@ -1,6 +1,7 @@
 import type { ForecastHour } from "@/lib/weather/types";
 import type { AlertCriteria } from "@/lib/db/schema";
 import { parsePreferredDirections } from "@/lib/directions";
+import { civilDate, hourIsOpen } from "@/lib/weather/civil-time";
 
 export interface HourScore {
   time: string;
@@ -22,15 +23,19 @@ export interface RideableWindow {
   dominantDirection: number;
 }
 
-/** Next window that has not already ended. Windows are spot-local ISO times. */
+/**
+ * Next window that has not already ended.
+ * `end` is the start of the last good hour, so the window is open until end+1h.
+ * `nowIso` is a spot-local civil time. If omitted, the soonest window is returned
+ * (callers that already filtered to remaining windows can skip it).
+ */
 export function nextRideableWindow(
   windows: RideableWindow[],
   nowIso?: string,
 ): RideableWindow | null {
   if (windows.length === 0) return null;
-  const now = nowIso ?? new Date().toISOString().slice(0, 16);
   const upcoming = windows
-    .filter((w) => w.end >= now)
+    .filter((w) => (nowIso ? hourIsOpen(w.end, nowIso) : true))
     .sort((a, b) => a.start.localeCompare(b.start));
   return upcoming[0] ?? null;
 }
@@ -50,6 +55,8 @@ export interface SpotEvaluation {
   rideableWindows: RideableWindow[];
   bestWindow: RideableWindow | null;
   dayEvaluations: DayEvaluation[];
+  /** Spot-local YYYY-MM-DD used as "today". */
+  todayDate: string | null;
 }
 
 function angleDifference(a: number, b: number): number {
@@ -78,10 +85,10 @@ function scoreHour(hour: ForecastHour, criteria: AlertCriteria): HourScore {
       (dir) => angleDifference(hour.windDirection, dir) <= criteria.directionTolerance
     );
 
+  // Missing marine data is not a free pass when the rider set a max.
   const waveOk =
     criteria.maxWaveHeight == null ||
-    hour.waveHeight == null ||
-    hour.waveHeight <= criteria.maxWaveHeight;
+    (hour.waveHeight != null && hour.waveHeight <= criteria.maxWaveHeight);
 
   const weatherOk = !THUNDERSTORM_CODES.has(hour.weatherCode);
 
@@ -99,31 +106,48 @@ function scoreHour(hour: ForecastHour, criteria: AlertCriteria): HourScore {
   // Wind speed scoring (0-40 points)
   const midpoint = (criteria.minWindSpeed + criteria.maxWindSpeed) / 2;
   const range = (criteria.maxWindSpeed - criteria.minWindSpeed) / 2;
-  const deviation = Math.abs(hour.windSpeed - midpoint) / range;
-  score += 40 * (1 - deviation ** 2);
+  if (range === 0) {
+    score += hour.windSpeed === criteria.minWindSpeed ? 40 : 0;
+  } else {
+    const deviation = Math.abs(hour.windSpeed - midpoint) / range;
+    score += 40 * (1 - deviation ** 2);
+  }
 
-  // Gust scoring (0-25 points) — clamped to [0, 25]
-  const gustRatio = hour.windGusts / hour.windSpeed;
-  const gustScore = Math.max(0, Math.min(25, 25 * (1 - (gustRatio - 1) / (criteria.maxGustFactor - 1))));
-  score += gustScore;
+  // Gust scoring (0-25 points). maxGustFactor <= 1 means "no gusts allowed".
+  // The 50 kt absolute cap above is the only hard gust gate.
+  const gustDenom = criteria.maxGustFactor - 1;
+  if (gustDenom <= 0) {
+    score += hour.windGusts <= hour.windSpeed ? 25 : 0;
+  } else if (hour.windSpeed <= 0) {
+    score += 0;
+  } else {
+    const gustRatio = hour.windGusts / hour.windSpeed;
+    const gustScore = Math.max(
+      0,
+      Math.min(25, 25 * (1 - (gustRatio - 1) / gustDenom)),
+    );
+    score += gustScore;
+  }
 
   // Direction scoring (0-25 points)
   if (directionOk && preferredDirs.length > 0) {
     const minAngleDiff = Math.min(
       ...preferredDirs.map((dir) => angleDifference(hour.windDirection, dir))
     );
-    score += 25 * (1 - minAngleDiff / criteria.directionTolerance);
+    if (criteria.directionTolerance <= 0) {
+      score += minAngleDiff === 0 ? 25 : 0;
+    } else {
+      score += 25 * (1 - minAngleDiff / criteria.directionTolerance);
+    }
   } else if (preferredDirs.length === 0) {
     score += 25;
   }
 
-  // Wave scoring (0-10 points)
-  if (waveOk) {
-    if (criteria.maxWaveHeight != null && hour.waveHeight != null) {
-      score += 10 * (1 - hour.waveHeight / criteria.maxWaveHeight);
-    } else {
-      score += 10;
-    }
+  // Wave scoring (0-10 points). Unknown waves with a max set score 0 of 10.
+  if (criteria.maxWaveHeight == null) {
+    score += 10;
+  } else if (hour.waveHeight != null && waveOk) {
+    score += 10 * (1 - hour.waveHeight / criteria.maxWaveHeight);
   }
 
   return {
@@ -156,13 +180,21 @@ function findRideableWindows(
   threshold: number = 50,
   sunrise?: string[],
   sunset?: string[],
+  nowCivil?: string,
 ): RideableWindow[] {
   const windows: RideableWindow[] = [];
   let windowStart = -1;
 
   for (let i = 0; i <= hourScores.length; i++) {
     const daytime = sunrise && sunset ? isDaytime(hourScores[i]?.time ?? "", sunrise, sunset) : true;
-    const isGood = i < hourScores.length && daytime && hourScores[i].score >= threshold;
+    const remaining =
+      !nowCivil ||
+      (i < hourScores.length && hourIsOpen(hourScores[i].time, nowCivil));
+    const isGood =
+      i < hourScores.length &&
+      daytime &&
+      remaining &&
+      hourScores[i].score >= threshold;
 
     if (isGood && windowStart === -1) {
       windowStart = i;
@@ -212,6 +244,7 @@ export function evaluateSpot(
   criteria: AlertCriteria,
   sunrise?: string[],
   sunset?: string[],
+  nowCivil?: string,
 ): SpotEvaluation {
   const hourScores = hours.map((h) => scoreHour(h, criteria));
   const rideableWindows = findRideableWindows(
@@ -221,6 +254,7 @@ export function evaluateSpot(
     50,
     sunrise,
     sunset,
+    nowCivil,
   );
 
   // Group hours by date for per-day evaluations
@@ -245,19 +279,24 @@ export function evaluateSpot(
       50,
       sunrise,
       sunset,
+      nowCivil,
     );
     const dayBest = dayWindows.length > 0
       ? dayWindows.reduce((best, w) => w.avgScore > best.avgScore ? w : best)
       : null;
+    // When `nowCivil` is set, a used-up morning is no-go — not this morning's 90.
+    // Without it (tests / full-series eval) keep the max-hour fallback.
     const dayScore = dayBest
       ? dayBest.avgScore
-      : group.scores.length > 0
-        ? Math.max(...group.scores.map((h) => h.score))
-        : 0;
+      : nowCivil
+        ? 0
+        : group.scores.length > 0
+          ? Math.max(...group.scores.map((h) => h.score))
+          : 0;
     const dayGoNoGo: "go" | "marginal" | "no-go" =
       dayBest && dayBest.avgScore >= 70
         ? "go"
-        : dayBest || dayScore >= 40
+        : dayBest || (!nowCivil && dayScore >= 40)
           ? "marginal"
           : "no-go";
 
@@ -285,8 +324,12 @@ export function evaluateSpot(
         )
       : null;
 
-  // Overall score and goNoGo reflect today (first day)
-  const todayEval = limitedDayEvals[0];
+  const todayDate = nowCivil
+    ? civilDate(nowCivil)
+    : limitedDayEvals[0]?.date ?? null;
+  const todayEval = todayDate
+    ? (limitedDayEvals.find((d) => d.date === todayDate) ?? limitedDayEvals[0])
+    : limitedDayEvals[0];
   const overallScore = todayEval ? todayEval.score : 0;
   const goNoGo: "go" | "marginal" | "no-go" = todayEval ? todayEval.goNoGo : "no-go";
 
@@ -297,6 +340,7 @@ export function evaluateSpot(
     rideableWindows: limitedWindows,
     bestWindow: limitedBestWindow,
     dayEvaluations: limitedDayEvals,
+    todayDate,
   };
 }
 

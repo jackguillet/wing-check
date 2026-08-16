@@ -40,6 +40,8 @@ export const HourlyMarineSchema = z.object({
 export const OpenMeteoMarineResponseSchema = z.object({
   latitude: z.number(),
   longitude: z.number(),
+  utc_offset_seconds: z.number().optional(),
+  timezone: z.string().optional(),
   hourly: HourlyMarineSchema,
 });
 

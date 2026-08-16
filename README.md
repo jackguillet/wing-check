@@ -5,7 +5,7 @@ A personal weather alert dashboard for wing foil enthusiasts. Track wind conditi
 ## Features
 
 - **Spot Management** — Save spots with lat/lng, preferred wind conditions, and NOAA station IDs for tide data
-- **Live Forecasts** — 7-day hourly wind speed, gusts, direction, temperature, swell, and wave data via Open-Meteo
+- **Live Forecasts** — 14-day hourly wind speed, gusts, direction, temperature, swell, and wave data via Open-Meteo (graded over the first 7 days)
 - **Go/No-Go Scoring** — Configurable evaluator scores each hour (0-100) based on wind range, gust factor, direction, and wave height, then finds rideable windows
 - **Wind Charts** — Visual wind speed + gust band charts with min/max reference lines
 - **Email Alerts** — Scheduled checks via Resend that notify you when conditions look good
@@ -15,9 +15,9 @@ A personal weather alert dashboard for wing foil enthusiasts. Track wind conditi
 
 | Layer | Choice |
 |-------|--------|
-| Framework | Next.js 15 (App Router) |
+| Framework | Next.js 16 (App Router) |
 | Language | TypeScript |
-| Database | SQLite via Drizzle ORM |
+| Database | Turso (LibSQL) via Drizzle ORM |
 | UI | Tailwind CSS + shadcn/ui |
 | Charts | Recharts |
 | Weather API | Open-Meteo (free, no key) |
@@ -60,15 +60,17 @@ Open [http://localhost:3000](http://localhost:3000) to see the dashboard.
 
 Each forecast hour is scored on four dimensions:
 
-1. **Wind Speed (0-40 pts)** — Must be within your configured min/max range. Peak score at the midpoint.
-2. **Gust Factor (0-25 pts)** — Gusts must be below `wind_speed × max_gust_factor`. Steadier = higher score.
-3. **Wind Direction (0-25 pts)** — Must be within tolerance of your preferred directions. Closer = higher score.
-4. **Wave Height (0-10 pts)** — Optional. Must be below your max threshold.
+1. **Wind Speed (0-40 pts)** — Hard gate outside your min/max. Inside the band, score peaks at the midpoint.
+2. **Gusts (0-25 pts)** — Hard gate only above **50 kt**. Below that, a soft curve vs `max_gust_factor` (1.0 = no extra gusts allowed). Gusty trades can still score.
+3. **Wind Direction (0-25 pts)** — Soft. Empty preferred list = full 25. Outside tolerance = 0 of 25 (the hour can still GO).
+4. **Wave Height (0-10 pts)** — Soft. Over the max, or missing marine data when a max is set, = 0 of 10. Thunderstorms (WMO 95/96/99) zero the hour.
 
-Consecutive hours scoring 50+ form **rideable windows**. The best window's average determines the overall go/no-go:
-- **GO** (≥70): Conditions look great
-- **MARGINAL** (40-69): Rideable but not ideal
-- **NO-GO** (<40): Not worth it
+Consecutive **remaining** daylight hours scoring 50+ form **rideable windows**. Hours that have already ended do not count. The best remaining window's average determines the day:
+- **GO** (≥70): A remaining window looks great
+- **MARGINAL**: A remaining window, but not ideal
+- **NO-GO**: No remaining window
+
+Overall GO/NO-GO is **today in the spot's timezone**, not the first date in the series.
 
 ## Deploy to Vercel
 
@@ -77,7 +79,7 @@ npm i -g vercel
 vercel
 ```
 
-The `vercel.json` includes a cron job that checks alerts every 6 hours.
+The `vercel.json` cron checks alerts once a day at 14:00 UTC (Hobby plan). `checkIntervalHours` is a per-spot cooldown, not the schedule.
 
 ## License
 

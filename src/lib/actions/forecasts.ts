@@ -17,6 +17,7 @@ import type {
 } from "@/lib/weather/types";
 import { logger } from "@/lib/logger";
 import * as Sentry from "@sentry/nextjs";
+import { addCivilDays, civilDate, spotLocalNow, toYyyymmdd } from "@/lib/weather/civil-time";
 
 const CACHE_DURATION_MS = 60 * 60 * 1000; // 1 hour
 
@@ -73,25 +74,23 @@ export async function getSpotForecast(
 
   // Fetch fresh data
   try {
-    const fetches: [
-      Promise<Awaited<ReturnType<typeof fetchWeatherForecast>>>,
-      Promise<Awaited<ReturnType<typeof fetchMarineForecast>>>,
-      Promise<TidePoint[]>,
-    ] = [
+    const [weather, marine] = await Promise.all([
       fetchWeatherForecast(spot.latitude, spot.longitude),
       fetchMarineForecast(spot.latitude, spot.longitude),
-      (async () => {
-        if (!spot.noaaStationId) return [];
-        const today = new Date();
-        const end = new Date(today);
-        end.setDate(end.getDate() + 14);
-        const fmt = (d: Date) =>
-          `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
-        return fetchTidePredictions(spot.noaaStationId, fmt(today), fmt(end));
-      })(),
-    ];
+    ]);
 
-    const [weather, marine, tides] = await Promise.all(fetches);
+    let tides: TidePoint[] = [];
+    if (spot.noaaStationId) {
+      const localToday = civilDate(
+        spotLocalNow(weather.utc_offset_seconds),
+      );
+      tides = await fetchTidePredictions(
+        spot.noaaStationId,
+        toYyyymmdd(localToday),
+        toYyyymmdd(addCivilDays(localToday, 14)),
+      );
+    }
+
     const hours = mergeForecasts(weather, marine);
 
     // Cache the raw API responses

@@ -19,6 +19,14 @@ import { CriteriaForm } from "@/components/criteria-form";
 import { useUnits } from "@/components/units-provider";
 import { formatWind } from "@/lib/units";
 import type { CriteriaSource } from "@/lib/criteria";
+import {
+  addCivilDays,
+  civilAbsDiffMinutes,
+  civilMidpoint,
+  formatCivilClock,
+  formatCivilWeekdayDate,
+  spotLocalNow,
+} from "@/lib/weather/civil-time";
 
 interface ForecastSectionProps {
   hours: ForecastHour[];
@@ -36,15 +44,14 @@ interface ForecastSectionProps {
   canEditCriteria?: boolean;
   criteriaSource?: CriteriaSource;
   clearOverrideAction?: () => Promise<void>;
+  utcOffsetSeconds: number;
 }
 
 /** Filter hours to only include those within the given day range from the first hour. */
 function filterByDayRange(hours: ForecastHour[], days: number): ForecastHour[] {
   if (hours.length === 0) return hours;
   const firstDate = hours[0].time.substring(0, 10);
-  const cutoff = new Date(firstDate + "T00:00");
-  cutoff.setDate(cutoff.getDate() + days);
-  const cutoffStr = cutoff.toISOString().substring(0, 10);
+  const cutoffStr = addCivilDays(firstDate, days);
   return hours.filter((h) => h.time.substring(0, 10) < cutoffStr);
 }
 
@@ -111,9 +118,7 @@ function filterTidesByDayRange(
 ): TidePoint[] {
   if (hours.length === 0 || tides.length === 0) return tides;
   const firstDate = hours[0].time.substring(0, 10);
-  const cutoff = new Date(firstDate + "T00:00");
-  cutoff.setDate(cutoff.getDate() + days);
-  const cutoffStr = cutoff.toISOString().substring(0, 10);
+  const cutoffStr = addCivilDays(firstDate, days);
   return tides.filter((t) => t.time.substring(0, 10) < cutoffStr);
 }
 
@@ -167,9 +172,11 @@ export function ForecastSection({
   canEditCriteria = isOwner,
   criteriaSource,
   clearOverrideAction,
+  utcOffsetSeconds,
 }: ForecastSectionProps) {
   const { dayRange, daylightOnly } = useForecastControls();
   const { windSpeedUnit } = useUnits();
+  const nowCivil = spotLocalNow(utcOffsetSeconds);
 
   const rangeFilteredHours = useMemo(
     () => filterByDayRange(hours, dayRange),
@@ -208,9 +215,7 @@ export function ForecastSection({
     if (!rideableWindows) return undefined;
     if (hours.length === 0) return rideableWindows;
     const firstDate = hours[0].time.substring(0, 10);
-    const cutoff = new Date(firstDate + "T00:00");
-    cutoff.setDate(cutoff.getDate() + dayRange);
-    const cutoffStr = cutoff.toISOString().substring(0, 10);
+    const cutoffStr = addCivilDays(firstDate, dayRange);
     return rideableWindows.filter((w) => w.start.substring(0, 10) < cutoffStr);
   }, [rideableWindows, hours, dayRange]);
 
@@ -238,8 +243,6 @@ export function ForecastSection({
             <CardContent>
               <div className="space-y-3">
                 {filteredWindows.map((w, i) => {
-                  const start = new Date(w.start);
-                  const end = new Date(w.end);
                   return (
                     <div
                       key={i}
@@ -247,22 +250,8 @@ export function ForecastSection({
                     >
                       <div>
                         <p className="font-medium">
-                          {start.toLocaleDateString("en-US", {
-                            weekday: "short",
-                            month: "short",
-                            day: "numeric",
-                          })}{" "}
-                          {start.toLocaleTimeString("en-US", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            hour12: false,
-                          })}{" "}
-                          –{" "}
-                          {end.toLocaleTimeString("en-US", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            hour12: false,
-                          })}
+                          {formatCivilWeekdayDate(w.start)}{" "}
+                          {formatCivilClock(w.start)} – {formatCivilClock(w.end)}
                         </p>
                         <p className="text-sm text-muted-foreground">
                           {w.hours}h · {formatWind(w.avgWind, windSpeedUnit)} avg
@@ -270,22 +259,11 @@ export function ForecastSection({
                           · {degreesToCardinal(w.dominantDirection)}
                         </p>
                         {(() => {
-                          const midTime = new Date(
-                            (new Date(w.start).getTime() +
-                              new Date(w.end).getTime()) /
-                              2,
-                          )
-                            .toISOString()
-                            .substring(0, 16);
+                          if (filteredHours.length === 0) return null;
+                          const midTime = civilMidpoint(w.start, w.end);
                           const nearestHour = filteredHours.reduce((best, h) =>
-                            Math.abs(
-                              new Date(h.time).getTime() -
-                                new Date(midTime).getTime(),
-                            ) <
-                            Math.abs(
-                              new Date(best.time).getTime() -
-                                new Date(midTime).getTime(),
-                            )
+                            civilAbsDiffMinutes(h.time, midTime) <
+                            civilAbsDiffMinutes(best.time, midTime)
                               ? h
                               : best,
                           );
@@ -299,14 +277,8 @@ export function ForecastSection({
                             conditionsInsight.tidePhases.length > 0
                               ? conditionsInsight.tidePhases.reduce(
                                   (best, phase) =>
-                                    Math.abs(
-                                      new Date(phase.time).getTime() -
-                                        new Date(midTime).getTime(),
-                                    ) <
-                                    Math.abs(
-                                      new Date(best.time).getTime() -
-                                        new Date(midTime).getTime(),
-                                    )
+                                    civilAbsDiffMinutes(phase.time, midTime) <
+                                    civilAbsDiffMinutes(best.time, midTime)
                                       ? phase
                                       : best,
                                 )
@@ -374,11 +346,16 @@ export function ForecastSection({
             hours={filteredHours}
             tides={filteredTides}
             insight={conditionsInsight}
+            nowCivil={nowCivil}
           />
         </TabsContent>
 
         <TabsContent value="table">
-          <ForecastTable hours={filteredHours} hourScores={filteredScores} />
+          <ForecastTable
+            hours={filteredHours}
+            hourScores={filteredScores}
+            nowCivil={nowCivil}
+          />
         </TabsContent>
 
         {canEditCriteria && (

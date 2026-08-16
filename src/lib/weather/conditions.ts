@@ -1,5 +1,6 @@
 import type { ForecastHour, TidePoint } from "./types";
 import { degreesToCardinal } from "./types";
+import { civilAbsDiffMinutes, civilToMinutes } from "./civil-time";
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -66,9 +67,7 @@ function findExtremes(
 }
 
 function hoursBetween(a: string, b: string): number {
-  const da = new Date(a).getTime();
-  const db = new Date(b).getTime();
-  return Math.abs(db - da) / (1000 * 60 * 60);
+  return Math.abs(civilToMinutes(b) - civilToMinutes(a)) / 60;
 }
 
 export function computeTidePhases(tides: TidePoint[]): TidePhase[] {
@@ -326,12 +325,11 @@ function findNearestTidePhase(
 ): TidePhase | undefined {
   if (tidePhases.length === 0) return undefined;
 
-  const t = new Date(time).getTime();
   let closest = tidePhases[0];
-  let minDist = Math.abs(new Date(closest.time).getTime() - t);
+  let minDist = civilAbsDiffMinutes(closest.time, time);
 
   for (let i = 1; i < tidePhases.length; i++) {
-    const dist = Math.abs(new Date(tidePhases[i].time).getTime() - t);
+    const dist = civilAbsDiffMinutes(tidePhases[i].time, time);
     if (dist < minDist) {
       minDist = dist;
       closest = tidePhases[i];

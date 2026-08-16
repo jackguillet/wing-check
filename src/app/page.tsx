@@ -7,6 +7,7 @@ import {
   getCachedForecastsBySpotIds,
 } from "@/lib/actions/forecasts";
 import { evaluateSpot, defaultCriteria } from "@/lib/alerts/evaluator";
+import { spotLocalNow } from "@/lib/weather/civil-time";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { UnitsProvider } from "@/components/units-provider";
 import { getDisplayUnits } from "@/lib/actions/settings";
@@ -92,6 +93,7 @@ export default async function DashboardPage() {
         criteria,
         forecast.sunrise,
         forecast.sunset,
+        spotLocalNow(forecast.utcOffsetSeconds),
       );
       return { spot, evaluation, isFavorite };
     } catch {

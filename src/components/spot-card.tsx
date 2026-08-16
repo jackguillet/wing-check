@@ -9,10 +9,13 @@ import {
   type SpotEvaluation,
 } from "@/lib/alerts/evaluator";
 import { Heart } from "lucide-react";
-import { format, parseISO } from "date-fns";
 import { degreesToCardinal } from "@/lib/weather/types";
 import { useUnits } from "@/components/units-provider";
 import { formatWind } from "@/lib/units";
+import {
+  formatCivilClock,
+  formatCivilWeekdayShort,
+} from "@/lib/weather/civil-time";
 
 interface SpotCardProps {
   spot: Spot;
@@ -45,16 +48,13 @@ const statusDot: Record<string, string> = {
   "no-go": "bg-red-500",
 };
 
-function dayLabel(dateStr: string, index: number): string {
-  if (index === 0) return "Today";
-  const d = new Date(dateStr + "T00:00");
-  return d.toLocaleDateString("en-US", { weekday: "short" });
+function dayLabel(dateStr: string, todayDate: string | null): string {
+  if (todayDate && dateStr === todayDate) return "Today";
+  return formatCivilWeekdayShort(dateStr);
 }
 
 function formatWindowRange(startIso: string, endIso: string): string {
-  const start = parseISO(startIso);
-  const end = parseISO(endIso);
-  return `${format(start, "EEE HH:mm")}–${format(end, "HH:mm")}`;
+  return `${formatCivilWeekdayShort(startIso)} ${formatCivilClock(startIso)}–${formatCivilClock(endIso)}`;
 }
 
 export function SpotCard({ spot, evaluation, isFavorite }: SpotCardProps) {
@@ -63,6 +63,7 @@ export function SpotCard({ spot, evaluation, isFavorite }: SpotCardProps) {
   const nextWindow = evaluation
     ? nextRideableWindow(evaluation.rideableWindows)
     : null;
+  const todayDate = evaluation?.todayDate ?? null;
 
   return (
     <Link href={`/spots/${spot.slug}`}>
@@ -79,10 +80,10 @@ export function SpotCard({ spot, evaluation, isFavorite }: SpotCardProps) {
         <CardContent>
           {days.length > 0 ? (
             <div className="grid grid-cols-3 gap-2 text-center text-sm">
-              {days.map((day, i) => (
+              {days.map((day) => (
                 <div key={day.date} className="space-y-1">
                   <p className="text-muted-foreground text-xs">
-                    {dayLabel(day.date, i)}
+                    {dayLabel(day.date, todayDate)}
                   </p>
                   <div className="flex items-center justify-center gap-1.5">
                     <span

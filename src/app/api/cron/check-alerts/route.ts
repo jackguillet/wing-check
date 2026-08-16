@@ -10,6 +10,7 @@ import {
 } from "@/lib/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { evaluateSpot } from "@/lib/alerts/evaluator";
+import { spotLocalNow } from "@/lib/weather/civil-time";
 import { resolveCriteria, windProfileFromPrefs } from "@/lib/criteria";
 import { sendAlert } from "@/lib/alerts/notifier";
 import { getAppUrl } from "@/lib/app-url";
@@ -150,6 +151,7 @@ export async function GET(request: Request) {
         criteria,
         forecast.daily?.sunrise,
         forecast.daily?.sunset,
+        spotLocalNow(forecast.utc_offset_seconds),
       );
 
       if (evaluation.goNoGo === "go" && evaluation.rideableWindows.length > 0) {
