@@ -42,6 +42,8 @@ import { DeleteSpotButton } from "@/components/delete-spot-button";
 import { SpotAlertToggle } from "@/components/spot-alert-toggle";
 import { ScoringGuide } from "@/components/scoring-guide";
 import { SevenDayStrip } from "@/components/seven-day-strip";
+import { CopySpotLink } from "@/components/copy-spot-link";
+import { EditSpotForm } from "@/components/edit-spot-form";
 import { cn } from "@/lib/utils";
 import { logger } from "@/lib/logger";
 import * as Sentry from "@sentry/nextjs";
@@ -299,6 +301,7 @@ export default async function SpotDetailPage({
           <div className="flex flex-col gap-3 md:items-end">
             <div className="flex items-center gap-2 flex-wrap">
               <ScoringGuide />
+              {spot.slug ? <CopySpotLink slug={spot.slug} /> : null}
             {isAuthenticated && (
               <>
                 <form action={toggleFavoriteAction}>
@@ -385,6 +388,17 @@ export default async function SpotDetailPage({
           isOwner={isOwner}
           updateAction={updateSpotNotes}
         />
+
+        {isOwner ? (
+          <EditSpotForm
+            spotId={spot.id}
+            name={spot.name}
+            latitude={spot.latitude}
+            longitude={spot.longitude}
+            noaaStationId={spot.noaaStationId}
+            notes={spot.notes}
+          />
+        ) : null}
 
         {forecast?.stale && (
           <div className="flex items-start gap-2 rounded-md border border-yellow-500/50 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-800 dark:text-yellow-200">
