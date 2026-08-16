@@ -66,7 +66,7 @@ export function SpotCard({ spot, evaluation, isFavorite }: SpotCardProps) {
               <span className="font-medium">{evaluation.overallScore}/100</span>
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">Loading forecast...</p>
+            <p className="text-sm text-muted-foreground">Forecast unavailable</p>
           )}
           <p className="text-xs text-muted-foreground mt-2">
             {spot.latitude.toFixed(3)}°, {spot.longitude.toFixed(3)}°

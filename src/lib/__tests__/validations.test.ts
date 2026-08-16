@@ -111,6 +111,17 @@ describe("createSpotSchema", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it("rejects min wind greater than max wind", () => {
+    const result = createSpotSchema.safeParse({
+      name: "Test",
+      latitude: "37",
+      longitude: "-122",
+      minWindSpeed: "30",
+      maxWindSpeed: "10",
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("updateCriteriaSchema", () => {
@@ -119,7 +130,7 @@ describe("updateCriteriaSchema", () => {
       minWindSpeed: "12",
       maxWindSpeed: "30",
       maxGustFactor: "2.0",
-      preferredDirections: '["N","S"]',
+      preferredDirections: "[270, 180]",
       directionTolerance: "60",
       minConsecutiveHours: "3",
       maxWaveHeight: "2.0",
@@ -143,6 +154,14 @@ describe("updateCriteriaSchema", () => {
   it("rejects out-of-range direction tolerance", () => {
     const result = updateCriteriaSchema.safeParse({
       directionTolerance: "200",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects min wind greater than max wind", () => {
+    const result = updateCriteriaSchema.safeParse({
+      minWindSpeed: "40",
+      maxWindSpeed: "12",
     });
     expect(result.success).toBe(false);
   });

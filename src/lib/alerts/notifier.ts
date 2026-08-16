@@ -6,9 +6,15 @@ interface AlertPayload {
   spotName: string;
   windows: RideableWindow[];
   email: string;
+  spotUrl?: string;
 }
 
-export async function sendAlert({ spotName, windows, email }: AlertPayload) {
+export async function sendAlert({
+  spotName,
+  windows,
+  email,
+  spotUrl,
+}: AlertPayload) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
     logger.warn("RESEND_API_KEY not set, skipping email alert");
@@ -41,7 +47,7 @@ export async function sendAlert({ spotName, windows, email }: AlertPayload) {
     from: "Wing Check <alerts@wingcheck.dev>",
     to: email,
     subject: `Wind alert: ${spotName} looks rideable!`,
-    text: `Good conditions forecast at ${spotName}:\n\n${windowSummaries}\n\nCheck your dashboard for full details.`,
+    text: `Good conditions forecast at ${spotName}:\n\n${windowSummaries}\n\n${spotUrl ? `View the forecast: ${spotUrl}` : "Check your dashboard for full details."}`,
   });
 
   return result;

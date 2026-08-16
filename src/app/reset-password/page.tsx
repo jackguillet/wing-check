@@ -16,37 +16,41 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-function safeCallbackPath(value: string | null): string {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/";
-  return value;
-}
-
-function SignInForm() {
+function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = safeCallbackPath(searchParams.get("callbackUrl"));
-  const [email, setEmail] = useState("");
+  const token = searchParams.get("token") ?? "";
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    setLoading(true);
 
-    const { error: signInError } = await authClient.signIn.email({
-      email,
-      password,
+    if (password !== confirm) {
+      setError("Passwords do not match");
+      return;
+    }
+    if (!token) {
+      setError("This reset link is invalid or has expired.");
+      return;
+    }
+
+    setLoading(true);
+    const { error: resetError } = await authClient.resetPassword({
+      newPassword: password,
+      token,
     });
 
-    if (signInError) {
-      setError(signInError.message ?? "Sign in failed");
+    if (resetError) {
+      setError(resetError.message ?? "Couldn't reset password");
       setLoading(false);
       return;
     }
 
-    router.push(callbackUrl);
+    router.push("/sign-in");
     router.refresh();
   }
 
@@ -54,51 +58,45 @@ function SignInForm() {
     <div className="flex min-h-[60vh] items-center justify-center">
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle className="text-2xl">Sign In</CardTitle>
+          <CardTitle className="text-2xl">Choose a new password</CardTitle>
           <CardDescription>
-            Enter your email and password to access your spots.
+            Enter a new password for your Wing Check account.
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="flex flex-col gap-4">
             {error && <p className="text-sm text-destructive">{error}</p>}
             <div className="flex flex-col gap-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">New password</Label>
               <Input
                 id="password"
                 type="password"
                 required
+                minLength={8}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                placeholder="At least 8 characters"
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="confirm">Confirm password</Label>
+              <Input
+                id="confirm"
+                type="password"
+                required
+                minLength={8}
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
               />
             </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Signing in..." : "Sign In"}
+              {loading ? "Saving…" : "Update password"}
             </Button>
-            <p className="text-sm text-muted-foreground">
-              <Link href="/forgot-password" className="text-primary underline">
-                Forgot password?
-              </Link>
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Don&apos;t have an account?{" "}
-              <Link href="/sign-up" className="text-primary underline">
-                Sign up
-              </Link>
-            </p>
+            <Link href="/sign-in" className="text-sm text-primary underline">
+              Back to sign in
+            </Link>
           </CardFooter>
         </form>
       </Card>
@@ -106,7 +104,7 @@ function SignInForm() {
   );
 }
 
-export default function SignInPage() {
+export default function ResetPasswordPage() {
   return (
     <Suspense
       fallback={
@@ -115,7 +113,7 @@ export default function SignInPage() {
         </div>
       }
     >
-      <SignInForm />
+      <ResetPasswordForm />
     </Suspense>
   );
 }

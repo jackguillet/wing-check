@@ -10,6 +10,7 @@ import {
 import { eq, and, inArray } from "drizzle-orm";
 import { evaluateSpot } from "@/lib/alerts/evaluator";
 import { sendAlert } from "@/lib/alerts/notifier";
+import { getAppUrl } from "@/lib/app-url";
 import {
   fetchWeatherForecast,
   fetchMarineForecast,
@@ -143,10 +144,15 @@ export async function GET(request: Request) {
 
         if (recentAlerts.length > 0) continue;
 
+        const appUrl = getAppUrl();
+        const spotPath = sub.spot.slug
+          ? `/spots/${sub.spot.slug}`
+          : `/spots/${sub.spot.id}`;
         const result = await sendAlert({
           spotName: sub.spot.name,
           windows: evaluation.rideableWindows,
           email: prefs.email!,
+          spotUrl: `${appUrl}${spotPath}`,
         });
 
         await db.insert(alertHistory).values({

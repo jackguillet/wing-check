@@ -7,6 +7,7 @@ const envSchema = z.object({
 
   // Auth
   BETTER_AUTH_SECRET: z.string().min(1, "BETTER_AUTH_SECRET is required"),
+  BETTER_AUTH_URL: z.string().url().optional(),
 
   // Optional but validated when present
   CRON_SECRET: z.string().optional(),
