@@ -40,16 +40,20 @@ export function ScoringGuide() {
           </li>
           <li>
             <span className="font-medium">Direction 0–25</span> — closer to
-            your preferred dirs scores higher.
+            your preferred dirs scores higher. If you set dirs, outside
+            tolerance is a hard zero (cannot GO).
           </li>
           <li>
             <span className="font-medium">Waves 0–10</span> — over your max
-            (or missing data) scores 0 of 10.
+            (or missing data) scores 0 of 10. Not a hard zero.
           </li>
         </ul>
         <p className="text-sm text-muted-foreground">
-          GO is a remaining window averaging 70+. MARGINAL is a remaining
-          window below that. NO-GO means nothing rideable is left today.
+          Heavy rain, violent showers, and fog take up to 10 points off.
+          Tide, swell quality, and wave amplification are shown for
+          planning and are not in the grade. GO is a remaining window
+          averaging 70+. MARGINAL is a remaining window below that. NO-GO
+          means nothing rideable is left today.
         </p>
       </DialogContent>
     </Dialog>

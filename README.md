@@ -62,8 +62,10 @@ Each forecast hour is scored on four dimensions:
 
 1. **Wind Speed (0-40 pts)** — Hard gate outside your min/max. Inside the band, score peaks at the midpoint.
 2. **Gusts (0-25 pts)** — Hard gate only above **50 kt**. Below that, a soft curve vs `max_gust_factor` (1.0 = no extra gusts allowed). Gusty trades can still score.
-3. **Wind Direction (0-25 pts)** — Soft. Empty preferred list = full 25. Outside tolerance = 0 of 25 (the hour can still GO).
-4. **Wave Height (0-10 pts)** — Soft. Over the max, or missing marine data when a max is set, = 0 of 10. Thunderstorms (WMO 95/96/99) zero the hour.
+3. **Wind Direction (0-25 pts)** — Empty preferred list = full 25. If dirs are set, outside tolerance **zeros the hour** (cannot GO). Inside the band, closer to the chip scores higher.
+4. **Wave Height (0-10 pts)** — Soft. Over the max, or missing marine data when a max is set, = 0 of 10 (not a hard zero). Thunderstorms (WMO 95/96/99) zero the hour. Heavy rain (65), violent rain (82), and fog (45/48) subtract up to 10.
+
+Tide phase, swell quality, and wave amplification are shown on the spot page and **are not in the grade**.
 
 Consecutive **remaining** daylight hours scoring 50+ form **rideable windows**. Hours that have already ended do not count. The best remaining window's average determines the day:
 - **GO** (≥70): A remaining window looks great

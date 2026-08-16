@@ -7,6 +7,7 @@ import {
   spotLocalNow,
   toYyyymmdd,
   hourIsOpen,
+  isDaylightCivil,
   civilMidpoint,
   formatCivilClock,
   formatCivilWeekdayShort,
@@ -94,5 +95,25 @@ describe("civilMidpoint", () => {
 describe("civilDate", () => {
   it("returns the YYYY-MM-DD prefix", () => {
     expect(civilDate("2026-02-14T15:00")).toBe("2026-02-14");
+  });
+});
+
+describe("isDaylightCivil", () => {
+  const sunrise = ["2026-02-14T07:18"];
+  const sunset = ["2026-02-14T18:42"];
+
+  it("includes hours at or after sunrise and at or before sunset", () => {
+    expect(isDaylightCivil("2026-02-14T07:18", sunrise, sunset)).toBe(true);
+    expect(isDaylightCivil("2026-02-14T12:00", sunrise, sunset)).toBe(true);
+    expect(isDaylightCivil("2026-02-14T18:42", sunrise, sunset)).toBe(true);
+  });
+
+  it("excludes hours before sunrise without flooring to the hour", () => {
+    expect(isDaylightCivil("2026-02-14T07:00", sunrise, sunset)).toBe(false);
+    expect(isDaylightCivil("2026-02-14T19:00", sunrise, sunset)).toBe(false);
+  });
+
+  it("includes everything when that date has no sun times", () => {
+    expect(isDaylightCivil("2026-02-15T03:00", sunrise, sunset)).toBe(true);
   });
 });

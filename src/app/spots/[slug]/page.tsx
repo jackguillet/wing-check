@@ -7,10 +7,11 @@ import {
   toggleFavorite,
   toggleSpotAlerts,
   clearSpotWindOverride,
+  updateSpotVisibility,
 } from "@/lib/actions/spots";
 import {
-  getSpot,
-  getSpotBySlug,
+  getVisibleSpot,
+  getVisibleSpotBySlug,
   getSpotWithCriteriaBySlug,
   getResolvedCriteriaDetails,
   getUserSpotPrefs,
@@ -51,10 +52,14 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
+  const session = await getSession();
+  const viewerId = session?.user?.id;
   const spot = /^\d+$/.test(slug)
-    ? await getSpot(parseInt(slug))
-    : await getSpotBySlug(slug);
-  if (!spot) return { title: "Spot · Wing Check" };
+    ? await getVisibleSpot(parseInt(slug), viewerId)
+    : await getVisibleSpotBySlug(slug, viewerId);
+  if (!spot) {
+    return { title: "Spot · Wing Check" };
+  }
   return {
     title: `${spot.name} · Wing Check`,
     description: `Wind forecast and go/no-go score for ${spot.name}.`,
@@ -195,14 +200,16 @@ export default async function SpotDetailPage({
   const { slug } = await params;
 
   // Backward-compat: if slug is all digits, look up by numeric ID and redirect
+  const session = await getSession();
+  const viewerId = session?.user?.id;
+
   if (/^\d+$/.test(slug)) {
-    const spot = await getSpot(parseInt(slug));
+    const spot = await getVisibleSpot(parseInt(slug), viewerId);
     if (!spot || !spot.slug) notFound();
     redirect(`/spots/${spot.slug}`);
   }
 
-  const session = await getSession();
-  const spotData = await getSpotWithCriteriaBySlug(slug);
+  const spotData = await getSpotWithCriteriaBySlug(slug, viewerId);
   if (!spotData) notFound();
 
   const { spot } = spotData;
@@ -255,6 +262,7 @@ export default async function SpotDetailPage({
             </p>
             <p className="text-sm text-muted-foreground mt-1">
               {criteriaSourceLabel(source)}
+              {spot.visibility === "private" ? " · Private" : null}
             </p>
             {forecast &&
               (() => {
@@ -356,10 +364,26 @@ export default async function SpotDetailPage({
               </>
             )}
             {isOwner && (
-              <DeleteSpotButton
-                spotName={spot.name}
-                deleteAction={deleteAction}
-              />
+              <>
+                <form action={updateSpotVisibility.bind(null, spot.id)}>
+                  <input
+                    type="hidden"
+                    name="visibility"
+                    value={spot.visibility === "public" ? "private" : "public"}
+                  />
+                  <Button variant="outline" size="sm">
+                    {spot.visibility === "public"
+                      ? "Unpublish"
+                      : "Publish to catalog"}
+                  </Button>
+                </form>
+                {spot.visibility === "private" ? (
+                  <DeleteSpotButton
+                    spotName={spot.name}
+                    deleteAction={deleteAction}
+                  />
+                ) : null}
+              </>
             )}
             </div>
             <ForecastToggles />

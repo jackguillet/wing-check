@@ -104,6 +104,9 @@ export const spots = sqliteTable(
     longitude: real("longitude").notNull(),
     noaaStationId: text("noaa_station_id"),
     notes: text("notes"),
+    visibility: text("visibility", { enum: ["public", "private"] })
+      .notNull()
+      .default("public"),
     createdAt: integer("created_at", { mode: "timestamp" })
       .notNull()
       .$defaultFn(() => new Date()),

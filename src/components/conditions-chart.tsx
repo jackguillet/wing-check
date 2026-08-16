@@ -116,6 +116,9 @@ function ConditionsTooltip({
       {d.amplification && d.amplification.level !== "none" && (
         <p className="text-amber-500 font-medium capitalize">
           {d.amplification.level} wave amplification
+          <span className="block font-normal normal-case text-muted-foreground">
+            Shown for planning — not in the grade
+          </span>
         </p>
       )}
     </div>
@@ -266,7 +269,12 @@ export function ConditionsChart({
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle>Conditions</CardTitle>
+          <div>
+            <CardTitle>Conditions</CardTitle>
+            <p className="text-xs text-muted-foreground font-normal mt-1">
+              Tide, swell quality, and wave amplification are not in the grade
+            </p>
+          </div>
           <div className="flex gap-1">
             <button
               onClick={() => setView("chart")}

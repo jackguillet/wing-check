@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getSpotForecast } from "@/lib/data/forecasts";
+import { getSpot } from "@/lib/data/spots";
 import { getSessionFromHeaders } from "@/lib/auth-session";
+import { canViewSpot } from "@/lib/spots/visibility";
 import { logger } from "@/lib/logger";
 import * as Sentry from "@sentry/nextjs";
 
@@ -15,6 +17,10 @@ export async function GET(
   }
 
   const session = await getSessionFromHeaders(request.headers);
+  const spot = await getSpot(id);
+  if (!spot || !canViewSpot(spot, session?.user?.id)) {
+    return NextResponse.json({ error: "Spot not found" }, { status: 404 });
+  }
 
   try {
     const forecast = await getSpotForecast(id, {
