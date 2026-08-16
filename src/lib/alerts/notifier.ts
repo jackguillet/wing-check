@@ -12,6 +12,7 @@ import {
 import { requireResendKey } from "@/lib/mail";
 import { getAppUrl } from "@/lib/app-url";
 import { createUnsubscribeToken } from "./unsubscribe";
+import { formatWingSize } from "@/lib/wings";
 
 interface AlertPayload {
   spotName: string;
@@ -37,7 +38,11 @@ export async function sendAlert({
     .map((w) => {
       const start = `${formatCivilWeekdayDate(w.start)} ${formatCivilClock(w.start)}`;
       const end = formatCivilClock(w.end);
-      return `${start} – ${end}: ${formatWind(w.avgWind, windSpeedUnit)} avg (gusts ${formatWind(w.avgGusts, windSpeedUnit)}), ${degreesToCardinal(w.dominantDirection)}, score ${w.avgScore}/100`;
+      const wing =
+        w.recommendedWing != null
+          ? `, ${formatWingSize(w.recommendedWing)}`
+          : "";
+      return `${start} – ${end}: ${formatWind(w.avgWind, windSpeedUnit)} avg (gusts ${formatWind(w.avgGusts, windSpeedUnit)}), ${degreesToCardinal(w.dominantDirection)}${wing}, score ${w.avgScore}/100`;
     })
     .join("\n");
 

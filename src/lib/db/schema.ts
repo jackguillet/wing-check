@@ -249,8 +249,24 @@ export const preferences = sqliteTable(
     sessionEndHour: integer("session_end_hour"),
     preferredTide: text("preferred_tide"),
     activeKitName: text("active_kit_name"),
+    riderWeightKg: real("rider_weight_kg"),
   },
   (table) => [uniqueIndex("preferences_userId_uniq").on(table.userId)],
+);
+
+export const wings = sqliteTable(
+  "wings",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    sizeM2: real("size_m2").notNull(),
+  },
+  (table) => [
+    index("wings_userId_idx").on(table.userId),
+    uniqueIndex("wings_userId_size_uniq").on(table.userId, table.sizeM2),
+  ],
 );
 
 export const kitPresets = sqliteTable(
@@ -286,4 +302,5 @@ export type NewUserAlertCriteria = typeof userAlertCriteria.$inferInsert;
 export type ForecastCache = typeof forecastCache.$inferSelect;
 export type Preferences = typeof preferences.$inferSelect;
 export type KitPreset = typeof kitPresets.$inferSelect;
+export type Wing = typeof wings.$inferSelect;
 export type SpotOverview = typeof spotOverviews.$inferSelect;

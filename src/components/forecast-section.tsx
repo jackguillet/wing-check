@@ -19,6 +19,7 @@ import { CriteriaForm } from "@/components/criteria-form";
 import { useUnits } from "@/components/units-provider";
 import { formatWind } from "@/lib/units";
 import type { CriteriaSource } from "@/lib/criteria";
+import { formatWingSize, formatWouldBeGo } from "@/lib/wings";
 import {
   addCivilDays,
   civilAbsDiffMinutes,
@@ -38,6 +39,7 @@ interface ForecastSectionProps {
   rawCriteria: AlertCriteria | null;
   hourScores?: HourScore[];
   rideableWindows?: RideableWindow[];
+  suggestedWindows?: RideableWindow[];
   spotId: number;
   lat: number;
   lng: number;
@@ -114,6 +116,7 @@ export function ForecastSection({
   rawCriteria,
   hourScores,
   rideableWindows,
+  suggestedWindows,
   spotId,
   lat,
   lng,
@@ -178,6 +181,19 @@ export function ForecastSection({
     return rideableWindows.filter((w) => w.start.substring(0, 10) < cutoffStr);
   }, [rideableWindows, hours, dayRange, selectedDate]);
 
+  const filteredSuggested = useMemo(() => {
+    if (!suggestedWindows) return [];
+    if (selectedDate) {
+      return suggestedWindows.filter(
+        (w) => w.start.substring(0, 10) === selectedDate,
+      );
+    }
+    if (hours.length === 0) return suggestedWindows;
+    const firstDate = hours[0].time.substring(0, 10);
+    const cutoffStr = addCivilDays(firstDate, dayRange);
+    return suggestedWindows.filter((w) => w.start.substring(0, 10) < cutoffStr);
+  }, [suggestedWindows, hours, dayRange, selectedDate]);
+
   const conditionsInsight = useMemo(
     () => computeConditionsInsight(filteredHours, filteredTides),
     [filteredHours, filteredTides],
@@ -216,6 +232,9 @@ export function ForecastSection({
                           {w.hours}h · {formatWind(w.avgWind, windSpeedUnit)} avg
                           · gusts {formatWind(w.avgGusts, windSpeedUnit)}
                           · {degreesToCardinal(w.dominantDirection)}
+                          {w.recommendedWing != null
+                            ? ` · ${formatWingSize(w.recommendedWing)}`
+                            : ""}
                         </p>
                         {(() => {
                           if (filteredHours.length === 0) return null;
@@ -288,6 +307,41 @@ export function ForecastSection({
           sunset={sunset}
         />
       )}
+
+      {filteredSuggested.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>If you had another wing</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {filteredSuggested.map((w, i) => (
+                <div
+                  key={`${w.start}-${i}`}
+                  className="flex items-center justify-between rounded-md border p-3"
+                >
+                  <div>
+                    <p className="font-medium">
+                      {w.recommendedWing != null
+                        ? formatWouldBeGo(w.recommendedWing)
+                        : "A missing wing would open a window"}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {formatCivilWeekdayDate(w.start)}{" "}
+                      {formatCivilClock(w.start)} – {formatCivilClock(w.end)}
+                      {" · "}
+                      {w.hours}h · {formatWind(w.avgWind, windSpeedUnit)} avg
+                    </p>
+                  </div>
+                  <Badge className="bg-green-600 text-white">
+                    {w.avgScore}/100
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Tabs defaultValue="chart">
         <TabsList>

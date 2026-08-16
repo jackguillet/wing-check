@@ -92,8 +92,8 @@ export function DashboardShell({
     <div className="space-y-8">
       {isAuthenticated && !hasKit && (
         <div className="rounded-md border border-dashed px-4 py-3 text-sm">
-          Set your default wind kit so every spot is scored for you — not the
-          catalog average.{" "}
+          Set your kit and the wings you own so a light day can still be
+          GO.{" "}
           <Link href="/setup" className="underline font-medium">
             Set my kit
           </Link>
@@ -208,4 +208,5 @@ const emptyEval: SpotEvaluation = {
   bestWindow: null,
   dayEvaluations: [],
   todayDate: null,
+  suggestedWindows: [],
 };

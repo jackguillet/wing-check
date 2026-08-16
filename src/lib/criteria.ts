@@ -56,19 +56,30 @@ export function criteriaKitLabel(
   source: CriteriaSource,
   criteria: Pick<AlertCriteria, "minWindSpeed" | "maxWindSpeed">,
   activeKitName?: string | null,
+  quiverSizes?: number[] | null,
 ): string {
   const band = `${Math.round(criteria.minWindSpeed)}–${Math.round(criteria.maxWindSpeed)} kt`;
+  const quiver =
+    source !== "spot-override" && quiverSizes && quiverSizes.length > 0
+      ? [...quiverSizes]
+          .sort((a, b) => b - a)
+          .map((s) => (s % 1 === 0 ? String(s) : s.toFixed(1)))
+          .join(" / ") + "m"
+      : null;
   switch (source) {
     case "spot-override":
       return `Custom window · ${band}`;
     case "user-default": {
       const name = activeKitName?.trim();
+      if (quiver) {
+        return name ? `${name} · ${quiver}` : `Your quiver · ${quiver}`;
+      }
       return name ? `${name} · ${band}` : `Your default kit · ${band}`;
     }
     case "catalog":
-      return `Catalog default · ${band}`;
+      return quiver ? `Your quiver · ${quiver}` : `Catalog default · ${band}`;
     case "app":
-      return `App default · ${band}`;
+      return quiver ? `Your quiver · ${quiver}` : `App default · ${band}`;
   }
 }
 

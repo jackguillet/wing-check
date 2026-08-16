@@ -9,6 +9,7 @@ import {
   weatherCodeToDescription,
 } from "@/lib/weather/types";
 import type { AlertCriteria, Spot, SpotOverview } from "@/lib/db/schema";
+import { formatWingSize, type WingBand } from "@/lib/wings";
 import { getSession } from "@/lib/auth-session";
 import { logger } from "@/lib/logger";
 import * as Sentry from "@sentry/nextjs";
@@ -48,6 +49,8 @@ export function buildForecastSummary(
   sunset?: string[],
   units: DisplayUnits = DEFAULT_UNITS,
   nowCivil?: string,
+  quiver?: WingBand[] | null,
+  missing?: WingBand[] | null,
 ) {
   // Group hours by day (first 72h)
   const next72h = hours.slice(0, 72);
@@ -105,6 +108,10 @@ export function buildForecastSummary(
     sunrise,
     sunset,
     nowCivil,
+    null,
+    null,
+    quiver,
+    missing,
   );
 
   const windows = evaluation.rideableWindows.map((w) => ({
@@ -115,6 +122,16 @@ export function buildForecastSummary(
     avgGusts: formatWind(w.avgGusts, units.windSpeedUnit),
     direction: degreesToCardinal(w.dominantDirection),
     score: w.avgScore,
+    wing:
+      w.recommendedWing != null ? formatWingSize(w.recommendedWing) : null,
+  }));
+  const suggested = evaluation.suggestedWindows.map((w) => ({
+    start: w.start,
+    end: w.end,
+    hours: w.hours,
+    score: w.avgScore,
+    wing:
+      w.recommendedWing != null ? formatWingSize(w.recommendedWing) : null,
   }));
 
   return {
@@ -128,12 +145,14 @@ export function buildForecastSummary(
       maxGustFactor: criteria.maxGustFactor,
       preferredDirections: criteria.preferredDirections,
       maxWaveHeight: criteria.maxWaveHeight,
+      quiver: quiver?.map((w) => formatWingSize(w.sizeM2)) ?? [],
     },
     days,
     evaluation: {
       goNoGo: evaluation.goNoGo,
       overallScore: evaluation.overallScore,
       rideableWindows: windows,
+      suggestedWindows: suggested,
     },
   };
 }
@@ -148,6 +167,8 @@ async function generateSpotOverview(
   sunset?: string[],
   units: DisplayUnits = DEFAULT_UNITS,
   nowCivil?: string,
+  quiver?: WingBand[] | null,
+  missing?: WingBand[] | null,
 ): Promise<{ overview: string; forecastSummary: string }> {
   const summary = buildForecastSummary(
     spot,
@@ -157,6 +178,8 @@ async function generateSpotOverview(
     sunset,
     units,
     nowCivil,
+    quiver,
+    missing,
   );
   const forecastSummary = JSON.stringify(summary);
 
@@ -170,7 +193,9 @@ async function generateSpotOverview(
       max_tokens: 300,
       system: `You are a concise wing foiling weather analyst writing for experienced riders.
 Write a single short paragraph (50-80 words max) summarizing today's conditions:
-wind range, direction, best window, and swell if relevant. Don't explain basic
+wind range, direction, best window, recommended wing size if given, and swell if relevant.
+If suggestedWindows is present, mention that a wing they do not own would make the day GO.
+Don't explain basic
 concepts or restate the rider's criteria — they already know what they need.
 End with a bold **Bottom line:** one-sentence go/no-go verdict.`,
       messages: [
@@ -206,11 +231,23 @@ export async function getOrGenerateOverview(
   sunrise?: string[],
   sunset?: string[],
   nowCivil?: string,
+  quiver?: WingBand[] | null,
+  missing?: WingBand[] | null,
 ): Promise<SpotOverview | null> {
   const now = new Date();
   const units = DEFAULT_UNITS;
   const forecastSummary = JSON.stringify(
-    buildForecastSummary(spot, hours, criteria, sunrise, sunset, units, nowCivil),
+    buildForecastSummary(
+      spot,
+      hours,
+      criteria,
+      sunrise,
+      sunset,
+      units,
+      nowCivil,
+      quiver,
+      missing,
+    ),
   );
 
   const cached = await db
@@ -237,6 +274,8 @@ export async function getOrGenerateOverview(
       sunset,
       units,
       nowCivil,
+      quiver,
+      missing,
     );
 
     const expired = cached.filter((row) => row.expiresAt <= now);

@@ -13,10 +13,12 @@ import { eq, and, inArray } from "drizzle-orm";
 import { evaluateSpot } from "@/lib/alerts/evaluator";
 import { spotLocalNow } from "@/lib/weather/civil-time";
 import {
-  resolveCriteria,
+  resolveCriteriaWithSource,
   riderScheduleFromPrefs,
   windProfileFromPrefs,
 } from "@/lib/criteria";
+import { getWingsByUserIds } from "@/lib/data/settings";
+import { quiverPair } from "@/lib/wings";
 import { sendAlert } from "@/lib/alerts/notifier";
 import {
   upcomingGoWindows,
@@ -122,6 +124,7 @@ export async function GET(request: Request) {
       .from(alertHistory)
       .where(inArray(alertHistory.userId, enabledUserIds));
     const prefsMap = new Map(enabledPrefs.map((p) => [p.userId, p]));
+    const wingsByUser = await getWingsByUserIds(enabledUserIds);
 
     const forecastBySpot = new Map<
       number,
@@ -148,7 +151,7 @@ export async function GET(request: Request) {
       const account = verifiedById.get(sub.userId);
       if (!prefs || !account?.email) continue;
 
-      const criteria = resolveCriteria(
+      const { criteria, source } = resolveCriteriaWithSource(
         sub.spot.id,
         userCriteriaByKey.get(`${sub.userId}:${sub.spot.id}`),
         windProfileFromPrefs(prefs),
@@ -159,6 +162,11 @@ export async function GET(request: Request) {
       if (!forecast) continue;
 
       const nowCivil = spotLocalNow(forecast.utcOffsetSeconds);
+      const { quiver, missing } = quiverPair(
+        source,
+        (wingsByUser.get(sub.userId) ?? []).map((w) => w.sizeM2),
+        prefs.riderWeightKg,
+      );
       const evaluation = evaluateSpot(
         forecast.hours,
         criteria,
@@ -167,6 +175,8 @@ export async function GET(request: Request) {
         nowCivil,
         riderScheduleFromPrefs(prefs),
         forecast.tides,
+        quiver,
+        missing,
       );
 
       const upcoming = upcomingGoWindows(evaluation.rideableWindows, nowCivil);

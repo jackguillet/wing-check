@@ -24,15 +24,18 @@ export function ScoringGuide() {
         <DialogHeader>
           <DialogTitle>How the 0–100 score works</DialogTitle>
           <DialogDescription>
-            Each daylight hour is scored against your kit. Consecutive hours
-            at 50+ become a rideable window. The day badge is the best
-            remaining window.
+            Each daylight hour is scored against your kit. If you saved a
+            quiver, wind is scored against the best wing you own — a light
+            day can still be GO. If a size you do not own would make the
+            day GO, we say so. Consecutive hours at 50+ become a rideable
+            window. The day badge is the best remaining window.
           </DialogDescription>
         </DialogHeader>
         <ul className="text-sm space-y-2">
           <li>
-            <span className="font-medium">Wind 0–40</span> — hard gate outside
-            your min/max; peaks at the midpoint.
+            <span className="font-medium">Wind 0–40</span> — hard gate
+            outside your min/max (or outside every wing in your quiver);
+            peaks at the midpoint of the matching wing.
           </li>
           <li>
             <span className="font-medium">Gusts 0–25</span> — hard gate only

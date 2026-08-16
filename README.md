@@ -7,6 +7,7 @@ A personal weather alert dashboard for wing foil enthusiasts. Track wind conditi
 - **Spot Management** — Save spots with lat/lng, preferred wind conditions, and NOAA station IDs for tide data
 - **Live Forecasts** — 14-day hourly wind speed, gusts, direction, temperature, swell, and wave data via Open-Meteo (graded over the first 7 days)
 - **Go/No-Go Scoring** — Configurable evaluator scores each hour (0-100) based on wind range, gust factor, direction, and wave height, then finds rideable windows
+- **Quiver-aware grades** — Save the wings you own; each hour is scored against the best matching size and the forecast says which wing to bring
 - **Wind Charts** — Visual wind speed + gust band charts with min/max reference lines
 - **Email Alerts** — Scheduled checks via Resend that notify you when conditions look good
 - **Forecast Caching** — SQLite-backed cache avoids redundant API calls
@@ -60,7 +61,7 @@ Open [http://localhost:3000](http://localhost:3000) to see the dashboard.
 
 Each forecast hour is scored on four dimensions:
 
-1. **Wind Speed (0-40 pts)** — Hard gate outside your min/max. Inside the band, score peaks at the midpoint.
+1. **Wind Speed (0-40 pts)** — Hard gate outside your min/max. Inside the band, score peaks at the midpoint. If you saved a quiver, each hour is scored against the best matching wing instead of a single band (a 12 kt day can be GO on a 6m). If the day is not GO with what you own, the forecast can say a missing size (often a larger wing) would open a window.
 2. **Gusts (0-25 pts)** — Hard gate only above **50 kt**. Below that, a soft curve vs `max_gust_factor` (1.0 = no extra gusts allowed). Gusty trades can still score.
 3. **Wind Direction (0-25 pts)** — Empty preferred list = full 25. If dirs are set, outside tolerance **zeros the hour** (cannot GO). Inside the band, closer to the chip scores higher.
 4. **Wave Height (0-10 pts)** — Soft. Over the max, or missing marine data when a max is set, = 0 of 10 (not a hard zero). Thunderstorms (WMO 95/96/99) zero the hour. Heavy rain (65), violent rain (82), and fog (45/48) subtract up to 10.

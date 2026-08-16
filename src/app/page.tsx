@@ -1,6 +1,6 @@
 import {
   getSpotsWithFavorites,
-  getResolvedCriteriaMap,
+  getResolvedCriteriaDetailsMap,
 } from "@/lib/data/spots";
 import {
   getSpotForecast,
@@ -10,7 +10,7 @@ import { evaluateSpot, defaultCriteria } from "@/lib/alerts/evaluator";
 import { spotLocalNow } from "@/lib/weather/civil-time";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { UnitsProvider } from "@/components/units-provider";
-import { getDisplayUnits } from "@/lib/data/settings";
+import { getDisplayUnits, getWings } from "@/lib/data/settings";
 import { getUserWindProfile } from "@/lib/data/spots";
 import { getPreferences } from "@/lib/data/settings";
 import { riderScheduleFromPrefs } from "@/lib/criteria";
@@ -19,6 +19,7 @@ import type { AlertCriteria } from "@/lib/db/schema";
 import type { SpotForecast } from "@/lib/weather/types";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { quiverPair } from "@/lib/wings";
 
 export const dynamic = "force-dynamic";
 
@@ -49,9 +50,10 @@ export default async function DashboardPage() {
   }
 
   const spotIds = spots.map((s) => s.id);
-  const [criteriaMap, cachedForecasts] = await Promise.all([
-    getResolvedCriteriaMap(spotIds, session?.user?.id),
+  const [criteriaMap, cachedForecasts, userWings] = await Promise.all([
+    getResolvedCriteriaDetailsMap(spotIds, session?.user?.id),
     getCachedForecastsBySpotIds(spotIds),
+    session?.user ? getWings() : Promise.resolve([]),
   ]);
 
   const favoriteIdsNeedingFetch = session
@@ -82,6 +84,7 @@ export default async function DashboardPage() {
       ])
     : [null, null];
   const rider = riderPrefs ? riderScheduleFromPrefs(riderPrefs) : null;
+  const ownedSizes = userWings.map((w) => w.sizeM2);
 
   const spotData = spots.map((spot) => {
     const isFavorite = favoriteIds.has(spot.id);
@@ -94,11 +97,17 @@ export default async function DashboardPage() {
       return { spot, evaluation: null, isFavorite, stale: false };
     }
 
-    const criteria: AlertCriteria = criteriaMap.get(spot.id) ?? {
+    const resolved = criteriaMap.get(spot.id);
+    const criteria: AlertCriteria = resolved?.criteria ?? {
       id: 0,
       spotId: spot.id,
       ...defaultCriteria,
     };
+    const { quiver, missing } = quiverPair(
+      resolved?.source ?? "app",
+      ownedSizes,
+      riderPrefs?.riderWeightKg,
+    );
 
     try {
       const evaluation = evaluateSpot(
@@ -109,6 +118,8 @@ export default async function DashboardPage() {
         spotLocalNow(forecast.utcOffsetSeconds),
         rider,
         forecast.tides,
+        quiver,
+        missing,
       );
       return { spot, evaluation, isFavorite, stale: !!forecast.stale };
     } catch {
@@ -125,7 +136,7 @@ export default async function DashboardPage() {
         <DashboardShell
           spotData={spotData}
           isAuthenticated={isAuthenticated}
-          hasKit={!!kit}
+          hasKit={!!kit || userWings.length > 0}
         />
       </UnitsProvider>
     </div>

@@ -125,6 +125,21 @@ describe("criteriaKitLabel", () => {
       "Custom window · 12–22 kt",
     );
   });
+
+  it("names the quiver instead of the kt band", () => {
+    expect(criteriaKitLabel("user-default", band, null, [4.2, 6, 5])).toBe(
+      "Your quiver · 6 / 5 / 4.2m",
+    );
+    expect(criteriaKitLabel("user-default", band, "Lake", [6, 5])).toBe(
+      "Lake · 6 / 5m",
+    );
+  });
+
+  it("ignores the quiver on a spot override", () => {
+    expect(criteriaKitLabel("spot-override", band, "Lake", [6, 5])).toBe(
+      "Custom window · 12–22 kt",
+    );
+  });
 });
 
 describe("kitsMatch", () => {

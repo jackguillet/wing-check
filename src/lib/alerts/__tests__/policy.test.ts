@@ -17,6 +17,7 @@ function window(overrides: Partial<RideableWindow>): RideableWindow {
     avgWind: 18,
     avgGusts: 22,
     dominantDirection: 270,
+    recommendedWing: null,
     ...overrides,
   };
 }

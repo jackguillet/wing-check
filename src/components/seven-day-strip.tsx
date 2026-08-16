@@ -6,6 +6,7 @@ import {
   formatCivilWeekdayShort,
 } from "@/lib/weather/civil-time";
 import { useForecastControls } from "@/components/forecast-controls";
+import { formatWingSize } from "@/lib/wings";
 
 const goNoGoColors = {
   go: "bg-green-600/10 border-green-600 text-green-700 dark:text-green-400",
@@ -61,6 +62,13 @@ export function SevenDayStrip({
             {window ? (
               <p className="text-[10px] opacity-80 mt-1">
                 {window.start.slice(11, 16)}–{window.end.slice(11, 16)}
+                {window.recommendedWing != null
+                  ? ` · ${formatWingSize(window.recommendedWing)}`
+                  : ""}
+              </p>
+            ) : day.suggestedWindow?.recommendedWing != null ? (
+              <p className="text-[10px] opacity-80 mt-1">
+                Need {formatWingSize(day.suggestedWindow.recommendedWing)}
               </p>
             ) : (
               <p className="text-[10px] opacity-60 mt-1">No window</p>

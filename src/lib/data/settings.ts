@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
-import { kitPresets, preferences } from "@/lib/db/schema";
-import { asc, eq } from "drizzle-orm";
+import { kitPresets, preferences, wings } from "@/lib/db/schema";
+import { asc, desc, eq, inArray } from "drizzle-orm";
 import { getSession, requireSession } from "@/lib/auth-session";
 import {
   DEFAULT_UNITS,
@@ -61,4 +61,33 @@ export async function getKitPresets() {
     .from(kitPresets)
     .where(eq(kitPresets.userId, user.id))
     .orderBy(asc(kitPresets.name));
+}
+
+export async function getWings() {
+  const { user } = await requireSession();
+  return getWingsForUser(user.id);
+}
+
+export async function getWingsForUser(userId: string) {
+  return db
+    .select()
+    .from(wings)
+    .where(eq(wings.userId, userId))
+    .orderBy(desc(wings.sizeM2));
+}
+
+export async function getWingsByUserIds(userIds: string[]) {
+  if (userIds.length === 0) return new Map<string, typeof wings.$inferSelect[]>();
+  const rows = await db
+    .select()
+    .from(wings)
+    .where(inArray(wings.userId, userIds))
+    .orderBy(desc(wings.sizeM2));
+  const map = new Map<string, typeof rows>();
+  for (const row of rows) {
+    const list = map.get(row.userId) ?? [];
+    list.push(row);
+    map.set(row.userId, list);
+  }
+  return map;
 }

@@ -10,6 +10,7 @@ import {
   hourIsOpen,
   isDaylightCivil,
 } from "@/lib/weather/civil-time";
+import { dominantWing, relevantMissingWings, type WingBand } from "@/lib/wings";
 
 export interface HourScore {
   time: string;
@@ -20,6 +21,11 @@ export interface HourScore {
   waveOk: boolean;
   weatherOk: boolean;
   reason: string | null;
+  /** Best-matching wing (m²) when a quiver scored this hour. */
+  recommendedWing: number | null;
+  /** A wing the rider does not own that would make this hour GO. */
+  suggestedWing: number | null;
+  suggestedScore: number | null;
 }
 
 export interface RideableWindow {
@@ -30,6 +36,7 @@ export interface RideableWindow {
   avgWind: number;
   avgGusts: number;
   dominantDirection: number;
+  recommendedWing: number | null;
 }
 
 /**
@@ -73,6 +80,8 @@ export interface DayEvaluation {
   goNoGo: "go" | "marginal" | "no-go";
   rideableWindows: RideableWindow[];
   bestWindow: RideableWindow | null;
+  /** Best GO window a missing wing would open. Null when the day is already GO. */
+  suggestedWindow: RideableWindow | null;
 }
 
 export interface SpotEvaluation {
@@ -84,6 +93,7 @@ export interface SpotEvaluation {
   dayEvaluations: DayEvaluation[];
   /** Spot-local YYYY-MM-DD used as "today". */
   todayDate: string | null;
+  suggestedWindows: RideableWindow[];
 }
 
 function angleDifference(a: number, b: number): number {
@@ -156,68 +166,24 @@ export function hourMatchesTide(
   return nearest.phase === "high" || nearest.phase === "low" || nearest.hoursToNextExtreme <= 1.5;
 }
 
-function scoreHour(hour: ForecastHour, criteria: AlertCriteria): HourScore {
-  const preferredDirs: number[] = parsePreferredDirections(
-    criteria.preferredDirections,
-  );
-
-  const windOk =
-    hour.windSpeed >= criteria.minWindSpeed &&
-    hour.windSpeed <= criteria.maxWindSpeed;
-
-  const gustOk = hour.windGusts <= MAX_GUST_ABSOLUTE_KT;
-
-  const directionOk =
-    preferredDirs.length === 0 ||
-    preferredDirs.some(
-      (dir) => angleDifference(hour.windDirection, dir) <= criteria.directionTolerance
-    );
-
-  // Missing marine data is not a free pass when the rider set a max.
-  const waveOk =
-    criteria.maxWaveHeight == null ||
-    (hour.waveHeight != null && hour.waveHeight <= criteria.maxWaveHeight);
-
-  const weatherOk = !THUNDERSTORM_CODES.has(hour.weatherCode);
-
-  const reason = !weatherOk
-    ? "Storm"
-    : !windOk
-      ? hour.windSpeed < criteria.minWindSpeed
-        ? "Light"
-        : "Nuke"
-      : !gustOk
-        ? "Nuke"
-        : !directionOk
-          ? "Offshore"
-          : !waveOk
-            ? "Wave"
-            : null;
-
-  // Preferred dirs are a hard gate: a 180° offshore hour cannot GO.
-  const directionHard = preferredDirs.length > 0 && !directionOk;
-
-  // Early exit: wind, gusts, storms, and (when set) direction
-  if (!windOk || !gustOk || !weatherOk || directionHard) {
-    return {
-      time: hour.time,
-      score: 0,
-      windOk, gustOk, directionOk, waveOk, weatherOk,
-      reason,
-    };
-  }
-
-  let score = 0;
-
-  // Wind speed scoring (0-40 points)
-  const midpoint = (criteria.minWindSpeed + criteria.maxWindSpeed) / 2;
-  const range = (criteria.maxWindSpeed - criteria.minWindSpeed) / 2;
+function windPoints(speed: number, minWind: number, maxWind: number): number {
+  const midpoint = (minWind + maxWind) / 2;
+  const range = (maxWind - minWind) / 2;
   if (range === 0) {
-    score += hour.windSpeed === criteria.minWindSpeed ? 40 : 0;
-  } else {
-    const deviation = Math.abs(hour.windSpeed - midpoint) / range;
-    score += 40 * (1 - deviation ** 2);
+    return speed === minWind ? 40 : 0;
   }
+  const deviation = Math.abs(speed - midpoint) / range;
+  return 40 * (1 - deviation ** 2);
+}
+
+function restOfHourScore(
+  hour: ForecastHour,
+  criteria: AlertCriteria,
+  preferredDirs: number[],
+  directionOk: boolean,
+  waveOk: boolean,
+): number {
+  let score = 0;
 
   // Gust scoring (0-25 points). maxGustFactor <= 1 means "no gusts allowed".
   // The 50 kt absolute cap above is the only hard gust gate.
@@ -257,16 +223,233 @@ function scoreHour(hour: ForecastHour, criteria: AlertCriteria): HourScore {
   }
 
   score -= weatherPenaltyFor(hour.weatherCode, hour.precipitation);
+  return score;
+}
+
+function windReason(
+  speed: number,
+  bands: Array<{ minWindSpeed: number; maxWindSpeed: number }>,
+): "Light" | "Nuke" | "No wing" {
+  const envMin = Math.min(...bands.map((b) => b.minWindSpeed));
+  const envMax = Math.max(...bands.map((b) => b.maxWindSpeed));
+  if (speed < envMin) return "Light";
+  if (speed > envMax) return "Nuke";
+  return "No wing";
+}
+
+const SUGGEST_MIN_SCORE = 70;
+const SUGGEST_MIN_DELTA = 15;
+
+type ScoreBand = {
+  sizeM2: number | null;
+  minWindSpeed: number;
+  maxWindSpeed: number;
+};
+
+function bestAgainstBands(
+  hour: ForecastHour,
+  criteria: AlertCriteria,
+  preferredDirs: number[],
+  directionOk: boolean,
+  waveOk: boolean,
+  candidates: ScoreBand[],
+): { score: number; sizeM2: number | null } | null {
+  const matching = candidates.filter(
+    (b) =>
+      hour.windSpeed >= b.minWindSpeed && hour.windSpeed <= b.maxWindSpeed,
+  );
+  if (matching.length === 0) return null;
+  const shared = restOfHourScore(
+    hour,
+    criteria,
+    preferredDirs,
+    directionOk,
+    waveOk,
+  );
+  let bestScore = -1;
+  let sizeM2: number | null = null;
+  for (const band of matching) {
+    const score = Math.max(
+      0,
+      Math.min(
+        100,
+        Math.round(
+          windPoints(hour.windSpeed, band.minWindSpeed, band.maxWindSpeed) +
+            shared,
+        ),
+      ),
+    );
+    const better =
+      score > bestScore ||
+      (score === bestScore &&
+        (sizeM2 == null || (band.sizeM2 != null && band.sizeM2 > sizeM2)));
+    if (better) {
+      bestScore = score;
+      sizeM2 = band.sizeM2;
+    }
+  }
+  return { score: bestScore, sizeM2 };
+}
+
+function pickSuggestion(
+  hour: ForecastHour,
+  criteria: AlertCriteria,
+  preferredDirs: number[],
+  directionOk: boolean,
+  waveOk: boolean,
+  owned: WingBand[],
+  missing: WingBand[] | null | undefined,
+  ownedScore: number,
+): { suggestedWing: number | null; suggestedScore: number | null } {
+  if (!missing || missing.length === 0 || owned.length === 0) {
+    return { suggestedWing: null, suggestedScore: null };
+  }
+  if (ownedScore >= SUGGEST_MIN_SCORE) {
+    return { suggestedWing: null, suggestedScore: null };
+  }
+  const candidates = relevantMissingWings(hour.windSpeed, owned, missing);
+  const best = bestAgainstBands(
+    hour,
+    criteria,
+    preferredDirs,
+    directionOk,
+    waveOk,
+    candidates,
+  );
+  if (
+    !best ||
+    best.sizeM2 == null ||
+    best.score < SUGGEST_MIN_SCORE ||
+    best.score < ownedScore + SUGGEST_MIN_DELTA
+  ) {
+    return { suggestedWing: null, suggestedScore: null };
+  }
+  return { suggestedWing: best.sizeM2, suggestedScore: best.score };
+}
+
+function scoreHour(
+  hour: ForecastHour,
+  criteria: AlertCriteria,
+  quiver?: WingBand[] | null,
+  missing?: WingBand[] | null,
+): HourScore {
+  const preferredDirs: number[] = parsePreferredDirections(
+    criteria.preferredDirections,
+  );
+
+  const bands: Array<{
+    sizeM2: number | null;
+    minWindSpeed: number;
+    maxWindSpeed: number;
+  }> =
+    quiver && quiver.length > 0
+      ? quiver.map((w) => ({
+          sizeM2: w.sizeM2,
+          minWindSpeed: w.minWindSpeed,
+          maxWindSpeed: w.maxWindSpeed,
+        }))
+      : [
+          {
+            sizeM2: null,
+            minWindSpeed: criteria.minWindSpeed,
+            maxWindSpeed: criteria.maxWindSpeed,
+          },
+        ];
+
+  const matching = bands.filter(
+    (b) =>
+      hour.windSpeed >= b.minWindSpeed && hour.windSpeed <= b.maxWindSpeed,
+  );
+  const windOk = matching.length > 0;
+
+  const gustOk = hour.windGusts <= MAX_GUST_ABSOLUTE_KT;
+
+  const directionOk =
+    preferredDirs.length === 0 ||
+    preferredDirs.some(
+      (dir) => angleDifference(hour.windDirection, dir) <= criteria.directionTolerance
+    );
+
+  // Missing marine data is not a free pass when the rider set a max.
+  const waveOk =
+    criteria.maxWaveHeight == null ||
+    (hour.waveHeight != null && hour.waveHeight <= criteria.maxWaveHeight);
+
+  const weatherOk = !THUNDERSTORM_CODES.has(hour.weatherCode);
+
+  const reason = !weatherOk
+    ? "Storm"
+    : !windOk
+      ? windReason(hour.windSpeed, bands)
+      : !gustOk
+        ? "Nuke"
+        : !directionOk
+          ? "Offshore"
+          : !waveOk
+            ? "Wave"
+            : null;
+
+  // Preferred dirs are a hard gate: a 180° offshore hour cannot GO.
+  const directionHard = preferredDirs.length > 0 && !directionOk;
+  const owned = quiver && quiver.length > 0 ? quiver : [];
+  const canSuggest = gustOk && weatherOk && !directionHard;
+
+  if (!windOk || !gustOk || !weatherOk || directionHard) {
+    const suggestion = canSuggest
+      ? pickSuggestion(
+          hour,
+          criteria,
+          preferredDirs,
+          directionOk,
+          waveOk,
+          owned,
+          missing,
+          0,
+        )
+      : { suggestedWing: null, suggestedScore: null };
+    return {
+      time: hour.time,
+      score: 0,
+      windOk, gustOk, directionOk, waveOk, weatherOk,
+      reason,
+      recommendedWing: null,
+      ...suggestion,
+    };
+  }
+
+  const best = bestAgainstBands(
+    hour,
+    criteria,
+    preferredDirs,
+    directionOk,
+    waveOk,
+    matching,
+  );
+  const ownedScore = best?.score ?? 0;
+  const suggestion = canSuggest
+    ? pickSuggestion(
+        hour,
+        criteria,
+        preferredDirs,
+        directionOk,
+        waveOk,
+        owned,
+        missing,
+        ownedScore,
+      )
+    : { suggestedWing: null, suggestedScore: null };
 
   return {
     time: hour.time,
-    score: Math.max(0, Math.min(100, Math.round(score))),
+    score: ownedScore,
     windOk,
     gustOk,
     directionOk,
     waveOk,
     weatherOk,
     reason,
+    recommendedWing: best?.sizeM2 ?? null,
+    ...suggestion,
   };
 }
 
@@ -342,6 +525,9 @@ function findRideableWindows(
           avgWind: Math.round(avgWind * 10) / 10,
           avgGusts: Math.round(avgGusts * 10) / 10,
           dominantDirection: Math.round(dominantDirection),
+          recommendedWing: dominantWing(
+            windowScores.map((s) => s.recommendedWing),
+          ),
         });
       }
       windowStart = -1;
@@ -349,6 +535,46 @@ function findRideableWindows(
   }
 
   return windows;
+}
+
+function suggestionHourScores(hourScores: HourScore[]): HourScore[] {
+  return hourScores.map((s) => ({
+    ...s,
+    score:
+      s.suggestedScore != null &&
+      s.suggestedScore >= SUGGEST_MIN_SCORE &&
+      s.score < SUGGEST_MIN_SCORE
+        ? s.suggestedScore
+        : 0,
+    recommendedWing: s.suggestedWing,
+  }));
+}
+
+function bestSuggestedWindow(
+  scores: HourScore[],
+  forecast: ForecastHour[],
+  minConsecutiveHours: number,
+  sunrise?: string[],
+  sunset?: string[],
+  nowCivil?: string,
+  rider?: RiderSchedule | null,
+  tides?: TidePoint[] | null,
+): RideableWindow | null {
+  const windows = findRideableWindows(
+    suggestionHourScores(scores),
+    forecast,
+    minConsecutiveHours,
+    SUGGEST_MIN_SCORE,
+    sunrise,
+    sunset,
+    nowCivil,
+    rider,
+    tides,
+  );
+  if (windows.length === 0) return null;
+  return windows.reduce((best, w) =>
+    w.avgScore > best.avgScore ? w : best,
+  );
 }
 
 export function evaluateSpot(
@@ -359,8 +585,10 @@ export function evaluateSpot(
   nowCivil?: string,
   rider?: RiderSchedule | null,
   tides?: TidePoint[] | null,
+  quiver?: WingBand[] | null,
+  missing?: WingBand[] | null,
 ): SpotEvaluation {
-  const hourScores = hours.map((h) => scoreHour(h, criteria));
+  const hourScores = hours.map((h) => scoreHour(h, criteria, quiver, missing));
   const rideableWindows = findRideableWindows(
     hourScores,
     hours,
@@ -417,6 +645,19 @@ export function evaluateSpot(
         : dayBest || (!nowCivil && dayScore >= 40)
           ? "marginal"
           : "no-go";
+    const suggestedWindow =
+      dayGoNoGo === "go"
+        ? null
+        : bestSuggestedWindow(
+            group.scores,
+            group.forecast,
+            criteria.minConsecutiveHours,
+            sunrise,
+            sunset,
+            nowCivil,
+            rider,
+            tides,
+          );
 
     dayEvaluations.push({
       date,
@@ -424,6 +665,7 @@ export function evaluateSpot(
       goNoGo: dayGoNoGo,
       rideableWindows: dayWindows,
       bestWindow: dayBest,
+      suggestedWindow,
     });
   }
 
@@ -451,6 +693,10 @@ export function evaluateSpot(
   const overallScore = todayEval ? todayEval.score : 0;
   const goNoGo: "go" | "marginal" | "no-go" = todayEval ? todayEval.goNoGo : "no-go";
 
+  const suggestedWindows = limitedDayEvals
+    .map((d) => d.suggestedWindow)
+    .filter((w): w is RideableWindow => w != null);
+
   return {
     overallScore,
     goNoGo,
@@ -459,6 +705,7 @@ export function evaluateSpot(
     bestWindow: limitedBestWindow,
     dayEvaluations: limitedDayEvals,
     todayDate,
+    suggestedWindows,
   };
 }
 

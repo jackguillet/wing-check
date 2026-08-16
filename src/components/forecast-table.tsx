@@ -19,6 +19,7 @@ import { useUnits } from "@/components/units-provider";
 import { formatTemp, fromKnots, windUnitLabel } from "@/lib/units";
 import { hourIsOpen } from "@/lib/weather/civil-time";
 import type { AlertCriteria } from "@/lib/db/schema";
+import { formatWingSize } from "@/lib/wings";
 
 interface ForecastTableProps {
   hours: ForecastHour[];
@@ -36,6 +37,14 @@ function scoreBadge(score: HourScore) {
         {score.score}
       </Badge>
     );
+  if (score.suggestedWing != null) {
+    return (
+      <Badge variant="outline" className="text-muted-foreground">
+        Need {formatWingSize(score.suggestedWing)}
+        {score.reason ? ` · ${score.reason}` : ""}
+      </Badge>
+    );
+  }
   return (
     <Badge variant="outline" className="text-muted-foreground">
       {score.reason ? `${score.reason} · ${score.score}` : score.score}
@@ -66,7 +75,11 @@ export function ForecastTable({
   const windLabel = windUnitLabel(windSpeedUnit);
   const upcoming = hours.filter((h) => hourIsOpen(h.time, nowCivil));
   const scoreMap = new Map(hourScores?.map((s) => [s.time, s]));
-  const colCount = hourScores ? 12 : 10;
+  const showWing =
+    hourScores?.some(
+      (s) => s.recommendedWing != null || s.suggestedWing != null,
+    ) ?? false;
+  const colCount = hourScores ? (showWing ? 13 : 12) : 10;
 
   return (
     <div className="overflow-x-auto rounded-md border">
@@ -84,6 +97,7 @@ export function ForecastTable({
             <TableHead>Vis</TableHead>
             <TableHead>Wave</TableHead>
             {hourScores && <TableHead>Why</TableHead>}
+            {showWing && <TableHead>Wing</TableHead>}
             {hourScores && <TableHead>Score</TableHead>}
           </TableRow>
         </TableHeader>
@@ -168,6 +182,15 @@ export function ForecastTable({
                       ) : (
                         "—"
                       )}
+                    </TableCell>
+                  )}
+                  {showWing && (
+                    <TableCell className="text-sm whitespace-nowrap">
+                      {score?.recommendedWing != null
+                        ? formatWingSize(score.recommendedWing)
+                        : score?.suggestedWing != null
+                          ? `${formatWingSize(score.suggestedWing)}?`
+                          : "—"}
                     </TableCell>
                   )}
                   {hourScores && (
