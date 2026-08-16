@@ -19,6 +19,7 @@ import {
 const publicLinks = [
   { href: "/", label: "Dashboard" },
   { href: "/spots", label: "Spots" },
+  { href: "/compare", label: "Compare" },
 ];
 
 const authLinks = [{ href: "/settings", label: "Settings" }];

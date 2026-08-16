@@ -190,7 +190,11 @@ export function DashboardShell({
         <Link href="/spots" className="underline font-medium">
           All spots
         </Link>{" "}
-        — every catalog pin, including those not shown above.
+        — every catalog pin, including those not shown above.{" "}
+        <Link href="/compare" className="underline font-medium">
+          Compare spots
+        </Link>{" "}
+        to see two or three weeks side by side.
       </p>
     </div>
   );
