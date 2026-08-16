@@ -43,6 +43,7 @@ interface ForecastSectionProps {
   spotId: number;
   lat: number;
   lng: number;
+  mapRadiusKm?: number | null;
   isOwner: boolean;
   canEditCriteria?: boolean;
   criteriaSource?: CriteriaSource;
@@ -120,6 +121,7 @@ export function ForecastSection({
   spotId,
   lat,
   lng,
+  mapRadiusKm,
   isOwner,
   canEditCriteria = isOwner,
   criteriaSource,
@@ -207,6 +209,7 @@ export function ForecastSection({
             spotId={spotId}
             lat={lat}
             lng={lng}
+            mapRadiusKm={mapRadiusKm}
             hours={filteredHours}
             sunrise={sunrise}
             sunset={sunset}
@@ -302,6 +305,7 @@ export function ForecastSection({
           spotId={spotId}
           lat={lat}
           lng={lng}
+          mapRadiusKm={mapRadiusKm}
           hours={filteredHours}
           sunrise={sunrise}
           sunset={sunset}

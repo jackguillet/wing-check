@@ -10,6 +10,7 @@ function spot(overrides: Partial<Spot> = {}): Spot {
     slug: "secret-beach",
     latitude: 18,
     longitude: -63,
+    mapRadiusKm: 3,
     noaaStationId: null,
     notes: "home break",
     visibility: "private",

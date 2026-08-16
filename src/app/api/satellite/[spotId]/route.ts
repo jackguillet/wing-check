@@ -4,6 +4,7 @@ import { spots } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { getSessionFromHeaders } from "@/lib/auth-session";
 import { canViewSpot } from "@/lib/spots/visibility";
+import { DEFAULT_MAP_RADIUS_KM, mapboxStaticSatelliteUrl } from "@/lib/geo";
 
 export async function GET(
   request: Request,
@@ -33,7 +34,12 @@ export async function GET(
     return NextResponse.json({ error: "Spot not found" }, { status: 404 });
   }
 
-  const url = `https://api.mapbox.com/styles/v1/mapbox/satellite-v9/static/${spot.longitude},${spot.latitude},12,0,0/600x400@2x?access_token=${token}`;
+  const url = mapboxStaticSatelliteUrl(
+    token,
+    spot.latitude,
+    spot.longitude,
+    spot.mapRadiusKm ?? DEFAULT_MAP_RADIUS_KM,
+  );
 
   try {
     const res = await fetch(url);

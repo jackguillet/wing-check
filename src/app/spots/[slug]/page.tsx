@@ -469,6 +469,7 @@ export default async function SpotDetailPage({
             name={spot.name}
             latitude={spot.latitude}
             longitude={spot.longitude}
+            mapRadiusKm={spot.mapRadiusKm}
             noaaStationId={spot.noaaStationId}
             notes={spot.notes}
           />
@@ -557,6 +558,7 @@ export default async function SpotDetailPage({
             spotId={spot.id}
             lat={spot.latitude}
             lng={spot.longitude}
+            mapRadiusKm={spot.mapRadiusKm}
             isOwner={isOwner}
             canEditCriteria={isAuthenticated}
             criteriaSource={source}

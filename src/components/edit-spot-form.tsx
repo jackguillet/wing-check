@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { SpotLocationPicker } from "@/components/spot-location-picker";
+import { DEFAULT_MAP_RADIUS_KM } from "@/lib/geo";
 
 const initial: SpotFormState = {};
 
@@ -15,6 +17,7 @@ export function EditSpotForm({
   name,
   latitude,
   longitude,
+  mapRadiusKm,
   noaaStationId,
   notes,
 }: {
@@ -22,6 +25,7 @@ export function EditSpotForm({
   name: string;
   latitude: number;
   longitude: number;
+  mapRadiusKm?: number | null;
   noaaStationId: string | null;
   notes: string | null;
 }) {
@@ -47,30 +51,11 @@ export function EditSpotForm({
             <Label htmlFor="editName">Name</Label>
             <Input id="editName" name="name" defaultValue={name} required />
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="editLat">Latitude</Label>
-              <Input
-                id="editLat"
-                name="latitude"
-                type="number"
-                step="0.0001"
-                defaultValue={latitude}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="editLng">Longitude</Label>
-              <Input
-                id="editLng"
-                name="longitude"
-                type="number"
-                step="0.0001"
-                defaultValue={longitude}
-                required
-              />
-            </div>
-          </div>
+          <SpotLocationPicker
+            defaultLatitude={latitude}
+            defaultLongitude={longitude}
+            defaultRadiusKm={mapRadiusKm ?? DEFAULT_MAP_RADIUS_KM}
+          />
           <div className="space-y-2">
             <Label htmlFor="editNoaa">NOAA tide station</Label>
             <Input

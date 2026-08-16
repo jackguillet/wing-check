@@ -95,7 +95,12 @@ export function NewSpotForm({
 
       <Card>
         <CardHeader>
-          <CardTitle>Wind Preferences</CardTitle>
+          <CardTitle>Catalog wind (optional)</CardTitle>
+          <p className="text-sm text-muted-foreground font-normal">
+            Saved as this pin&apos;s catalog default. Your kit and quiver
+            still score it unless you later save a custom window on the
+            spot.
+          </p>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">

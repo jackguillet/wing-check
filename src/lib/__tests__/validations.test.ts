@@ -24,6 +24,7 @@ describe("createSpotSchema", () => {
       expect(result.data.latitude).toBe(37.7749);
       expect(result.data.longitude).toBe(-122.4194);
       expect(result.data.minWindSpeed).toBe(10); // default
+      expect(result.data.mapRadiusKm).toBe(3);
     }
   });
 
@@ -223,6 +224,19 @@ describe("updateSpotSchema", () => {
       notes: "launch south",
     });
     expect(result.success).toBe(true);
+    if (result.success) expect(result.data.mapRadiusKm).toBe(3);
+  });
+
+  it("accepts a custom winging-area radius", () => {
+    const result = updateSpotSchema.safeParse({
+      name: "Local Beach",
+      latitude: "18.1",
+      longitude: "-63.0",
+      mapRadiusKm: "1.2",
+      notes: "",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.mapRadiusKm).toBe(1.2);
   });
 
   it("rejects a missing name", () => {
