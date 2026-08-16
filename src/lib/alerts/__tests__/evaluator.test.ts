@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { evaluateSpot, type HourScore, type RideableWindow, type DayEvaluation } from "../evaluator";
+import { evaluateSpot, nextRideableWindow, type HourScore, type RideableWindow, type DayEvaluation } from "../evaluator";
 import type { ForecastHour } from "@/lib/weather/types";
 import type { AlertCriteria } from "@/lib/db/schema";
 
@@ -374,5 +374,46 @@ describe("evaluateSpot", () => {
     }
     // Should NOT be no-go
     expect(result.goNoGo).not.toBe("no-go");
+  });
+});
+
+describe("nextRideableWindow", () => {
+  const windows: RideableWindow[] = [
+    {
+      start: "2026-08-16T10:00",
+      end: "2026-08-16T13:00",
+      hours: 3,
+      avgScore: 80,
+      avgWind: 18,
+      avgGusts: 22,
+      dominantDirection: 270,
+    },
+    {
+      start: "2026-08-17T14:00",
+      end: "2026-08-17T17:00",
+      hours: 3,
+      avgScore: 70,
+      avgWind: 16,
+      avgGusts: 20,
+      dominantDirection: 250,
+    },
+  ];
+
+  it("returns the earliest window that has not ended", () => {
+    const next = nextRideableWindow(windows, "2026-08-16T12:00");
+    expect(next?.start).toBe("2026-08-16T10:00");
+  });
+
+  it("skips a window that already ended", () => {
+    const next = nextRideableWindow(windows, "2026-08-16T14:00");
+    expect(next?.start).toBe("2026-08-17T14:00");
+  });
+
+  it("returns null when every window is over", () => {
+    expect(nextRideableWindow(windows, "2026-08-18T00:00")).toBeNull();
+  });
+
+  it("returns null for an empty list", () => {
+    expect(nextRideableWindow([])).toBeNull();
   });
 });

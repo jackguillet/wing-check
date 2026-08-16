@@ -8,6 +8,8 @@ import {
 } from "@/lib/actions/forecasts";
 import { evaluateSpot, defaultCriteria } from "@/lib/alerts/evaluator";
 import { DashboardShell } from "@/components/dashboard-shell";
+import { UnitsProvider } from "@/components/units-provider";
+import { getDisplayUnits } from "@/lib/actions/settings";
 import { getSession } from "@/lib/auth-session";
 import type { AlertCriteria } from "@/lib/db/schema";
 import type { SpotForecast } from "@/lib/weather/types";
@@ -17,9 +19,10 @@ import { Button } from "@/components/ui/button";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const [session, { spots, favoriteIds }] = await Promise.all([
+  const [session, { spots, favoriteIds }, units] = await Promise.all([
     getSession(),
     getSpotsWithFavorites(),
+    getDisplayUnits(),
   ]);
   const isAuthenticated = !!session?.user;
 
@@ -101,7 +104,9 @@ export default async function DashboardPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Dashboard</h1>
       </div>
-      <DashboardShell spotData={spotData} />
+      <UnitsProvider units={units}>
+        <DashboardShell spotData={spotData} />
+      </UnitsProvider>
     </div>
   );
 }
