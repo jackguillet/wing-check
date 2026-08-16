@@ -19,7 +19,11 @@ import {
   getLatestSpotAlert,
 } from "@/lib/data/spots";
 import { getSpotForecast, getCachedForecastsBySpotIds } from "@/lib/data/forecasts";
-import { fetchNearestMetar } from "@/lib/weather/metar";
+import {
+  fetchMetarSeries,
+  meanWindBiasKt,
+  metarHourDeltas,
+} from "@/lib/weather/metar";
 import { forecastHourAt } from "@/lib/weather/match-hour";
 import { ObservationCard } from "@/components/observation-card";
 import { getSession } from "@/lib/auth-session";
@@ -211,16 +215,27 @@ export default async function SpotDetailPage({
   let forecast = null;
   let evaluation = null;
   let observation = null;
+  let metarSeries: ReturnType<typeof metarHourDeltas> = [];
+  let metarBias: ReturnType<typeof meanWindBiasKt> = null;
   const [forecastSettled, metar] = await Promise.all([
     getSpotForecast(spot.id).catch((e) => {
       logger.error({ err: e, spotId: spot.id }, "Failed to load forecast");
       Sentry.captureException(e);
       return null;
     }),
-    fetchNearestMetar(spot.latitude, spot.longitude),
+    fetchMetarSeries(spot.latitude, spot.longitude),
   ]);
   forecast = forecastSettled;
-  observation = metar;
+  observation = metar?.latest ?? null;
+  if (metar && forecast) {
+    const deltas = metarHourDeltas(
+      metar.history,
+      forecast.hours,
+      forecast.utcOffsetSeconds,
+    );
+    metarSeries = deltas.filter((row) => row.deltaKt != null);
+    metarBias = meanWindBiasKt(metarSeries.map((row) => row.deltaKt));
+  }
   if (forecast) {
     try {
       evaluation = evaluateSpot(
@@ -436,6 +451,8 @@ export default async function SpotDetailPage({
                 : null
             }
             timezone={forecast?.timezone ?? "UTC"}
+            series={metarSeries}
+            bias={metarBias}
           />
         ) : null}
 
