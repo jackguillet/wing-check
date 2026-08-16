@@ -63,7 +63,7 @@ Each forecast hour is scored on four dimensions:
 
 1. **Wind Speed (0-40 pts)** — Hard gate outside your min/max. Inside the band, score peaks at the midpoint. If you saved a quiver, each hour is scored against the best matching wing instead of a single band (a 12 kt day can be GO on a 6m). If the day is not GO with what you own, the forecast can say a missing size (often a larger wing) would open a window.
 2. **Gusts (0-25 pts)** — Hard gate only above **50 kt**. Below that, a soft curve vs `max_gust_factor` (1.0 = no extra gusts allowed). Gusty trades can still score.
-3. **Wind Direction (0-25 pts)** — Empty preferred list = full 25. If dirs are set, outside tolerance **zeros the hour** (cannot GO). Inside the band, closer to the chip scores higher.
+3. **Wind Direction (0-25 pts)** — Comes from the spot (catalog or a custom window on that pin), not your kit. Empty list = full 25. If dirs are set, outside tolerance **zeros the hour** (cannot GO). Inside the band, closer to the chip scores higher.
 4. **Wave Height (0-10 pts)** — Soft. Over the max, or missing marine data when a max is set, = 0 of 10 (not a hard zero). Thunderstorms (WMO 95/96/99) zero the hour. Heavy rain (65), violent rain (82), and fog (45/48) subtract up to 10.
 
 Tide phase, swell quality, and wave amplification are shown on the spot page and **are not in the grade**.

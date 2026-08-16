@@ -5,8 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
-import { DirectionPicker } from "@/components/direction-picker";
 import { useUnits } from "@/components/units-provider";
 import { fromKnots, roundTo, windUnitLabel } from "@/lib/units";
 import { SKILL_KITS, type CriteriaFields, type RiderSkill } from "@/lib/criteria";
@@ -39,9 +37,10 @@ export function WindProfileForm({
         <CardTitle>My default wind</CardTitle>
         <p className="text-sm text-muted-foreground font-normal">
           Used to score every spot unless you save a custom window on that
-          spot. If you add a quiver below, wind is scored against those
-          wings instead of this min/max. Leave this unset to keep using
-          each spot&apos;s catalog default.
+          spot. Rideable wind direction is set on each location, not here.
+          If you add a quiver below, wind is scored against those wings
+          instead of this min/max. Leave this unset to keep using each
+          spot&apos;s catalog default.
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -181,25 +180,6 @@ export function WindProfileForm({
                 defaultValue={source.minConsecutiveHours}
               />
             </div>
-          </div>
-          <Separator />
-          <div className="space-y-2">
-            <Label>Preferred Directions</Label>
-            <DirectionPicker
-              defaultValue={source.preferredDirections ?? "[]"}
-            />
-            <p className="text-xs text-muted-foreground">
-              If you pick dirs, hours outside the tolerance cannot GO.
-            </p>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="profileTolerance">Direction Tolerance (°)</Label>
-            <Input
-              id="profileTolerance"
-              name="directionTolerance"
-              type="number"
-              defaultValue={source.directionTolerance}
-            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="profileWave">Max Wave Height (m)</Label>

@@ -126,12 +126,13 @@ export function CriteriaForm({
           </div>
           <Separator />
           <div className="space-y-2">
-            <Label>Preferred Directions</Label>
+            <Label>Rideable directions at this spot</Label>
             <DirectionPicker
               defaultValue={criteria?.preferredDirections ?? "[]"}
             />
             <p className="text-xs text-muted-foreground">
-              If you pick dirs, hours outside the tolerance cannot GO.
+              Geography, not a personal preference. Hours outside the
+              tolerance cannot GO.
             </p>
           </div>
           <div className="space-y-2">

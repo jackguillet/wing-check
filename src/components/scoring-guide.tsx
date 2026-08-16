@@ -43,8 +43,8 @@ export function ScoringGuide() {
           </li>
           <li>
             <span className="font-medium">Direction 0–25</span> — closer to
-            your preferred dirs scores higher. If you set dirs, outside
-            tolerance is a hard zero (cannot GO).
+            this spot&apos;s rideable dirs scores higher. If dirs are set,
+            outside tolerance is a hard zero (cannot GO).
           </li>
           <li>
             <span className="font-medium">Waves 0–10</span> — over your max

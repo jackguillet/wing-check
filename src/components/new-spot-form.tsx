@@ -171,12 +171,13 @@ export function NewSpotForm({
           <Separator />
 
           <div className="space-y-2">
-            <Label>Preferred Wind Directions</Label>
+            <Label>Rideable directions at this spot</Label>
             <DirectionPicker
               defaultValue={wind.preferredDirections ?? "[]"}
             />
             <p className="text-xs text-muted-foreground">
-              If you pick dirs, hours outside the tolerance cannot GO.
+              Which way the wind has to blow here — not your global kit.
+              Hours outside the tolerance cannot GO.
             </p>
           </div>
           <div className="space-y-2">
