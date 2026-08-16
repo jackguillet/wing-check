@@ -248,8 +248,31 @@ export const preferences = sqliteTable(
     sessionStartHour: integer("session_start_hour"),
     sessionEndHour: integer("session_end_hour"),
     preferredTide: text("preferred_tide"),
+    activeKitName: text("active_kit_name"),
   },
   (table) => [uniqueIndex("preferences_userId_uniq").on(table.userId)],
+);
+
+export const kitPresets = sqliteTable(
+  "kit_presets",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    minWindSpeed: real("min_wind_speed").notNull().default(10),
+    maxWindSpeed: real("max_wind_speed").notNull().default(25),
+    maxGustFactor: real("max_gust_factor").notNull().default(2.5),
+    preferredDirections: text("preferred_directions").notNull().default("[]"),
+    directionTolerance: real("direction_tolerance").notNull().default(45),
+    minConsecutiveHours: integer("min_consecutive_hours").notNull().default(2),
+    maxWaveHeight: real("max_wave_height").default(1.5),
+  },
+  (table) => [
+    index("kit_presets_userId_idx").on(table.userId),
+    uniqueIndex("kit_presets_userId_name_uniq").on(table.userId, table.name),
+  ],
 );
 
 export type Spot = typeof spots.$inferSelect;
@@ -262,4 +285,5 @@ export type UserAlertCriteria = typeof userAlertCriteria.$inferSelect;
 export type NewUserAlertCriteria = typeof userAlertCriteria.$inferInsert;
 export type ForecastCache = typeof forecastCache.$inferSelect;
 export type Preferences = typeof preferences.$inferSelect;
+export type KitPreset = typeof kitPresets.$inferSelect;
 export type SpotOverview = typeof spotOverviews.$inferSelect;

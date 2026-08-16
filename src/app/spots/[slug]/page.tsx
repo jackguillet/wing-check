@@ -254,7 +254,7 @@ export default async function SpotDetailPage({
               {spot.latitude.toFixed(4)}°, {spot.longitude.toFixed(4)}°
             </p>
             <p className="text-sm text-muted-foreground mt-1">
-              {criteriaKitLabel(source, criteria)}
+              {criteriaKitLabel(source, criteria, alertPrefs?.activeKitName)}
               {spot.visibility === "private" ? " · Private" : null}
             </p>
             {forecast?.tideStation ? (

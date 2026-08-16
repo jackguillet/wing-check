@@ -5,6 +5,8 @@ import {
   windProfileFromPrefs,
   criteriaSource,
   criteriaSourceLabel,
+  criteriaKitLabel,
+  kitsMatch,
 } from "../criteria";
 import { defaultCriteria } from "../alerts/evaluator";
 
@@ -100,6 +102,45 @@ describe("windProfileFromPrefs", () => {
     expect(kit?.preferredDirections).toBe("[270]");
     expect(kit?.maxGustFactor).toBe(defaultCriteria.maxGustFactor);
     expect(kit?.maxWaveHeight).toBe(2);
+  });
+});
+
+describe("criteriaKitLabel", () => {
+  const band = { minWindSpeed: 12, maxWindSpeed: 22 };
+
+  it("names the active preset on the user-default layer", () => {
+    expect(criteriaKitLabel("user-default", band, "Lake")).toBe(
+      "Lake · 12–22 kt",
+    );
+  });
+
+  it("falls back when no preset is active", () => {
+    expect(criteriaKitLabel("user-default", band, null)).toBe(
+      "Your default kit · 12–22 kt",
+    );
+  });
+
+  it("does not use the preset name on a spot override", () => {
+    expect(criteriaKitLabel("spot-override", band, "Lake")).toBe(
+      "Custom window · 12–22 kt",
+    );
+  });
+});
+
+describe("kitsMatch", () => {
+  const lake = {
+    ...defaultCriteria,
+    minWindSpeed: 12,
+    maxWindSpeed: 22,
+    maxWaveHeight: 1.5,
+  };
+
+  it("is true for identical wind fields", () => {
+    expect(kitsMatch(lake, { ...lake })).toBe(true);
+  });
+
+  it("is false when the band changes", () => {
+    expect(kitsMatch(lake, { ...lake, maxWindSpeed: 30 })).toBe(false);
   });
 });
 

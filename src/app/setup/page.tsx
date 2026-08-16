@@ -37,6 +37,7 @@ export default async function SetupPage() {
           sessionStartHour={prefs.sessionStartHour}
           sessionEndHour={prefs.sessionEndHour}
           preferredTide={prefs.preferredTide}
+          activeKitName={prefs.activeKitName}
         />
       </div>
     </UnitsProvider>
