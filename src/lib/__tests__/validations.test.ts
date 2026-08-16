@@ -4,6 +4,7 @@ import {
   updateCriteriaSchema,
   updatePreferencesSchema,
   spotNotesSchema,
+  updateSpotSchema,
   formDataToObject,
 } from "../validations";
 
@@ -204,6 +205,28 @@ describe("updatePreferencesSchema", () => {
   it("rejects check interval too high", () => {
     const result = updatePreferencesSchema.safeParse({
       checkIntervalHours: "200",
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("updateSpotSchema", () => {
+  it("accepts a pin edit", () => {
+    const result = updateSpotSchema.safeParse({
+      name: "Local Beach",
+      latitude: "18.1",
+      longitude: "-63.0",
+      noaaStationId: "1234567",
+      notes: "launch south",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a missing name", () => {
+    const result = updateSpotSchema.safeParse({
+      name: "",
+      latitude: "18",
+      longitude: "-63",
     });
     expect(result.success).toBe(false);
   });

@@ -93,6 +93,20 @@ export const updatePreferencesSchema = z.object({
 
 export const spotNotesSchema = createSpotSchema.shape.notes;
 
+export const updateSpotSchema = z.object({
+  name: z.string().min(1, "Name is required").max(100, "Name too long"),
+  latitude: z.coerce
+    .number()
+    .min(-90)
+    .max(90, "Latitude must be between -90 and 90"),
+  longitude: z.coerce
+    .number()
+    .min(-180)
+    .max(180, "Longitude must be between -180 and 180"),
+  noaaStationId: z.string().max(20).optional().default(""),
+  notes: spotNotesSchema,
+});
+
 /** Parse FormData into a plain object for Zod validation */
 export function formDataToObject(formData: FormData): Record<string, string> {
   const obj: Record<string, string> = {};

@@ -219,6 +219,26 @@ export async function getLatestSpotAlert(spotId: number) {
   return rows[0] ?? null;
 }
 
+export async function getUserAlertHistory(limit = 20) {
+  const session = await getSession();
+  if (!session?.user) return [];
+  const rows = await db
+    .select({
+      id: alertHistory.id,
+      sentAt: alertHistory.sentAt,
+      alertType: alertHistory.alertType,
+      forecastSummary: alertHistory.forecastSummary,
+      spotName: spots.name,
+      spotSlug: spots.slug,
+    })
+    .from(alertHistory)
+    .innerJoin(spots, eq(alertHistory.spotId, spots.id))
+    .where(eq(alertHistory.userId, session.user.id))
+    .orderBy(desc(alertHistory.sentAt))
+    .limit(limit);
+  return rows;
+}
+
 export async function getUserFavoriteSpotIds(): Promise<Set<number>> {
   const session = await getSession();
   if (!session?.user) return new Set();

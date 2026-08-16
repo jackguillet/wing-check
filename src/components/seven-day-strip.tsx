@@ -1,7 +1,10 @@
 "use client";
 
 import type { DayEvaluation } from "@/lib/alerts/evaluator";
-import { formatCivilWeekdayShort } from "@/lib/weather/civil-time";
+import {
+  addCivilDays,
+  formatCivilWeekdayShort,
+} from "@/lib/weather/civil-time";
 import { useForecastControls } from "@/components/forecast-controls";
 
 const goNoGoColors = {
@@ -33,6 +36,8 @@ export function SevenDayStrip({
         const isToday = todayDate != null && day.date === todayDate;
         const selected = selectedDate === day.date;
         const window = day.bestWindow;
+        const lowConfidence =
+          todayDate != null && day.date >= addCivilDays(todayDate, 5);
         return (
           <button
             key={day.date}
@@ -43,7 +48,7 @@ export function SevenDayStrip({
               selected || isToday
                 ? "ring-2 ring-offset-2 ring-offset-background ring-current"
                 : ""
-            }`}
+            } ${lowConfidence ? "opacity-60" : ""}`}
           >
             <p className="text-xs font-medium opacity-70">
               {dayLabel(day.date, todayDate)}
@@ -60,6 +65,9 @@ export function SevenDayStrip({
             ) : (
               <p className="text-[10px] opacity-60 mt-1">No window</p>
             )}
+            {lowConfidence ? (
+              <p className="text-[10px] opacity-70 mt-1">Lower confidence</p>
+            ) : null}
           </button>
         );
       })}

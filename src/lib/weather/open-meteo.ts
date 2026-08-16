@@ -20,7 +20,7 @@ export async function fetchWeatherForecast(
     latitude: latitude.toString(),
     longitude: longitude.toString(),
     hourly:
-      "temperature_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,weather_code,pressure_msl,precipitation,cloud_cover",
+      "temperature_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,weather_code,pressure_msl,precipitation,cloud_cover,visibility",
     daily: "sunrise,sunset",
     wind_speed_unit: "kmh",
     timezone: "auto",
@@ -90,6 +90,7 @@ export function mergeForecasts(
       pressureMsl: weather.hourly.pressure_msl?.[i] ?? null,
       precipitation: weather.hourly.precipitation?.[i] ?? null,
       cloudCover: weather.hourly.cloud_cover?.[i] ?? null,
+      visibility: weather.hourly.visibility?.[i] ?? null,
     };
   });
 

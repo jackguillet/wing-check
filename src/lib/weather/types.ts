@@ -10,6 +10,7 @@ export const HourlyWeatherSchema = z.object({
   pressure_msl: z.array(z.number()).optional(),
   precipitation: z.array(z.number()).optional(),
   cloud_cover: z.array(z.number()).optional(),
+  visibility: z.array(z.number()).optional(),
 });
 
 export const DailyWeatherSchema = z.object({
@@ -66,6 +67,7 @@ export interface ForecastHour {
   pressureMsl: number | null;
   precipitation: number | null;
   cloudCover: number | null;
+  visibility: number | null;
 }
 
 export interface SpotForecast {

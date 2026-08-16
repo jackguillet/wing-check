@@ -6,6 +6,7 @@ import {
   alertCriteria,
   userAlertCriteria,
   userSpots,
+  forecastCache,
 } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -16,6 +17,7 @@ import { generateUniqueSlug } from "@/lib/slugify";
 import {
   createSpotSchema,
   updateCriteriaSchema,
+  updateSpotSchema,
   spotNotesSchema,
   formDataToObject,
 } from "@/lib/validations";
@@ -234,6 +236,55 @@ export async function clearSpotWindOverride(spotId: number) {
     );
   revalidatePath(`/spots/${spotRows[0]?.slug}`);
   revalidatePath("/");
+}
+
+export async function updateSpot(
+  spotId: number,
+  _prev: SpotFormState,
+  formData: FormData,
+): Promise<SpotFormState> {
+  const { user } = await requireSession();
+  await limitMutation(user.id, "update-spot", 30, "1 h");
+  const rows = await db.select().from(spots).where(eq(spots.id, spotId));
+  const spot = rows[0];
+  if (!spot || spot.userId !== user.id) {
+    return { error: "Spot not found" };
+  }
+
+  const parsed = updateSpotSchema.safeParse(formDataToObject(formData));
+  if (!parsed.success) {
+    return {
+      error: parsed.error.issues.map((i) => i.message).join(", "),
+      fieldErrors: flattenFieldErrors(parsed.error.issues),
+    };
+  }
+  const data = parsed.data;
+  const typedStation = data.noaaStationId.trim();
+  const noaaStationId =
+    typedStation ||
+    (await findNearestStation(data.latitude, data.longitude));
+
+  await db
+    .update(spots)
+    .set({
+      name: data.name,
+      latitude: data.latitude,
+      longitude: data.longitude,
+      noaaStationId,
+      notes: data.notes.trim() || null,
+    })
+    .where(and(eq(spots.id, spotId), eq(spots.userId, user.id)));
+
+  const moved =
+    data.latitude !== spot.latitude || data.longitude !== spot.longitude;
+  if (moved || noaaStationId !== spot.noaaStationId) {
+    await db.delete(forecastCache).where(eq(forecastCache.spotId, spotId));
+  }
+
+  revalidatePath("/");
+  revalidatePath("/spots");
+  if (spot.slug) revalidatePath(`/spots/${spot.slug}`);
+  return { ok: true };
 }
 
 export async function updateSpotNotes(spotId: number, notes: string) {

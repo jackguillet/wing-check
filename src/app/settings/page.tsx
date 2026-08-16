@@ -1,5 +1,7 @@
 import { headers } from "next/headers";
 import { getPreferences } from "@/lib/data/settings";
+import { getUserAlertHistory } from "@/lib/data/spots";
+import { AlertHistoryList } from "@/components/alert-history-list";
 import { requireSession } from "@/lib/auth-session";
 import { auth } from "@/lib/auth";
 import { SettingsForm } from "@/components/settings-form";
@@ -15,10 +17,11 @@ export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
   const headerStore = await headers();
-  const [{ user, session }, prefs, listed] = await Promise.all([
+  const [{ user, session }, prefs, listed, alerts] = await Promise.all([
     requireSession(),
     getPreferences(),
     auth.api.listSessions({ headers: headerStore }),
+    getUserAlertHistory(20),
   ]);
   const units = parseDisplayUnits(prefs.windSpeedUnit, prefs.temperatureUnit);
   const profile = windProfileFromPrefs(prefs);
@@ -48,6 +51,7 @@ export default async function SettingsPage() {
           preferredTide={prefs.preferredTide}
         />
         <ChangePasswordForm />
+        <AlertHistoryList items={alerts} />
         <SessionList sessions={sessions} />
         <DeleteAccountForm email={user.email} />
       </div>

@@ -32,6 +32,7 @@ function makeHour(overrides: Partial<ForecastHour> = {}): ForecastHour {
     pressureMsl: 1013,
     precipitation: 0,
     cloudCover: 20,
+    visibility: 20000,
     ...overrides,
   };
 }
