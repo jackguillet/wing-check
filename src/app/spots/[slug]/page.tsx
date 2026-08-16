@@ -19,6 +19,9 @@ import {
   getLatestSpotAlert,
 } from "@/lib/data/spots";
 import { getSpotForecast, getCachedForecastsBySpotIds } from "@/lib/data/forecasts";
+import { fetchNearestMetar } from "@/lib/weather/metar";
+import { forecastHourAt } from "@/lib/weather/match-hour";
+import { ObservationCard } from "@/components/observation-card";
 import { getSession } from "@/lib/auth-session";
 import { evaluateSpot } from "@/lib/alerts/evaluator";
 import { spotLocalNow } from "@/lib/weather/civil-time";
@@ -207,9 +210,19 @@ export default async function SpotDetailPage({
 
   let forecast = null;
   let evaluation = null;
-  try {
-    forecast = await getSpotForecast(spot.id);
-    if (forecast) {
+  let observation = null;
+  const [forecastSettled, metar] = await Promise.all([
+    getSpotForecast(spot.id).catch((e) => {
+      logger.error({ err: e, spotId: spot.id }, "Failed to load forecast");
+      Sentry.captureException(e);
+      return null;
+    }),
+    fetchNearestMetar(spot.latitude, spot.longitude),
+  ]);
+  forecast = forecastSettled;
+  observation = metar;
+  if (forecast) {
+    try {
       evaluation = evaluateSpot(
         forecast.hours,
         criteria,
@@ -219,10 +232,10 @@ export default async function SpotDetailPage({
         alertPrefs ? riderScheduleFromPrefs(alertPrefs) : null,
         forecast.tides,
       );
+    } catch (e) {
+      logger.error({ err: e, spotId: spot.id }, "Failed to evaluate forecast");
+      Sentry.captureException(e);
     }
-  } catch (e) {
-    logger.error({ err: e, spotId: spot.id }, "Failed to load forecast");
-    Sentry.captureException(e);
   }
 
   const deleteAction = deleteSpot.bind(null, spot.id);
@@ -405,6 +418,24 @@ export default async function SpotDetailPage({
             longitude={spot.longitude}
             noaaStationId={spot.noaaStationId}
             notes={spot.notes}
+          />
+        ) : null}
+
+        {observation ? (
+          <ObservationCard
+            observation={observation}
+            model={
+              forecast
+                ? forecastHourAt(
+                    forecast.hours,
+                    spotLocalNow(
+                      forecast.utcOffsetSeconds,
+                      new Date(observation.observedAtUnix * 1000),
+                    ),
+                  )
+                : null
+            }
+            timezone={forecast?.timezone ?? "UTC"}
           />
         ) : null}
 
