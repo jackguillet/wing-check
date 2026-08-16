@@ -5,7 +5,9 @@ import { preferences } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { requireSession } from "@/lib/auth-session";
+import { auth } from "@/lib/auth";
 import {
   updatePreferencesSchema,
   updateCriteriaSchema,
@@ -41,7 +43,7 @@ export async function updatePreferences(formData: FormData) {
       windSpeedUnit: data.windSpeedUnit,
       temperatureUnit: data.temperatureUnit,
     })
-    .where(eq(preferences.id, prefs.id));
+    .where(eq(preferences.userId, user.id));
 
   revalidatePath("/settings");
   revalidatePath("/", "layout");
@@ -74,7 +76,7 @@ export async function updateWindProfile(formData: FormData) {
       minConsecutiveHours: data.minConsecutiveHours,
       maxWaveHeight: data.maxWaveHeight ?? null,
     })
-    .where(eq(preferences.id, prefs.id));
+    .where(eq(preferences.userId, user.id));
 
   revalidatePath("/settings");
   revalidatePath("/", "layout");
@@ -98,8 +100,57 @@ export async function clearWindProfile() {
       minConsecutiveHours: null,
       maxWaveHeight: null,
     })
-    .where(eq(preferences.id, prefs.id));
+    .where(eq(preferences.userId, prefs.userId));
 
   revalidatePath("/settings");
   revalidatePath("/", "layout");
+}
+
+export async function revokeUserSession(formData: FormData) {
+  const { session } = await requireSession();
+  const token = formData.get("token");
+  if (typeof token !== "string" || token.length === 0) {
+    throw new Error("Missing session token");
+  }
+  if (token === session.token) {
+    throw new Error("Use Sign Out for this device");
+  }
+  await auth.api.revokeSession({
+    body: { token },
+    headers: await headers(),
+  });
+  revalidatePath("/settings");
+}
+
+export async function revokeOtherUserSessions() {
+  await requireSession();
+  await auth.api.revokeOtherSessions({
+    headers: await headers(),
+  });
+  revalidatePath("/settings");
+}
+
+export async function deleteAccount(
+  _prev: { error?: string } | undefined,
+  formData: FormData,
+): Promise<{ error?: string }> {
+  const { user } = await requireSession();
+  await limitMutation(user.id, "delete-account", 5, "1 h");
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const password = String(formData.get("password") ?? "");
+  if (email !== user.email.toLowerCase()) {
+    return { error: "Type your account email to confirm deletion" };
+  }
+  if (password.length < 8) {
+    return { error: "Password is required" };
+  }
+  try {
+    await auth.api.deleteUser({
+      body: { password },
+      headers: await headers(),
+    });
+  } catch {
+    return { error: "Could not delete account. Check your password." };
+  }
+  redirect("/");
 }

@@ -15,7 +15,15 @@ export async function getSessionFromHeaders(headerStore: Headers) {
 export async function requireSession() {
   const session = await getSession();
   if (!session) {
-    redirect("/sign-in");
+    const pathname = (await headers()).get("x-pathname");
+    const dest =
+      pathname &&
+      pathname.startsWith("/") &&
+      !pathname.startsWith("//") &&
+      pathname !== "/sign-in"
+        ? `/sign-in?callbackUrl=${encodeURIComponent(pathname)}`
+        : "/sign-in";
+    redirect(dest);
   }
   return session;
 }

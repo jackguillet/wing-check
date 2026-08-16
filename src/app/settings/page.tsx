@@ -1,7 +1,12 @@
+import { headers } from "next/headers";
 import { getPreferences } from "@/lib/data/settings";
 import { requireSession } from "@/lib/auth-session";
+import { auth } from "@/lib/auth";
 import { SettingsForm } from "@/components/settings-form";
 import { WindProfileForm } from "@/components/wind-profile-form";
+import { ChangePasswordForm } from "@/components/change-password-form";
+import { SessionList, type SessionRow } from "@/components/session-list";
+import { DeleteAccountForm } from "@/components/delete-account-form";
 import { UnitsProvider } from "@/components/units-provider";
 import { windProfileFromPrefs } from "@/lib/criteria";
 import { parseDisplayUnits } from "@/lib/units";
@@ -9,12 +14,22 @@ import { parseDisplayUnits } from "@/lib/units";
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
-  const [{ user }, prefs] = await Promise.all([
+  const headerStore = await headers();
+  const [{ user, session }, prefs, listed] = await Promise.all([
     requireSession(),
     getPreferences(),
+    auth.api.listSessions({ headers: headerStore }),
   ]);
   const units = parseDisplayUnits(prefs.windSpeedUnit, prefs.temperatureUnit);
   const profile = windProfileFromPrefs(prefs);
+  const sessions: SessionRow[] = (listed ?? []).map((s) => ({
+    token: s.token,
+    createdAt: s.createdAt,
+    expiresAt: s.expiresAt,
+    ipAddress: s.ipAddress,
+    userAgent: s.userAgent,
+    current: s.token === session.token,
+  }));
 
   return (
     <UnitsProvider units={units}>
@@ -26,6 +41,9 @@ export default async function SettingsPage() {
           emailVerified={user.emailVerified}
         />
         <WindProfileForm profile={profile} />
+        <ChangePasswordForm />
+        <SessionList sessions={sessions} />
+        <DeleteAccountForm email={user.email} />
       </div>
     </UnitsProvider>
   );
