@@ -20,6 +20,7 @@ export function SettingsForm({ prefs }: { prefs: Preferences }) {
   const [temperatureUnit, setTemperatureUnit] = useState(
     prefs.temperatureUnit,
   );
+  const [alertsEnabled, setAlertsEnabled] = useState(prefs.alertsEnabled);
 
   return (
     <form action={updatePreferences} className="space-y-6">
@@ -29,40 +30,40 @@ export function SettingsForm({ prefs }: { prefs: Preferences }) {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">Email Address</Label>
+            <Label htmlFor="email">Alert email</Label>
             <Input
               id="email"
               name="email"
               type="email"
               placeholder="your@email.com"
               defaultValue={prefs.email ?? ""}
+              required={alertsEnabled}
             />
+            <p className="text-xs text-muted-foreground">
+              GO emails (score 70+) go here. Arm individual spots with the
+              bell on each forecast page.
+            </p>
           </div>
           <div className="flex items-center space-x-2">
             <input
               type="checkbox"
               id="alertsEnabled"
-              name="alertsEnabled"
-              defaultChecked={prefs.alertsEnabled}
+              checked={alertsEnabled}
+              onChange={(e) => setAlertsEnabled(e.target.checked)}
               className="h-4 w-4 rounded border-input"
             />
             <Label htmlFor="alertsEnabled">Enable email alerts</Label>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="checkIntervalHours">Check Interval (hours)</Label>
-            <Input
-              id="checkIntervalHours"
-              name="checkIntervalHours"
-              type="number"
-              min="1"
-              max="24"
-              defaultValue={prefs.checkIntervalHours}
-            />
-            <p className="text-xs text-muted-foreground">
-              Minimum hours between emails for the same spot. Conditions are
-              checked once a day around 6am Pacific.
-            </p>
-          </div>
+          <input
+            type="hidden"
+            name="alertsEnabled"
+            value={alertsEnabled ? "on" : "off"}
+          />
+          <p className="text-xs text-muted-foreground">
+            Conditions are checked once a day at 14:00 UTC (6am Pacific in
+            winter, 7am in summer). You get one email per upcoming GO window
+            in the next 48 hours — not a leftover morning that already ended.
+          </p>
         </CardContent>
       </Card>
 

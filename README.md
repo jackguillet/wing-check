@@ -79,7 +79,7 @@ npm i -g vercel
 vercel
 ```
 
-The `vercel.json` cron checks alerts once a day at 14:00 UTC (Hobby plan). `checkIntervalHours` is a per-spot cooldown, not the schedule.
+The `vercel.json` cron checks alerts once a day at 14:00 UTC (Hobby plan). A send fires when a remaining window in the next 48 hours scores GO (70+). The same window date is not emailed twice.
 
 ## License
 

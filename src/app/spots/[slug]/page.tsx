@@ -10,6 +10,7 @@ import {
   toggleFavorite,
   toggleSpotAlerts,
   clearSpotWindOverride,
+  getLatestSpotAlert,
 } from "@/lib/actions/spots";
 import { getSpotForecast } from "@/lib/actions/forecasts";
 import { getSession } from "@/lib/auth-session";
@@ -17,7 +18,7 @@ import { evaluateSpot } from "@/lib/alerts/evaluator";
 import { formatCivilWeekdayShort, spotLocalNow } from "@/lib/weather/civil-time";
 import { criteriaSourceLabel } from "@/lib/criteria";
 import { getOrGenerateOverview } from "@/lib/ai/overview";
-import { getDisplayUnits } from "@/lib/actions/settings";
+import { getDisplayUnits, getPreferences } from "@/lib/actions/settings";
 import { UnitsProvider } from "@/components/units-provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,8 +31,9 @@ import {
 } from "@/components/forecast-controls";
 import { SpotNotes } from "@/components/spot-notes";
 import ReactMarkdown from "react-markdown";
-import { Heart, Bell, Sparkles, Clock, Sunrise, Sunset, AlertTriangle } from "lucide-react";
+import { Heart, Sparkles, Clock, Sunrise, Sunset, AlertTriangle } from "lucide-react";
 import { DeleteSpotButton } from "@/components/delete-spot-button";
+import { SpotAlertToggle } from "@/components/spot-alert-toggle";
 import { cn } from "@/lib/utils";
 import { logger } from "@/lib/logger";
 import * as Sentry from "@sentry/nextjs";
@@ -186,9 +188,13 @@ export default async function SpotDetailPage({
   const { spot } = spotData;
   const isOwner = session?.user?.id === spot.userId;
   const isAuthenticated = !!session?.user;
-  const userSpotPrefs = isAuthenticated
-    ? await getUserSpotPrefs(spot.id)
-    : null;
+  const [userSpotPrefs, alertPrefs, latestAlert] = isAuthenticated
+    ? await Promise.all([
+        getUserSpotPrefs(spot.id),
+        getPreferences(),
+        getLatestSpotAlert(spot.id),
+      ])
+    : [null, null, null];
   const { criteria, source } = await getResolvedCriteriaDetails(
     spot.id,
     session?.user?.id,
@@ -297,26 +303,25 @@ export default async function SpotDetailPage({
                     />
                   </Button>
                 </form>
-                <form action={toggleAlertsAction}>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    title={
-                      userSpotPrefs?.alertsEnabled
-                        ? "Disable alerts"
-                        : "Enable alerts"
-                    }
-                  >
-                    <Bell
-                      className={cn(
-                        "h-5 w-5",
-                        userSpotPrefs?.alertsEnabled
-                          ? "fill-blue-500 text-blue-500"
-                          : "text-muted-foreground",
-                      )}
-                    />
-                  </Button>
-                </form>
+                <SpotAlertToggle
+                  enabled={!!userSpotPrefs?.alertsEnabled}
+                  masterEnabled={!!alertPrefs?.alertsEnabled}
+                  alertEmail={alertPrefs?.email ?? null}
+                  lastAlertLabel={
+                    latestAlert
+                      ? latestAlert.sentAt.toLocaleString("en-US", {
+                          weekday: "short",
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: false,
+                          timeZone: "UTC",
+                        }) + " UTC"
+                      : null
+                  }
+                  toggleAction={toggleAlertsAction}
+                />
               </>
             )}
             {isOwner && (

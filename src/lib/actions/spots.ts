@@ -7,6 +7,7 @@ import {
   userAlertCriteria,
   userSpots,
   preferences,
+  alertHistory,
 } from "@/lib/db/schema";
 import type { Spot, AlertCriteria, UserAlertCriteria } from "@/lib/db/schema";
 import {
@@ -15,7 +16,7 @@ import {
   windProfileFromPrefs,
   type CriteriaSource,
 } from "@/lib/criteria";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getSession, requireSession } from "@/lib/auth-session";
@@ -448,6 +449,24 @@ export async function toggleSpotAlerts(spotId: number) {
     .from(spots)
     .where(eq(spots.id, spotId));
   revalidatePath(`/spots/${spotRow[0]?.slug}`);
+  revalidatePath("/");
+}
+
+export async function getLatestSpotAlert(spotId: number) {
+  const session = await getSession();
+  if (!session?.user) return null;
+  const rows = await db
+    .select()
+    .from(alertHistory)
+    .where(
+      and(
+        eq(alertHistory.spotId, spotId),
+        eq(alertHistory.userId, session.user.id),
+      ),
+    )
+    .orderBy(desc(alertHistory.sentAt))
+    .limit(1);
+  return rows[0] ?? null;
 }
 
 export async function getUserFavoriteSpotIds(): Promise<Set<number>> {
