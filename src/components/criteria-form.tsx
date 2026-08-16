@@ -2,6 +2,10 @@
 
 import { useActionState } from "react";
 import { updateSpotCriteria, type SpotFormState } from "@/lib/actions/spots";
+import {
+  criteriaSourceLabel,
+  type CriteriaSource,
+} from "@/lib/criteria";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -15,6 +19,8 @@ import { fromKnots, roundTo, windUnitLabel } from "@/lib/units";
 interface CriteriaFormProps {
   spotId: number;
   criteria: AlertCriteria | null;
+  source?: CriteriaSource;
+  clearOverrideAction?: () => Promise<void>;
 }
 
 const initialState: SpotFormState = {};
@@ -23,7 +29,12 @@ function fieldError(state: SpotFormState, field: string): string | undefined {
   return state.fieldErrors?.[field]?.[0];
 }
 
-export function CriteriaForm({ spotId, criteria }: CriteriaFormProps) {
+export function CriteriaForm({
+  spotId,
+  criteria,
+  source,
+  clearOverrideAction,
+}: CriteriaFormProps) {
   const { windSpeedUnit } = useUnits();
   const windLabel = windUnitLabel(windSpeedUnit);
   const action = updateSpotCriteria.bind(null, spotId);
@@ -34,9 +45,10 @@ export function CriteriaForm({ spotId, criteria }: CriteriaFormProps) {
       <CardHeader>
         <CardTitle>My wind for this spot</CardTitle>
         <p className="text-sm text-muted-foreground font-normal">
-          These numbers score this spot and drive your email alerts. If you
-          have not saved here, your Settings default kit is used, then the
-          catalog default.
+          {source
+            ? criteriaSourceLabel(source)
+            : "These numbers score this spot and drive your email alerts."}{" "}
+          Saving here creates a custom window for this spot only.
         </p>
       </CardHeader>
       <CardContent>
@@ -136,9 +148,16 @@ export function CriteriaForm({ spotId, criteria }: CriteriaFormProps) {
             />
           </div>
           <Button type="submit" disabled={pending}>
-            {pending ? "Saving…" : "Update Criteria"}
+            {pending ? "Saving…" : "Save custom window"}
           </Button>
         </form>
+        {source === "spot-override" && clearOverrideAction && (
+          <form action={clearOverrideAction} className="mt-3">
+            <Button type="submit" variant="outline">
+              Remove custom window
+            </Button>
+          </form>
+        )}
       </CardContent>
     </Card>
   );

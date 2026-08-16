@@ -9,7 +9,12 @@ import {
   preferences,
 } from "@/lib/db/schema";
 import type { Spot, AlertCriteria, UserAlertCriteria } from "@/lib/db/schema";
-import { resolveCriteria, windProfileFromPrefs } from "@/lib/criteria";
+import {
+  resolveCriteria,
+  resolveCriteriaWithSource,
+  windProfileFromPrefs,
+  type CriteriaSource,
+} from "@/lib/criteria";
 import { eq, and, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -99,17 +104,45 @@ export async function getResolvedCriteriaMap(
   spotIds: number[],
   userId?: string | null,
 ): Promise<Map<number, AlertCriteria>> {
+  const details = await getResolvedCriteriaDetailsMap(spotIds, userId);
+  const result = new Map<number, AlertCriteria>();
+  for (const [id, row] of details) {
+    result.set(id, row.criteria);
+  }
+  return result;
+}
+
+export async function getResolvedCriteriaDetails(
+  spotId: number,
+  userId?: string | null,
+): Promise<{ criteria: AlertCriteria; source: CriteriaSource }> {
+  const map = await getResolvedCriteriaDetailsMap([spotId], userId);
+  return (
+    map.get(spotId) ?? {
+      criteria: resolveCriteria(spotId, null, null, null),
+      source: "app",
+    }
+  );
+}
+
+export async function getResolvedCriteriaDetailsMap(
+  spotIds: number[],
+  userId?: string | null,
+): Promise<Map<number, { criteria: AlertCriteria; source: CriteriaSource }>> {
   const [spotMap, userMap, userDefault] = await Promise.all([
     getSpotsWithCriteria(spotIds),
     userId ? getUserCriteriaMap(userId, spotIds) : Promise.resolve(new Map()),
     userId ? getUserWindProfile(userId) : Promise.resolve(null),
   ]);
 
-  const result = new Map<number, AlertCriteria>();
+  const result = new Map<
+    number,
+    { criteria: AlertCriteria; source: CriteriaSource }
+  >();
   for (const id of spotIds) {
     result.set(
       id,
-      resolveCriteria(
+      resolveCriteriaWithSource(
         id,
         userMap.get(id),
         userDefault,
@@ -310,6 +343,21 @@ export async function updateSpotCriteria(
   revalidatePath(`/spots/${spotRows[0].slug}`);
   revalidatePath("/");
   return { ok: true };
+}
+
+export async function clearSpotWindOverride(spotId: number) {
+  const { user } = await requireSession();
+  const spotRows = await db.select().from(spots).where(eq(spots.id, spotId));
+  await db
+    .delete(userAlertCriteria)
+    .where(
+      and(
+        eq(userAlertCriteria.userId, user.id),
+        eq(userAlertCriteria.spotId, spotId),
+      ),
+    );
+  revalidatePath(`/spots/${spotRows[0]?.slug}`);
+  revalidatePath("/");
 }
 
 export async function updateSpotNotes(spotId: number, notes: string) {
