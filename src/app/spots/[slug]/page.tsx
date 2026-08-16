@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import {
@@ -302,6 +303,13 @@ export default async function SpotDetailPage({
             <div className="flex items-center gap-2 flex-wrap">
               <ScoringGuide />
               {spot.slug ? <CopySpotLink slug={spot.slug} /> : null}
+              {spot.slug ? (
+                <Link href={`/compare?spots=${spot.slug}`}>
+                  <Button variant="outline" size="sm">
+                    Compare
+                  </Button>
+                </Link>
+              ) : null}
             {isAuthenticated && (
               <>
                 <form action={toggleFavoriteAction}>
