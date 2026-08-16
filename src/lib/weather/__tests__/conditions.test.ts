@@ -30,6 +30,8 @@ function makeHour(overrides: Partial<ForecastHour> = {}): ForecastHour {
     swellDirection: 270,
     swellPeriod: 10,
     pressureMsl: 1013,
+    precipitation: 0,
+    cloudCover: 20,
     ...overrides,
   };
 }
@@ -39,6 +41,21 @@ function makeHour(overrides: Partial<ForecastHour> = {}): ForecastHour {
 describe("computeTidePhases", () => {
   it("returns empty array for empty input", () => {
     expect(computeTidePhases([])).toEqual([]);
+  });
+
+  it("uses NOAA published H/L instead of derivative peaks", () => {
+    const tides = [
+      makeTide("2026-02-14T06:00", 0.5),
+      makeTide("2026-02-14T07:00", 1.0),
+      makeTide("2026-02-14T08:00", 1.5),
+      { time: "2026-02-14T08:30", height: 1.7, type: "H" as const },
+      makeTide("2026-02-14T09:00", 1.6),
+      makeTide("2026-02-14T10:00", 1.2),
+    ];
+    const phases = computeTidePhases(tides);
+    const highs = phases.filter((p) => p.phase === "high");
+    expect(highs).toHaveLength(1);
+    expect(highs[0].time).toBe("2026-02-14T08:30");
   });
 
   it("detects a high tide at the peak", () => {

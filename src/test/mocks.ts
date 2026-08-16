@@ -56,6 +56,10 @@ export function mockPreferences(
     directionTolerance: null,
     minConsecutiveHours: null,
     maxWaveHeight: null,
+    skill: null,
+    sessionStartHour: null,
+    sessionEndHour: null,
+    preferredTide: null,
     ...overrides,
   };
 }

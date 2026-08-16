@@ -66,7 +66,7 @@ export function ForecastTable({
   const windLabel = windUnitLabel(windSpeedUnit);
   const upcoming = hours.filter((h) => hourIsOpen(h.time, nowCivil));
   const scoreMap = new Map(hourScores?.map((s) => [s.time, s]));
-  const colCount = hourScores ? 9 : 7;
+  const colCount = hourScores ? 11 : 9;
 
   return (
     <div className="overflow-x-auto rounded-md border">
@@ -79,6 +79,8 @@ export function ForecastTable({
             <TableHead>Dir</TableHead>
             <TableHead>Temp</TableHead>
             <TableHead>Weather</TableHead>
+            <TableHead>Rain</TableHead>
+            <TableHead>Cloud</TableHead>
             <TableHead>Wave</TableHead>
             {hourScores && <TableHead>Why</TableHead>}
             {hourScores && <TableHead>Score</TableHead>}
@@ -133,6 +135,14 @@ export function ForecastTable({
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {weatherCodeToDescription(h.weatherCode)}
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {h.precipitation != null
+                      ? `${h.precipitation.toFixed(1)} mm`
+                      : "—"}
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {h.cloudCover != null ? `${Math.round(h.cloudCover)}%` : "—"}
                   </TableCell>
                   <TableCell>
                     {h.waveHeight != null ? `${h.waveHeight.toFixed(1)}m` : "—"}

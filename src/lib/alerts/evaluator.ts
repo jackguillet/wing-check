@@ -1,8 +1,10 @@
-import type { ForecastHour } from "@/lib/weather/types";
+import type { ForecastHour, TidePoint } from "@/lib/weather/types";
 import type { AlertCriteria } from "@/lib/db/schema";
+import { computeTidePhases } from "@/lib/weather/conditions";
 import { parsePreferredDirections } from "@/lib/directions";
 import {
   addCivilHours,
+  civilAbsDiffMinutes,
   civilDate,
   civilMinute,
   hourIsOpen,
@@ -101,8 +103,57 @@ const WEATHER_PENALTY: Record<number, number> = {
   82: 10, // violent rain showers
 };
 
-export function weatherPenaltyFor(code: number): number {
-  return WEATHER_PENALTY[code] ?? 0;
+export function weatherPenaltyFor(code: number, precipitationMm?: number | null): number {
+  const coded = WEATHER_PENALTY[code] ?? 0;
+  const rain = precipitationMm != null && precipitationMm >= 2 ? 8 : 0;
+  return Math.max(coded, rain);
+}
+
+export type PreferredTide = "rising" | "falling" | "mid";
+
+export interface RiderSchedule {
+  sessionStartHour?: number | null;
+  sessionEndHour?: number | null;
+  preferredTide?: PreferredTide | null;
+}
+
+export function hourInSession(
+  time: string,
+  schedule?: RiderSchedule | null,
+): boolean {
+  if (!schedule) return true;
+  const start = schedule.sessionStartHour;
+  const end = schedule.sessionEndHour;
+  if (start == null || end == null) return true;
+  const h = parseInt(civilMinute(time).slice(11, 13), 10);
+  if (Number.isNaN(h)) return true;
+  if (start === end) return true;
+  if (start < end) return h >= start && h < end;
+  return h >= start || h < end;
+}
+
+export function hourMatchesTide(
+  time: string,
+  schedule: RiderSchedule | null | undefined,
+  tides: TidePoint[] | null | undefined,
+): boolean {
+  const pref = schedule?.preferredTide;
+  if (!pref) return true;
+  if (!tides || tides.length === 0) return true;
+  const phases = computeTidePhases(tides);
+  if (phases.length === 0) return true;
+  let nearest = phases[0];
+  let best = Number.POSITIVE_INFINITY;
+  for (const p of phases) {
+    const d = civilAbsDiffMinutes(p.time, time);
+    if (d < best) {
+      best = d;
+      nearest = p;
+    }
+  }
+  if (pref === "rising") return nearest.phase === "rising" || nearest.phase === "low";
+  if (pref === "falling") return nearest.phase === "falling" || nearest.phase === "high";
+  return nearest.phase === "high" || nearest.phase === "low" || nearest.hoursToNextExtreme <= 1.5;
 }
 
 function scoreHour(hour: ForecastHour, criteria: AlertCriteria): HourScore {
@@ -205,7 +256,7 @@ function scoreHour(hour: ForecastHour, criteria: AlertCriteria): HourScore {
     score += 10 * (1 - hour.waveHeight / criteria.maxWaveHeight);
   }
 
-  score -= weatherPenaltyFor(hour.weatherCode);
+  score -= weatherPenaltyFor(hour.weatherCode, hour.precipitation);
 
   return {
     time: hour.time,
@@ -235,18 +286,25 @@ function findRideableWindows(
   sunrise?: string[],
   sunset?: string[],
   nowCivil?: string,
+  rider?: RiderSchedule | null,
+  tides?: TidePoint[] | null,
 ): RideableWindow[] {
   const windows: RideableWindow[] = [];
   let windowStart = -1;
 
   for (let i = 0; i <= hourScores.length; i++) {
-    const daytime = sunrise && sunset ? isDaytime(hourScores[i]?.time ?? "", sunrise, sunset) : true;
+    const t = hourScores[i]?.time ?? "";
+    const daytime = sunrise && sunset ? isDaytime(t, sunrise, sunset) : true;
+    const inSession = hourInSession(t, rider);
+    const tideOk = hourMatchesTide(t, rider, tides);
     const remaining =
       !nowCivil ||
       (i < hourScores.length && hourIsOpen(hourScores[i].time, nowCivil));
     const isGood =
       i < hourScores.length &&
       daytime &&
+      inSession &&
+      tideOk &&
       remaining &&
       hourScores[i].score >= threshold;
 
@@ -299,6 +357,8 @@ export function evaluateSpot(
   sunrise?: string[],
   sunset?: string[],
   nowCivil?: string,
+  rider?: RiderSchedule | null,
+  tides?: TidePoint[] | null,
 ): SpotEvaluation {
   const hourScores = hours.map((h) => scoreHour(h, criteria));
   const rideableWindows = findRideableWindows(
@@ -309,6 +369,8 @@ export function evaluateSpot(
     sunrise,
     sunset,
     nowCivil,
+    rider,
+    tides,
   );
 
   // Group hours by date for per-day evaluations
@@ -334,6 +396,8 @@ export function evaluateSpot(
       sunrise,
       sunset,
       nowCivil,
+      rider,
+      tides,
     );
     const dayBest = dayWindows.length > 0
       ? dayWindows.reduce((best, w) => w.avgScore > best.avgScore ? w : best)

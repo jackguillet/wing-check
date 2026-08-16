@@ -244,6 +244,10 @@ export const preferences = sqliteTable(
     directionTolerance: real("direction_tolerance"),
     minConsecutiveHours: integer("min_consecutive_hours"),
     maxWaveHeight: real("max_wave_height"),
+    skill: text("skill"),
+    sessionStartHour: integer("session_start_hour"),
+    sessionEndHour: integer("session_end_hour"),
+    preferredTide: text("preferred_tide"),
   },
   (table) => [uniqueIndex("preferences_userId_uniq").on(table.userId)],
 );

@@ -1,5 +1,8 @@
+export const HONEST_TIDE_MAX_KM = 80;
+
 interface NOAAStation {
   id: string;
+  name: string;
   lat: number;
   lng: number;
 }
@@ -35,8 +38,9 @@ async function fetchStations(): Promise<NOAAStation[]> {
 
   const json = await res.json();
   const stations: NOAAStation[] = (json.stations ?? []).map(
-    (s: { id: string; lat: number; lng: number }) => ({
+    (s: { id: string; name?: string; lat: number; lng: number }) => ({
       id: s.id,
+      name: s.name ?? s.id,
       lat: s.lat,
       lng: s.lng,
     })
@@ -94,5 +98,21 @@ export async function findNearestStation(
     return null;
   } catch {
     return null;
+  }
+}
+
+export async function getTideStationInfo(
+  stationId: string,
+  lat: number,
+  lng: number,
+): Promise<{ id: string; name: string; km: number } | null> {
+  try {
+    const stations = await fetchStations();
+    const station = stations.find((s) => s.id === stationId);
+    if (!station) return { id: stationId, name: stationId, km: Number.NaN };
+    const km = Math.round(haversineKm(lat, lng, station.lat, station.lng) * 10) / 10;
+    return { id: station.id, name: station.name, km };
+  } catch {
+    return { id: stationId, name: stationId, km: Number.NaN };
   }
 }

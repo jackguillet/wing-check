@@ -13,6 +13,7 @@ import { degreesToCardinal } from "@/lib/weather/types";
 import { useUnits } from "@/components/units-provider";
 import { formatWind } from "@/lib/units";
 import {
+  civilDate,
   formatCivilClock,
   formatCivilWeekdayShort,
 } from "@/lib/weather/civil-time";
@@ -74,7 +75,13 @@ export function SpotCard({
   const todayDate = evaluation?.todayDate ?? null;
 
   return (
-    <Link href={`/spots/${spot.slug}`}>
+    <Link
+      href={
+        nextWindow
+          ? `/spots/${spot.slug}?day=${civilDate(nextWindow.start)}`
+          : `/spots/${spot.slug}`
+      }
+    >
       <Card
         className="transition-colors hover:bg-accent/50"
         title={

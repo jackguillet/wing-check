@@ -64,6 +64,25 @@ export async function updateWindProfile(formData: FormData) {
     );
   }
   const data = parsed.data;
+  const hour = (key: string) => {
+    const raw = formData.get(key);
+    if (raw == null || raw === "") return null;
+    const n = Number(raw);
+    if (!Number.isInteger(n) || n < 0 || n > 23) return null;
+    return n;
+  };
+  const skillRaw = String(formData.get("skill") ?? "");
+  const skill =
+    skillRaw === "beginner" ||
+    skillRaw === "intermediate" ||
+    skillRaw === "advanced"
+      ? skillRaw
+      : null;
+  const tideRaw = String(formData.get("preferredTide") ?? "");
+  const preferredTide =
+    tideRaw === "rising" || tideRaw === "falling" || tideRaw === "mid"
+      ? tideRaw
+      : null;
 
   await db
     .update(preferences)
@@ -75,6 +94,10 @@ export async function updateWindProfile(formData: FormData) {
       directionTolerance: data.directionTolerance,
       minConsecutiveHours: data.minConsecutiveHours,
       maxWaveHeight: data.maxWaveHeight ?? null,
+      skill,
+      sessionStartHour: hour("sessionStartHour"),
+      sessionEndHour: hour("sessionEndHour"),
+      preferredTide,
     })
     .where(eq(preferences.userId, user.id));
 
@@ -99,6 +122,10 @@ export async function clearWindProfile() {
       directionTolerance: null,
       minConsecutiveHours: null,
       maxWaveHeight: null,
+      skill: null,
+      sessionStartHour: null,
+      sessionEndHour: null,
+      preferredTide: null,
     })
     .where(eq(preferences.userId, prefs.userId));
 

@@ -40,7 +40,13 @@ export default async function SettingsPage() {
           accountEmail={user.email}
           emailVerified={user.emailVerified}
         />
-        <WindProfileForm profile={profile} />
+        <WindProfileForm
+          profile={profile}
+          skill={prefs.skill}
+          sessionStartHour={prefs.sessionStartHour}
+          sessionEndHour={prefs.sessionEndHour}
+          preferredTide={prefs.preferredTide}
+        />
         <ChangePasswordForm />
         <SessionList sessions={sessions} />
         <DeleteAccountForm email={user.email} />

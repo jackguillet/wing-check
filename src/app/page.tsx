@@ -12,6 +12,8 @@ import { DashboardShell } from "@/components/dashboard-shell";
 import { UnitsProvider } from "@/components/units-provider";
 import { getDisplayUnits } from "@/lib/data/settings";
 import { getUserWindProfile } from "@/lib/data/spots";
+import { getPreferences } from "@/lib/data/settings";
+import { riderScheduleFromPrefs } from "@/lib/criteria";
 import { getSession } from "@/lib/auth-session";
 import type { AlertCriteria } from "@/lib/db/schema";
 import type { SpotForecast } from "@/lib/weather/types";
@@ -73,6 +75,14 @@ export default async function DashboardPage() {
   );
   const liveById = new Map(liveFavorites);
 
+  const [kit, riderPrefs] = session?.user
+    ? await Promise.all([
+        getUserWindProfile(session.user.id),
+        getPreferences(),
+      ])
+    : [null, null];
+  const rider = riderPrefs ? riderScheduleFromPrefs(riderPrefs) : null;
+
   const spotData = spots.map((spot) => {
     const isFavorite = favoriteIds.has(spot.id);
     let forecast: (SpotForecast & { stale?: boolean }) | null | undefined =
@@ -97,16 +107,14 @@ export default async function DashboardPage() {
         forecast.sunrise,
         forecast.sunset,
         spotLocalNow(forecast.utcOffsetSeconds),
+        rider,
+        forecast.tides,
       );
       return { spot, evaluation, isFavorite, stale: !!forecast.stale };
     } catch {
       return { spot, evaluation: null, isFavorite, stale: false };
     }
   });
-
-  const kit = session?.user
-    ? await getUserWindProfile(session.user.id)
-    : null;
 
   return (
     <div className="space-y-6">

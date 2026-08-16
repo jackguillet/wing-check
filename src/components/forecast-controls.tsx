@@ -8,19 +8,38 @@ interface ForecastControlsState {
   setDayRange: (d: number) => void;
   daylightOnly: boolean;
   setDaylightOnly: (v: boolean) => void;
+  selectedDate: string | null;
+  setSelectedDate: (d: string | null) => void;
 }
 
 const ForecastControlsContext = createContext<ForecastControlsState | null>(
   null,
 );
 
-export function ForecastControlsProvider({ children }: { children: ReactNode }) {
+export function ForecastControlsProvider({
+  children,
+  initialDate = null,
+}: {
+  children: ReactNode;
+  initialDate?: string | null;
+}) {
   const [dayRange, setDayRange] = useState(3);
   const [daylightOnly, setDaylightOnly] = useState(true);
+  const [selectedDate, setSelectedDate] = useState<string | null>(initialDate);
 
   return (
     <ForecastControlsContext.Provider
-      value={{ dayRange, setDayRange, daylightOnly, setDaylightOnly }}
+      value={{
+        dayRange,
+        setDayRange: (d) => {
+          setSelectedDate(null);
+          setDayRange(d);
+        },
+        daylightOnly,
+        setDaylightOnly,
+        selectedDate,
+        setSelectedDate,
+      }}
     >
       {children}
     </ForecastControlsContext.Provider>

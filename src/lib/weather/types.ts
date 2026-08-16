@@ -8,6 +8,8 @@ export const HourlyWeatherSchema = z.object({
   wind_gusts_10m: z.array(z.number()),
   weather_code: z.array(z.number()),
   pressure_msl: z.array(z.number()).optional(),
+  precipitation: z.array(z.number()).optional(),
+  cloud_cover: z.array(z.number()).optional(),
 });
 
 export const DailyWeatherSchema = z.object({
@@ -62,6 +64,8 @@ export interface ForecastHour {
   swellDirection: number | null;
   swellPeriod: number | null;
   pressureMsl: number | null;
+  precipitation: number | null;
+  cloudCover: number | null;
 }
 
 export interface SpotForecast {
@@ -74,6 +78,7 @@ export interface SpotForecast {
   utcOffsetSeconds: number;
   sunrise: string[];
   sunset: string[];
+  tideStation?: { id: string; name: string; km: number } | null;
 }
 
 /** Extract hour (0–23) from an ISO-like time string e.g. "2026-02-14T09:00" */

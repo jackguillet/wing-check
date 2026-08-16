@@ -16,6 +16,9 @@ function makeHour(overrides: Partial<ForecastHour> = {}): ForecastHour {
     swellHeight: 0.8,
     swellDirection: 270,
     swellPeriod: 10,
+    pressureMsl: 1013,
+    precipitation: 0,
+    cloudCover: 20,
     ...overrides,
   };
 }
