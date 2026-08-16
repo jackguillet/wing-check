@@ -55,18 +55,44 @@ export function criteriaSourceLabel(source: CriteriaSource): string {
 export function criteriaKitLabel(
   source: CriteriaSource,
   criteria: Pick<AlertCriteria, "minWindSpeed" | "maxWindSpeed">,
+  activeKitName?: string | null,
 ): string {
   const band = `${Math.round(criteria.minWindSpeed)}–${Math.round(criteria.maxWindSpeed)} kt`;
   switch (source) {
     case "spot-override":
       return `Custom window · ${band}`;
-    case "user-default":
-      return `Your default kit · ${band}`;
+    case "user-default": {
+      const name = activeKitName?.trim();
+      return name ? `${name} · ${band}` : `Your default kit · ${band}`;
+    }
     case "catalog":
       return `Catalog default · ${band}`;
     case "app":
       return `App default · ${band}`;
   }
+}
+
+export type KitWindFields = Pick<
+  CriteriaFields,
+  | "minWindSpeed"
+  | "maxWindSpeed"
+  | "maxGustFactor"
+  | "preferredDirections"
+  | "directionTolerance"
+  | "minConsecutiveHours"
+  | "maxWaveHeight"
+>;
+
+export function kitsMatch(a: KitWindFields, b: KitWindFields): boolean {
+  return (
+    a.minWindSpeed === b.minWindSpeed &&
+    a.maxWindSpeed === b.maxWindSpeed &&
+    a.maxGustFactor === b.maxGustFactor &&
+    a.preferredDirections === b.preferredDirections &&
+    a.directionTolerance === b.directionTolerance &&
+    a.minConsecutiveHours === b.minConsecutiveHours &&
+    a.maxWaveHeight === b.maxWaveHeight
+  );
 }
 
 /**

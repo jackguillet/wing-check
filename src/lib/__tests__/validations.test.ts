@@ -6,6 +6,7 @@ import {
   spotNotesSchema,
   updateSpotSchema,
   formDataToObject,
+  kitPresetNameSchema,
 } from "../validations";
 
 describe("createSpotSchema", () => {
@@ -240,6 +241,22 @@ describe("spotNotesSchema", () => {
   it("rejects notes longer than 500 characters", () => {
     const result = spotNotesSchema.safeParse("a".repeat(501));
     expect(result.success).toBe(false);
+  });
+});
+
+describe("kitPresetNameSchema", () => {
+  it("trims and accepts a short name", () => {
+    const result = kitPresetNameSchema.safeParse("  Lake  ");
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data).toBe("Lake");
+  });
+
+  it("rejects an empty name", () => {
+    expect(kitPresetNameSchema.safeParse("   ").success).toBe(false);
+  });
+
+  it("rejects names longer than 40 characters", () => {
+    expect(kitPresetNameSchema.safeParse("x".repeat(41)).success).toBe(false);
   });
 });
 

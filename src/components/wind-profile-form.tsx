@@ -19,6 +19,7 @@ export function WindProfileForm({
   sessionStartHour,
   sessionEndHour,
   preferredTide,
+  activeKitName,
 }: {
   profile: CriteriaFields | null;
   next?: string;
@@ -26,6 +27,7 @@ export function WindProfileForm({
   sessionStartHour?: number | null;
   sessionEndHour?: number | null;
   preferredTide?: string | null;
+  activeKitName?: string | null;
 }) {
   const { windSpeedUnit } = useUnits();
   const windLabel = windUnitLabel(windSpeedUnit);
@@ -44,7 +46,8 @@ export function WindProfileForm({
       <CardContent className="space-y-4">
         {profile ? (
           <p className="text-sm text-green-700 dark:text-green-400">
-            Default kit is on.
+            Default kit is on
+            {activeKitName?.trim() ? ` · ${activeKitName.trim()}` : ""}.
           </p>
         ) : (
           <p className="text-sm text-muted-foreground">

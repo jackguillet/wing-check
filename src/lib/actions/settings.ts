@@ -1,8 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { preferences } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { kitPresets, preferences } from "@/lib/db/schema";
+import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
@@ -12,10 +12,31 @@ import {
   updatePreferencesSchema,
   updateCriteriaSchema,
   formDataToObject,
+  kitPresetNameSchema,
+  MAX_KIT_PRESETS,
 } from "@/lib/validations";
 import { formWindsToKnots } from "@/lib/units";
 import { getDisplayUnits, getPreferences } from "@/lib/data/settings";
 import { limitMutation } from "@/lib/rate-limit";
+import { kitsMatch, windProfileFromPrefs, type KitWindFields } from "@/lib/criteria";
+
+function revalidateKitSurfaces() {
+  revalidatePath("/settings");
+  revalidatePath("/setup");
+  revalidatePath("/", "layout");
+}
+
+function kitFieldsFromProfile(profile: KitWindFields): KitWindFields {
+  return {
+    minWindSpeed: profile.minWindSpeed,
+    maxWindSpeed: profile.maxWindSpeed,
+    maxGustFactor: profile.maxGustFactor,
+    preferredDirections: profile.preferredDirections,
+    directionTolerance: profile.directionTolerance,
+    minConsecutiveHours: profile.minConsecutiveHours,
+    maxWaveHeight: profile.maxWaveHeight,
+  };
+}
 
 export async function updatePreferences(formData: FormData) {
   const { user } = await requireSession();
@@ -84,25 +105,42 @@ export async function updateWindProfile(formData: FormData) {
       ? tideRaw
       : null;
 
+  const nextKit: KitWindFields = {
+    minWindSpeed: data.minWindSpeed,
+    maxWindSpeed: data.maxWindSpeed,
+    maxGustFactor: data.maxGustFactor,
+    preferredDirections: data.preferredDirections,
+    directionTolerance: data.directionTolerance,
+    minConsecutiveHours: data.minConsecutiveHours,
+    maxWaveHeight: data.maxWaveHeight ?? null,
+  };
+  const activeName = prefs.activeKitName?.trim() || null;
+  let keepName = activeName;
+  if (activeName) {
+    const [preset] = await db
+      .select()
+      .from(kitPresets)
+      .where(
+        and(eq(kitPresets.userId, user.id), eq(kitPresets.name, activeName)),
+      );
+    if (!preset || !kitsMatch(nextKit, kitFieldsFromProfile(preset))) {
+      keepName = null;
+    }
+  }
+
   await db
     .update(preferences)
     .set({
-      minWindSpeed: data.minWindSpeed,
-      maxWindSpeed: data.maxWindSpeed,
-      maxGustFactor: data.maxGustFactor,
-      preferredDirections: data.preferredDirections,
-      directionTolerance: data.directionTolerance,
-      minConsecutiveHours: data.minConsecutiveHours,
-      maxWaveHeight: data.maxWaveHeight ?? null,
+      ...nextKit,
       skill,
       sessionStartHour: hour("sessionStartHour"),
       sessionEndHour: hour("sessionEndHour"),
       preferredTide,
+      activeKitName: keepName,
     })
     .where(eq(preferences.userId, user.id));
 
-  revalidatePath("/settings");
-  revalidatePath("/", "layout");
+  revalidateKitSurfaces();
 
   const next = formData.get("next");
   if (typeof next === "string" && next.startsWith("/") && !next.startsWith("//")) {
@@ -126,11 +164,113 @@ export async function clearWindProfile() {
       sessionStartHour: null,
       sessionEndHour: null,
       preferredTide: null,
+      activeKitName: null,
     })
     .where(eq(preferences.userId, prefs.userId));
 
-  revalidatePath("/settings");
-  revalidatePath("/", "layout");
+  revalidateKitSurfaces();
+}
+
+export async function saveKitPreset(formData: FormData) {
+  const { user } = await requireSession();
+  await limitMutation(user.id, "save-kit-preset", 30, "1 h");
+  const prefs = await getPreferences();
+  const profile = windProfileFromPrefs(prefs);
+  if (!profile) {
+    throw new Error("Save a default kit before naming it");
+  }
+  const parsed = kitPresetNameSchema.safeParse(String(formData.get("name") ?? ""));
+  if (!parsed.success) {
+    throw new Error(
+      `Validation failed: ${parsed.error.issues.map((i) => i.message).join(", ")}`,
+    );
+  }
+  const name = parsed.data;
+  const fields = kitFieldsFromProfile(profile);
+  const [existing] = await db
+    .select({ id: kitPresets.id })
+    .from(kitPresets)
+    .where(and(eq(kitPresets.userId, user.id), eq(kitPresets.name, name)));
+  if (!existing) {
+    const [{ n }] = await db
+      .select({ n: sql<number>`count(*)` })
+      .from(kitPresets)
+      .where(eq(kitPresets.userId, user.id));
+    if (Number(n) >= MAX_KIT_PRESETS) {
+      throw new Error(`You can save at most ${MAX_KIT_PRESETS} kit presets`);
+    }
+  }
+
+  await db
+    .insert(kitPresets)
+    .values({ userId: user.id, name, ...fields })
+    .onConflictDoUpdate({
+      target: [kitPresets.userId, kitPresets.name],
+      set: fields,
+    });
+
+  await db
+    .update(preferences)
+    .set({ activeKitName: name })
+    .where(eq(preferences.userId, user.id));
+
+  revalidateKitSurfaces();
+}
+
+export async function activateKitPreset(formData: FormData) {
+  const { user } = await requireSession();
+  await limitMutation(user.id, "activate-kit-preset", 30, "1 h");
+  const id = Number(formData.get("id"));
+  if (!Number.isInteger(id) || id < 1) {
+    throw new Error("Missing kit preset");
+  }
+  const [preset] = await db
+    .select()
+    .from(kitPresets)
+    .where(and(eq(kitPresets.id, id), eq(kitPresets.userId, user.id)));
+  if (!preset) {
+    throw new Error("Kit preset not found");
+  }
+
+  await db
+    .update(preferences)
+    .set({
+      ...kitFieldsFromProfile(preset),
+      activeKitName: preset.name,
+    })
+    .where(eq(preferences.userId, user.id));
+
+  revalidateKitSurfaces();
+}
+
+export async function deleteKitPreset(formData: FormData) {
+  const { user } = await requireSession();
+  await limitMutation(user.id, "delete-kit-preset", 30, "1 h");
+  const prefs = await getPreferences();
+  const id = Number(formData.get("id"));
+  if (!Number.isInteger(id) || id < 1) {
+    throw new Error("Missing kit preset");
+  }
+  const [preset] = await db
+    .select()
+    .from(kitPresets)
+    .where(and(eq(kitPresets.id, id), eq(kitPresets.userId, user.id)));
+  if (!preset) {
+    throw new Error("Kit preset not found");
+  }
+
+  await db
+    .delete(kitPresets)
+    .where(and(eq(kitPresets.id, id), eq(kitPresets.userId, user.id)));
+
+  if (prefs.activeKitName === preset.name) {
+    await db
+      .update(preferences)
+      .set({ activeKitName: null })
+      .where(eq(preferences.userId, user.id));
+  }
+
+  revalidateKitSurfaces();
 }
 
 export async function revokeUserSession(formData: FormData) {

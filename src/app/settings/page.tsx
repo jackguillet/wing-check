@@ -1,11 +1,12 @@
 import { headers } from "next/headers";
-import { getPreferences } from "@/lib/data/settings";
+import { getKitPresets, getPreferences } from "@/lib/data/settings";
 import { getUserAlertHistory } from "@/lib/data/spots";
 import { AlertHistoryList } from "@/components/alert-history-list";
 import { requireSession } from "@/lib/auth-session";
 import { auth } from "@/lib/auth";
 import { SettingsForm } from "@/components/settings-form";
 import { WindProfileForm } from "@/components/wind-profile-form";
+import { KitPresetsCard } from "@/components/kit-presets-card";
 import { ChangePasswordForm } from "@/components/change-password-form";
 import { SessionList, type SessionRow } from "@/components/session-list";
 import { DeleteAccountForm } from "@/components/delete-account-form";
@@ -17,11 +18,12 @@ export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
   const headerStore = await headers();
-  const [{ user, session }, prefs, listed, alerts] = await Promise.all([
+  const [{ user, session }, prefs, listed, alerts, presets] = await Promise.all([
     requireSession(),
     getPreferences(),
     auth.api.listSessions({ headers: headerStore }),
     getUserAlertHistory(20),
+    getKitPresets(),
   ]);
   const units = parseDisplayUnits(prefs.windSpeedUnit, prefs.temperatureUnit);
   const profile = windProfileFromPrefs(prefs);
@@ -49,6 +51,12 @@ export default async function SettingsPage() {
           sessionStartHour={prefs.sessionStartHour}
           sessionEndHour={prefs.sessionEndHour}
           preferredTide={prefs.preferredTide}
+          activeKitName={prefs.activeKitName}
+        />
+        <KitPresetsCard
+          presets={presets}
+          activeKitName={prefs.activeKitName}
+          hasProfile={!!profile}
         />
         <ChangePasswordForm />
         <AlertHistoryList items={alerts} />

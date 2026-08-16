@@ -60,6 +60,7 @@ export function mockPreferences(
     sessionStartHour: null,
     sessionEndHour: null,
     preferredTide: null,
+    activeKitName: null,
     ...overrides,
   };
 }

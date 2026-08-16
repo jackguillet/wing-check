@@ -91,6 +91,14 @@ export const updatePreferencesSchema = z.object({
     .default("celsius"),
 });
 
+export const kitPresetNameSchema = z
+  .string()
+  .trim()
+  .min(1, "Name is required")
+  .max(40, "Name too long");
+
+export const MAX_KIT_PRESETS = 20;
+
 export const spotNotesSchema = createSpotSchema.shape.notes;
 
 export const updateSpotSchema = z.object({

@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
-import { preferences } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { kitPresets, preferences } from "@/lib/db/schema";
+import { asc, eq } from "drizzle-orm";
 import { getSession, requireSession } from "@/lib/auth-session";
 import {
   DEFAULT_UNITS,
@@ -52,4 +52,13 @@ export async function getPreferences() {
     return created[0];
   }
   return rows[0];
+}
+
+export async function getKitPresets() {
+  const { user } = await requireSession();
+  return db
+    .select()
+    .from(kitPresets)
+    .where(eq(kitPresets.userId, user.id))
+    .orderBy(asc(kitPresets.name));
 }
