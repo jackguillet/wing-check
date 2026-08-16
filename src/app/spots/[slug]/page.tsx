@@ -13,6 +13,8 @@ import { getSpotForecast } from "@/lib/actions/forecasts";
 import { getSession } from "@/lib/auth-session";
 import { evaluateSpot, defaultCriteria } from "@/lib/alerts/evaluator";
 import { getOrGenerateOverview } from "@/lib/ai/overview";
+import { getDisplayUnits } from "@/lib/actions/settings";
+import { UnitsProvider } from "@/components/units-provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { AlertCriteria, Spot } from "@/lib/db/schema";
@@ -200,8 +202,10 @@ export default async function SpotDetailPage({
   const deleteAction = deleteSpot.bind(null, spot.id);
   const toggleFavoriteAction = toggleFavorite.bind(null, spot.id);
   const toggleAlertsAction = toggleSpotAlerts.bind(null, spot.id);
+  const units = await getDisplayUnits();
 
   return (
+    <UnitsProvider units={units}>
     <ForecastControlsProvider>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
@@ -388,5 +392,6 @@ export default async function SpotDetailPage({
         )}
       </div>
     </ForecastControlsProvider>
+    </UnitsProvider>
   );
 }

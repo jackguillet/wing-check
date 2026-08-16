@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { DirectionPicker } from "@/components/direction-picker";
 import type { AlertCriteria } from "@/lib/db/schema";
+import { useUnits } from "@/components/units-provider";
+import { fromKnots, roundTo, windUnitLabel } from "@/lib/units";
 
 interface CriteriaFormProps {
   spotId: number;
@@ -22,6 +24,8 @@ function fieldError(state: SpotFormState, field: string): string | undefined {
 }
 
 export function CriteriaForm({ spotId, criteria }: CriteriaFormProps) {
+  const { windSpeedUnit } = useUnits();
+  const windLabel = windUnitLabel(windSpeedUnit);
   const action = updateSpotCriteria.bind(null, spotId);
   const [state, formAction, pending] = useActionState(action, initialState);
 
@@ -42,13 +46,19 @@ export function CriteriaForm({ spotId, criteria }: CriteriaFormProps) {
           )}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="minWindSpeed">Min Wind Speed (kt)</Label>
+              <Label htmlFor="minWindSpeed">
+                Min Wind Speed ({windLabel})
+              </Label>
               <Input
                 id="minWindSpeed"
                 name="minWindSpeed"
                 type="number"
                 step="0.5"
-                defaultValue={criteria?.minWindSpeed}
+                defaultValue={
+                  criteria
+                    ? roundTo(fromKnots(criteria.minWindSpeed, windSpeedUnit))
+                    : undefined
+                }
               />
               {fieldError(state, "minWindSpeed") && (
                 <p className="text-xs text-destructive">
@@ -57,13 +67,19 @@ export function CriteriaForm({ spotId, criteria }: CriteriaFormProps) {
               )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="maxWindSpeed">Max Wind Speed (kt)</Label>
+              <Label htmlFor="maxWindSpeed">
+                Max Wind Speed ({windLabel})
+              </Label>
               <Input
                 id="maxWindSpeed"
                 name="maxWindSpeed"
                 type="number"
                 step="0.5"
-                defaultValue={criteria?.maxWindSpeed}
+                defaultValue={
+                  criteria
+                    ? roundTo(fromKnots(criteria.maxWindSpeed, windSpeedUnit))
+                    : undefined
+                }
               />
             </div>
           </div>

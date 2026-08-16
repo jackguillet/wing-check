@@ -9,6 +9,8 @@ import { getWindColor } from "@/lib/weather/colors";
 import type { ForecastHour } from "@/lib/weather/types";
 import { format } from "date-fns";
 import { SolarPosition } from "@/components/ui/solar-position";
+import { useUnits } from "@/components/units-provider";
+import { formatWind } from "@/lib/units";
 
 interface ForecastMapProps {
   spotId: number;
@@ -70,6 +72,7 @@ export function ForecastMap({
   sunrise,
   sunset,
 }: ForecastMapProps) {
+  const { windSpeedUnit } = useUnits();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [sliderIndex, setSliderIndex] = useState(0);
@@ -226,10 +229,10 @@ export function ForecastMap({
 
         {current && (
           <p className="text-sm text-center text-muted-foreground">
-            {current.windSpeed.toFixed(1)} kt &middot;{" "}
+            {formatWind(current.windSpeed, windSpeedUnit)} &middot;{" "}
             {degreesToCardinal(Math.round(current.windDirection))}{" "}
             ({Math.round(current.windDirection)}°) &middot; gusts{" "}
-            {current.windGusts.toFixed(1)} kt
+            {formatWind(current.windGusts, windSpeedUnit)}
           </p>
         )}
 

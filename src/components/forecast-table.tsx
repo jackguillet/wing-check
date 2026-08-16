@@ -15,6 +15,8 @@ import type { HourScore } from "@/lib/alerts/evaluator";
 import { degreesToCardinal, weatherCodeToDescription } from "@/lib/weather/types";
 import { getWindColor, getGustColor } from "@/lib/weather/colors";
 import { format, parseISO, isSameDay } from "date-fns";
+import { useUnits } from "@/components/units-provider";
+import { formatTemp, fromKnots, windUnitLabel } from "@/lib/units";
 
 interface ForecastTableProps {
   hours: ForecastHour[];
@@ -28,6 +30,8 @@ function scoreBadge(score: number) {
 }
 
 export function ForecastTable({ hours, hourScores }: ForecastTableProps) {
+  const { windSpeedUnit, temperatureUnit } = useUnits();
+  const windLabel = windUnitLabel(windSpeedUnit);
   const now = new Date().toISOString();
   const upcoming = hours.filter((h) => h.time >= now);
   const scoreMap = new Map(hourScores?.map((s) => [s.time, s]));
@@ -39,8 +43,8 @@ export function ForecastTable({ hours, hourScores }: ForecastTableProps) {
         <TableHeader>
           <TableRow>
             <TableHead>Time</TableHead>
-            <TableHead>Wind (kt)</TableHead>
-            <TableHead>Gusts (kt)</TableHead>
+            <TableHead>Wind ({windLabel})</TableHead>
+            <TableHead>Gusts ({windLabel})</TableHead>
             <TableHead>Dir</TableHead>
             <TableHead>Temp</TableHead>
             <TableHead>Weather</TableHead>
@@ -68,15 +72,15 @@ export function ForecastTable({ hours, hourScores }: ForecastTableProps) {
                     {format(parsed, "HH:mm")}
                   </TableCell>
                   <TableCell className="font-bold" style={{ color: getWindColor(h.windSpeed) }}>
-                    {h.windSpeed.toFixed(1)}
+                    {fromKnots(h.windSpeed, windSpeedUnit).toFixed(1)}
                   </TableCell>
                   <TableCell className="font-bold" style={{ color: getGustColor(h.windSpeed, h.windGusts) }}>
-                    {h.windGusts.toFixed(1)}
+                    {fromKnots(h.windGusts, windSpeedUnit).toFixed(1)}
                   </TableCell>
                   <TableCell>
                     {degreesToCardinal(h.windDirection)} ({Math.round(h.windDirection)}°)
                   </TableCell>
-                  <TableCell>{Math.round(h.temperature)}°C</TableCell>
+                  <TableCell>{formatTemp(h.temperature, temperatureUnit)}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {weatherCodeToDescription(h.weatherCode)}
                   </TableCell>

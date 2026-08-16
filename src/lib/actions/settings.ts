@@ -4,8 +4,30 @@ import { db } from "@/lib/db";
 import { preferences } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { requireSession } from "@/lib/auth-session";
+import { getSession, requireSession } from "@/lib/auth-session";
 import { updatePreferencesSchema, formDataToObject } from "@/lib/validations";
+import {
+  DEFAULT_UNITS,
+  parseDisplayUnits,
+  type DisplayUnits,
+} from "@/lib/units";
+
+export async function getDisplayUnits(): Promise<DisplayUnits> {
+  const session = await getSession();
+  if (!session?.user) return DEFAULT_UNITS;
+
+  const rows = await db
+    .select({
+      windSpeedUnit: preferences.windSpeedUnit,
+      temperatureUnit: preferences.temperatureUnit,
+    })
+    .from(preferences)
+    .where(eq(preferences.userId, session.user.id));
+
+  const row = rows[0];
+  if (!row) return DEFAULT_UNITS;
+  return parseDisplayUnits(row.windSpeedUnit, row.temperatureUnit);
+}
 
 export async function getPreferences() {
   const { user } = await requireSession();
@@ -56,4 +78,5 @@ export async function updatePreferences(formData: FormData) {
     .where(eq(preferences.id, prefs.id));
 
   revalidatePath("/settings");
+  revalidatePath("/", "layout");
 }

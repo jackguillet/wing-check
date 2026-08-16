@@ -11,6 +11,7 @@ import { eq, and, inArray } from "drizzle-orm";
 import { evaluateSpot } from "@/lib/alerts/evaluator";
 import { sendAlert } from "@/lib/alerts/notifier";
 import { getAppUrl } from "@/lib/app-url";
+import { parseDisplayUnits } from "@/lib/units";
 import {
   fetchWeatherForecast,
   fetchMarineForecast,
@@ -153,6 +154,10 @@ export async function GET(request: Request) {
           windows: evaluation.rideableWindows,
           email: prefs.email!,
           spotUrl: `${appUrl}${spotPath}`,
+          windSpeedUnit: parseDisplayUnits(
+            prefs.windSpeedUnit,
+            prefs.temperatureUnit,
+          ).windSpeedUnit,
         });
 
         await db.insert(alertHistory).values({
