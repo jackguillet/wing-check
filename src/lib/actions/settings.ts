@@ -71,12 +71,17 @@ export async function updatePreferences(formData: FormData) {
   }
   const data = parsed.data;
 
+  const alertsEnabled = data.alertsEnabled === "on";
+  const email = data.email || user.email;
+  if (alertsEnabled && !email) {
+    throw new Error("Add an email address before enabling alerts");
+  }
+
   await db
     .update(preferences)
     .set({
-      email: data.email || null,
-      alertsEnabled: data.alertsEnabled === "on",
-      checkIntervalHours: data.checkIntervalHours,
+      email: email || null,
+      alertsEnabled,
       windSpeedUnit: data.windSpeedUnit,
       temperatureUnit: data.temperatureUnit,
     })

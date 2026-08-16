@@ -43,10 +43,15 @@ export async function sendAlert({
   const { Resend } = await import("resend");
   const resend = new Resend(apiKey);
 
+  const first = windows[0];
+  const subjectWhen = first
+    ? ` ${formatCivilWeekdayDate(first.start)} ${formatCivilClock(first.start)}`
+    : "";
+
   const result = await resend.emails.send({
     from: "Wing Check <alerts@wingcheck.dev>",
     to: email,
-    subject: `Wind alert: ${spotName} looks rideable!`,
+    subject: `Wind alert: ${spotName} looks rideable${subjectWhen}`,
     text: `Good conditions forecast at ${spotName}:\n\n${windowSummaries}\n\n${spotUrl ? `View the forecast: ${spotUrl}` : "Check your dashboard for full details."}`,
   });
 
