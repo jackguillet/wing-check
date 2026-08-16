@@ -6,7 +6,7 @@ function getRedis() {
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
   if (!url || !token) {
     if (process.env.NODE_ENV === "production") {
-      throw new Error("Rate limiting is not configured");
+      console.error("Rate limiting is not configured; requests will not be limited");
     }
     return null;
   }

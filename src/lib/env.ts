@@ -15,11 +15,13 @@ const baseSchema = z.object({
 });
 
 const productionSchema = baseSchema.extend({
-  CRON_SECRET: z.string().min(1, "CRON_SECRET is required"),
-  RESEND_API_KEY: z.string().min(1, "RESEND_API_KEY is required"),
+  // Alerts, cron, and rate limits fail closed in their own modules when
+  // these are absent. Do not take the whole site down for them.
+  CRON_SECRET: z.string().optional(),
+  RESEND_API_KEY: z.string().optional(),
   MAPBOX_ACCESS_TOKEN: z.string().min(1, "MAPBOX_ACCESS_TOKEN is required"),
-  UPSTASH_REDIS_REST_URL: z.string().url("UPSTASH_REDIS_REST_URL must be a URL"),
-  UPSTASH_REDIS_REST_TOKEN: z.string().min(1, "UPSTASH_REDIS_REST_TOKEN is required"),
+  UPSTASH_REDIS_REST_URL: optionalUrl,
+  UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
 });
 
 const developmentSchema = baseSchema.extend({
@@ -55,6 +57,18 @@ export function validateEnv() {
 
     if (isStrictProduction()) {
       throw new Error("Missing required environment variables");
+    }
+  } else if (isStrictProduction()) {
+    const missing: string[] = [];
+    if (!process.env.CRON_SECRET) missing.push("CRON_SECRET");
+    if (!process.env.RESEND_API_KEY) missing.push("RESEND_API_KEY");
+    if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
+      missing.push("UPSTASH_REDIS_REST_URL/TOKEN");
+    }
+    if (missing.length > 0) {
+      console.warn(
+        `Optional production services not configured (${missing.join(", ")}). Alerts and rate limits are disabled.`,
+      );
     }
   }
 
