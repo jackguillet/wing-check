@@ -232,6 +232,13 @@ export const preferences = sqliteTable("preferences", {
   checkIntervalHours: integer("check_interval_hours").notNull().default(6),
   windSpeedUnit: text("wind_speed_unit").notNull().default("knots"),
   temperatureUnit: text("temperature_unit").notNull().default("celsius"),
+  minWindSpeed: real("min_wind_speed"),
+  maxWindSpeed: real("max_wind_speed"),
+  maxGustFactor: real("max_gust_factor"),
+  preferredDirections: text("preferred_directions"),
+  directionTolerance: real("direction_tolerance"),
+  minConsecutiveHours: integer("min_consecutive_hours"),
+  maxWaveHeight: real("max_wave_height"),
 });
 
 export type Spot = typeof spots.$inferSelect;

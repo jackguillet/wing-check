@@ -5,9 +5,14 @@ import { preferences } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getSession, requireSession } from "@/lib/auth-session";
-import { updatePreferencesSchema, formDataToObject } from "@/lib/validations";
+import {
+  updatePreferencesSchema,
+  updateCriteriaSchema,
+  formDataToObject,
+} from "@/lib/validations";
 import {
   DEFAULT_UNITS,
+  formWindsToKnots,
   parseDisplayUnits,
   type DisplayUnits,
 } from "@/lib/units";
@@ -74,6 +79,57 @@ export async function updatePreferences(formData: FormData) {
       checkIntervalHours: data.checkIntervalHours,
       windSpeedUnit: data.windSpeedUnit,
       temperatureUnit: data.temperatureUnit,
+    })
+    .where(eq(preferences.id, prefs.id));
+
+  revalidatePath("/settings");
+  revalidatePath("/", "layout");
+}
+
+export async function updateWindProfile(formData: FormData) {
+  const { user } = await requireSession();
+  const prefs = await getPreferences();
+  const units = await getDisplayUnits();
+
+  const parsed = updateCriteriaSchema.safeParse(
+    formWindsToKnots(formDataToObject(formData), units.windSpeedUnit),
+  );
+  if (!parsed.success) {
+    throw new Error(
+      `Validation failed: ${parsed.error.issues.map((i) => i.message).join(", ")}`,
+    );
+  }
+  const data = parsed.data;
+
+  await db
+    .update(preferences)
+    .set({
+      minWindSpeed: data.minWindSpeed,
+      maxWindSpeed: data.maxWindSpeed,
+      maxGustFactor: data.maxGustFactor,
+      preferredDirections: data.preferredDirections,
+      directionTolerance: data.directionTolerance,
+      minConsecutiveHours: data.minConsecutiveHours,
+      maxWaveHeight: data.maxWaveHeight ?? null,
+    })
+    .where(eq(preferences.id, prefs.id));
+
+  revalidatePath("/settings");
+  revalidatePath("/", "layout");
+}
+
+export async function clearWindProfile() {
+  const prefs = await getPreferences();
+  await db
+    .update(preferences)
+    .set({
+      minWindSpeed: null,
+      maxWindSpeed: null,
+      maxGustFactor: null,
+      preferredDirections: null,
+      directionTolerance: null,
+      minConsecutiveHours: null,
+      maxWaveHeight: null,
     })
     .where(eq(preferences.id, prefs.id));
 

@@ -14,11 +14,41 @@ export function asAlertCriteria(
   };
 }
 
-/** Prefer the rider's saved numbers; fall back to the spot default. */
+/**
+ * Spot override → rider default kit → catalog default → app default.
+ */
 export function resolveCriteria(
   spotId: number,
-  userCriteria: CriteriaFields | null | undefined,
+  spotOverride: CriteriaFields | null | undefined,
+  userDefault: CriteriaFields | null | undefined,
   spotCriteria: CriteriaFields | null | undefined,
 ): AlertCriteria {
-  return asAlertCriteria(spotId, userCriteria ?? spotCriteria ?? null);
+  return asAlertCriteria(
+    spotId,
+    spotOverride ?? userDefault ?? spotCriteria ?? null,
+  );
+}
+
+export function windProfileFromPrefs(prefs: {
+  minWindSpeed: number | null;
+  maxWindSpeed: number | null;
+  maxGustFactor: number | null;
+  preferredDirections: string | null;
+  directionTolerance: number | null;
+  minConsecutiveHours: number | null;
+  maxWaveHeight: number | null;
+}): CriteriaFields | null {
+  if (prefs.minWindSpeed == null || prefs.maxWindSpeed == null) return null;
+  return {
+    minWindSpeed: prefs.minWindSpeed,
+    maxWindSpeed: prefs.maxWindSpeed,
+    maxGustFactor: prefs.maxGustFactor ?? defaultCriteria.maxGustFactor,
+    preferredDirections:
+      prefs.preferredDirections ?? defaultCriteria.preferredDirections,
+    directionTolerance:
+      prefs.directionTolerance ?? defaultCriteria.directionTolerance,
+    minConsecutiveHours:
+      prefs.minConsecutiveHours ?? defaultCriteria.minConsecutiveHours,
+    maxWaveHeight: prefs.maxWaveHeight,
+  };
 }

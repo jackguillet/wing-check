@@ -10,7 +10,7 @@ import {
 } from "@/lib/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { evaluateSpot } from "@/lib/alerts/evaluator";
-import { resolveCriteria } from "@/lib/criteria";
+import { resolveCriteria, windProfileFromPrefs } from "@/lib/criteria";
 import { sendAlert } from "@/lib/alerts/notifier";
 import { getAppUrl } from "@/lib/app-url";
 import { parseDisplayUnits } from "@/lib/units";
@@ -137,6 +137,7 @@ export async function GET(request: Request) {
       const criteria = resolveCriteria(
         sub.spot.id,
         userCriteriaByKey.get(`${sub.userId}:${sub.spot.id}`),
+        windProfileFromPrefs(prefs),
         criteriaBySpot.get(sub.spot.id),
       );
 

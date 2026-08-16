@@ -48,6 +48,13 @@ export function mockPreferences(
     checkIntervalHours: 6,
     windSpeedUnit: "knots",
     temperatureUnit: "celsius",
+    minWindSpeed: null,
+    maxWindSpeed: null,
+    maxGustFactor: null,
+    preferredDirections: null,
+    directionTolerance: null,
+    minConsecutiveHours: null,
+    maxWaveHeight: null,
     ...overrides,
   };
 }

@@ -34,8 +34,9 @@ export function CriteriaForm({ spotId, criteria }: CriteriaFormProps) {
       <CardHeader>
         <CardTitle>My wind for this spot</CardTitle>
         <p className="text-sm text-muted-foreground font-normal">
-          These numbers score the forecast and drive your email alerts. Other
-          riders keep their own.
+          These numbers score this spot and drive your email alerts. If you
+          have not saved here, your Settings default kit is used, then the
+          catalog default.
         </p>
       </CardHeader>
       <CardContent>
