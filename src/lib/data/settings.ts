@@ -34,7 +34,7 @@ export async function getPreferences() {
     .where(eq(preferences.userId, user.id));
 
   if (rows.length === 0) {
-    const result = await db
+    await db
       .insert(preferences)
       .values({
         userId: user.id,
@@ -44,8 +44,12 @@ export async function getPreferences() {
         windSpeedUnit: "knots",
         temperatureUnit: "celsius",
       })
-      .returning();
-    return result[0];
+      .onConflictDoNothing({ target: preferences.userId });
+    const created = await db
+      .select()
+      .from(preferences)
+      .where(eq(preferences.userId, user.id));
+    return created[0];
   }
   return rows[0];
 }

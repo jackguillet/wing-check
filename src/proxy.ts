@@ -5,7 +5,7 @@ import {
   getSessionLimiter,
 } from "@/lib/rate-limit";
 
-const PROTECTED_ROUTES = ["/settings", "/spots/new"];
+const PROTECTED_ROUTES = ["/settings", "/spots/new", "/setup"];
 
 function addSecurityHeaders(response: NextResponse) {
   response.headers.set("X-Frame-Options", "DENY");
@@ -34,6 +34,12 @@ function getClientIp(request: NextRequest): string {
   );
 }
 
+function nextWithPath(request: NextRequest, pathname: string) {
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-pathname", pathname);
+  return NextResponse.next({ request: { headers: requestHeaders } });
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -59,7 +65,7 @@ export async function proxy(request: NextRequest) {
         res.headers.set("Retry-After", "60");
         return addSecurityHeaders(res);
       }
-      const response = NextResponse.next();
+      const response = nextWithPath(request, pathname);
       response.headers.set("x-ratelimit-remaining", String(remaining));
       response.headers.set("x-request-id", requestId);
       return addSecurityHeaders(response);
@@ -81,7 +87,7 @@ export async function proxy(request: NextRequest) {
         res.headers.set("Retry-After", "60");
         return addSecurityHeaders(res);
       }
-      const response = NextResponse.next();
+      const response = nextWithPath(request, pathname);
       response.headers.set("x-ratelimit-remaining", String(remaining));
       response.headers.set("x-request-id", requestId);
       return addSecurityHeaders(response);
@@ -102,7 +108,7 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  const response = NextResponse.next();
+  const response = nextWithPath(request, pathname);
   response.headers.set("x-request-id", requestId);
   return addSecurityHeaders(response);
 }

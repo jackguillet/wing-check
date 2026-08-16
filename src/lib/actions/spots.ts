@@ -16,6 +16,7 @@ import { generateUniqueSlug } from "@/lib/slugify";
 import {
   createSpotSchema,
   updateCriteriaSchema,
+  spotNotesSchema,
   formDataToObject,
 } from "@/lib/validations";
 import { getDisplayUnits } from "@/lib/data/settings";
@@ -237,6 +238,12 @@ export async function clearSpotWindOverride(spotId: number) {
 
 export async function updateSpotNotes(spotId: number, notes: string) {
   const { user } = await requireSession();
+  const parsed = spotNotesSchema.safeParse(notes);
+  if (!parsed.success) {
+    throw new Error(
+      parsed.error.issues.map((i) => i.message).join(", ") || "Notes too long",
+    );
+  }
 
   const spotRows = await db
     .select()
@@ -246,7 +253,7 @@ export async function updateSpotNotes(spotId: number, notes: string) {
 
   await db
     .update(spots)
-    .set({ notes: notes.trim() || null })
+    .set({ notes: parsed.data.trim() || null })
     .where(eq(spots.id, spotId));
 
   revalidatePath(`/spots/${spotRows[0].slug}`);

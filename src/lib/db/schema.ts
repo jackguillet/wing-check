@@ -223,26 +223,30 @@ export const spotOverviews = sqliteTable(
   (table) => [index("spot_overviews_spotId_idx").on(table.spotId)],
 );
 
-export const preferences = sqliteTable("preferences", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  userId: text("user_id")
-    .notNull()
-    .references(() => user.id, { onDelete: "cascade" }),
-  email: text("email"),
-  alertsEnabled: integer("alerts_enabled", { mode: "boolean" })
-    .notNull()
-    .default(false),
-  checkIntervalHours: integer("check_interval_hours").notNull().default(6),
-  windSpeedUnit: text("wind_speed_unit").notNull().default("knots"),
-  temperatureUnit: text("temperature_unit").notNull().default("celsius"),
-  minWindSpeed: real("min_wind_speed"),
-  maxWindSpeed: real("max_wind_speed"),
-  maxGustFactor: real("max_gust_factor"),
-  preferredDirections: text("preferred_directions"),
-  directionTolerance: real("direction_tolerance"),
-  minConsecutiveHours: integer("min_consecutive_hours"),
-  maxWaveHeight: real("max_wave_height"),
-});
+export const preferences = sqliteTable(
+  "preferences",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    email: text("email"),
+    alertsEnabled: integer("alerts_enabled", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    checkIntervalHours: integer("check_interval_hours").notNull().default(6),
+    windSpeedUnit: text("wind_speed_unit").notNull().default("knots"),
+    temperatureUnit: text("temperature_unit").notNull().default("celsius"),
+    minWindSpeed: real("min_wind_speed"),
+    maxWindSpeed: real("max_wind_speed"),
+    maxGustFactor: real("max_gust_factor"),
+    preferredDirections: text("preferred_directions"),
+    directionTolerance: real("direction_tolerance"),
+    minConsecutiveHours: integer("min_consecutive_hours"),
+    maxWaveHeight: real("max_wave_height"),
+  },
+  (table) => [uniqueIndex("preferences_userId_uniq").on(table.userId)],
+);
 
 export type Spot = typeof spots.$inferSelect;
 export type NewSpot = typeof spots.$inferInsert;

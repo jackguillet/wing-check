@@ -3,6 +3,7 @@ import {
   createSpotSchema,
   updateCriteriaSchema,
   updatePreferencesSchema,
+  spotNotesSchema,
   formDataToObject,
 } from "../validations";
 
@@ -204,6 +205,17 @@ describe("updatePreferencesSchema", () => {
     const result = updatePreferencesSchema.safeParse({
       checkIntervalHours: "200",
     });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("spotNotesSchema", () => {
+  it("accepts notes up to 500 characters", () => {
+    expect(spotNotesSchema.safeParse("a".repeat(500)).success).toBe(true);
+  });
+
+  it("rejects notes longer than 500 characters", () => {
+    const result = spotNotesSchema.safeParse("a".repeat(501));
     expect(result.success).toBe(false);
   });
 });

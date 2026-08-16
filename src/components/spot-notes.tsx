@@ -28,10 +28,12 @@ export function SpotNotes({
         <textarea
           className="w-full rounded-md border bg-background px-3 py-2 text-sm min-h-[80px] resize-y"
           value={value}
+          maxLength={500}
           onChange={(e) => setValue(e.target.value)}
           placeholder="Local knowledge, tips, restrictions..."
           autoFocus
         />
+        <p className="text-xs text-muted-foreground">{value.length}/500</p>
         <div className="flex gap-2">
           <Button
             size="sm"

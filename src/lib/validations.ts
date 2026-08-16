@@ -91,6 +91,8 @@ export const updatePreferencesSchema = z.object({
     .default("celsius"),
 });
 
+export const spotNotesSchema = createSpotSchema.shape.notes;
+
 /** Parse FormData into a plain object for Zod validation */
 export function formDataToObject(formData: FormData): Record<string, string> {
   const obj: Record<string, string> = {};
