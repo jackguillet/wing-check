@@ -9,7 +9,7 @@ import {
   weatherCodeToDescription,
 } from "@/lib/weather/types";
 import type { AlertCriteria, Spot, SpotOverview } from "@/lib/db/schema";
-import { getDisplayUnits } from "@/lib/actions/settings";
+import { getSession } from "@/lib/auth-session";
 import { logger } from "@/lib/logger";
 import * as Sentry from "@sentry/nextjs";
 import {
@@ -208,7 +208,7 @@ export async function getOrGenerateOverview(
   nowCivil?: string,
 ): Promise<SpotOverview | null> {
   const now = new Date();
-  const units = await getDisplayUnits();
+  const units = DEFAULT_UNITS;
   const forecastSummary = JSON.stringify(
     buildForecastSummary(spot, hours, criteria, sunrise, sunset, units, nowCivil),
   );
@@ -222,6 +222,11 @@ export async function getOrGenerateOverview(
     (row) => row.forecastSummary === forecastSummary && row.expiresAt > now,
   );
   if (matching) return matching;
+
+  const session = await getSession();
+  if (!session?.user) {
+    return cached[0] ?? null;
+  }
 
   try {
     const { overview } = await generateSpotOverview(

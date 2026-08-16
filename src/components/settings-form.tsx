@@ -4,7 +4,6 @@ import { useState } from "react";
 import { updatePreferences } from "@/lib/actions/settings";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -15,10 +14,21 @@ import {
 } from "@/components/ui/select";
 import type { Preferences } from "@/lib/db/schema";
 
-export function SettingsForm({ prefs }: { prefs: Preferences }) {
+export function SettingsForm({
+  prefs,
+  accountEmail,
+  emailVerified,
+}: {
+  prefs: Preferences;
+  accountEmail: string;
+  emailVerified: boolean;
+}) {
   const [windSpeedUnit, setWindSpeedUnit] = useState(prefs.windSpeedUnit);
   const [temperatureUnit, setTemperatureUnit] = useState(
     prefs.temperatureUnit,
+  );
+  const [alertsEnabled, setAlertsEnabled] = useState(
+    prefs.alertsEnabled && emailVerified,
   );
 
   return (
@@ -29,40 +39,35 @@ export function SettingsForm({ prefs }: { prefs: Preferences }) {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">Email Address</Label>
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              placeholder="your@email.com"
-              defaultValue={prefs.email ?? ""}
-            />
+            <Label>Account email</Label>
+            <p className="text-sm">{accountEmail}</p>
+            <p className="text-xs text-muted-foreground">
+              {emailVerified
+                ? "Verified. GO emails are sent only to this address."
+                : "Check your inbox and verify this address before alerts can be turned on."}
+            </p>
           </div>
           <div className="flex items-center space-x-2">
             <input
               type="checkbox"
               id="alertsEnabled"
-              name="alertsEnabled"
-              defaultChecked={prefs.alertsEnabled}
+              checked={alertsEnabled}
+              disabled={!emailVerified}
+              onChange={(e) => setAlertsEnabled(e.target.checked)}
               className="h-4 w-4 rounded border-input"
             />
             <Label htmlFor="alertsEnabled">Enable email alerts</Label>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="checkIntervalHours">Check Interval (hours)</Label>
-            <Input
-              id="checkIntervalHours"
-              name="checkIntervalHours"
-              type="number"
-              min="1"
-              max="24"
-              defaultValue={prefs.checkIntervalHours}
-            />
-            <p className="text-xs text-muted-foreground">
-              Minimum hours between emails for the same spot. Conditions are
-              checked once a day around 6am Pacific.
-            </p>
-          </div>
+          <input
+            type="hidden"
+            name="alertsEnabled"
+            value={alertsEnabled ? "on" : "off"}
+          />
+          <p className="text-xs text-muted-foreground">
+            Conditions are checked once a day at 14:00 UTC (6am Pacific in
+            winter, 7am in summer). You get one email per upcoming GO window
+            in the next 48 hours — not a leftover morning that already ended.
+          </p>
         </CardContent>
       </Card>
 

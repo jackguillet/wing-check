@@ -2,11 +2,17 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { spots } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { getSessionFromHeaders } from "@/lib/auth-session";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ spotId: string }> },
 ) {
+  const session = await getSessionFromHeaders(request.headers);
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { spotId } = await params;
   const id = parseInt(spotId);
   if (isNaN(id)) {
@@ -41,7 +47,7 @@ export async function GET(
     return new NextResponse(imageBytes, {
       headers: {
         "Content-Type": "image/png",
-        "Cache-Control": "public, max-age=604800, s-maxage=604800",
+        "Cache-Control": "private, max-age=604800",
       },
     });
   } catch {

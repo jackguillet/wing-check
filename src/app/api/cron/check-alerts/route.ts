@@ -7,26 +7,27 @@ import {
   alertHistory,
   preferences,
   userSpots,
+  user,
 } from "@/lib/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { evaluateSpot } from "@/lib/alerts/evaluator";
 import { spotLocalNow } from "@/lib/weather/civil-time";
 import { resolveCriteria, windProfileFromPrefs } from "@/lib/criteria";
 import { sendAlert } from "@/lib/alerts/notifier";
+import {
+  upcomingGoWindows,
+  uniqueWindowAlertTypes,
+  unsentGoWindows,
+} from "@/lib/alerts/policy";
 import { getAppUrl } from "@/lib/app-url";
 import { parseDisplayUnits } from "@/lib/units";
-import {
-  fetchWeatherForecast,
-  fetchMarineForecast,
-  mergeForecasts,
-} from "@/lib/weather/open-meteo";
+import { getSpotForecast } from "@/lib/data/forecasts";
 import { logger } from "@/lib/logger";
 import * as Sentry from "@sentry/nextjs";
 
 export async function GET(request: Request) {
   const startTime = Date.now();
 
-  // Verify cron secret — fail closed if not configured
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) {
     return NextResponse.json(
@@ -40,18 +41,37 @@ export async function GET(request: Request) {
   }
 
   try {
-    // Bulk fetch: all users with alerts enabled and an email set
     const allPrefs = await db.select().from(preferences);
-    const enabledPrefs = allPrefs.filter((p) => p.alertsEnabled && p.email);
+    const candidateIds = allPrefs
+      .filter((p) => p.alertsEnabled)
+      .map((p) => p.userId);
+
+    const verifiedUsers =
+      candidateIds.length === 0
+        ? []
+        : await db
+            .select({
+              id: user.id,
+              email: user.email,
+              emailVerified: user.emailVerified,
+            })
+            .from(user)
+            .where(inArray(user.id, candidateIds));
+    const verifiedById = new Map(
+      verifiedUsers
+        .filter((u) => u.emailVerified && u.email)
+        .map((u) => [u.id, u]),
+    );
+
+    const enabledPrefs = allPrefs.filter((p) => verifiedById.has(p.userId));
 
     if (enabledPrefs.length === 0) {
-      logger.info("No users with alerts enabled");
+      logger.info("No verified users with alerts enabled");
       return NextResponse.json({ message: "No users with alerts enabled" });
     }
 
     const enabledUserIds = enabledPrefs.map((p) => p.userId);
 
-    // Bulk fetch: all subscriptions for enabled users
     const allSubscriptions = await db
       .select({ userId: userSpots.userId, spot: spots })
       .from(userSpots)
@@ -63,7 +83,6 @@ export async function GET(request: Request) {
         ),
       );
 
-    // Deduplicate spots for forecast fetching
     const uniqueSpots = new Map<number, (typeof allSubscriptions)[0]["spot"]>();
     for (const sub of allSubscriptions) {
       uniqueSpots.set(sub.spot.id, sub.spot);
@@ -75,7 +94,6 @@ export async function GET(request: Request) {
       return NextResponse.json({ message: "No spots subscribed" });
     }
 
-    // Bulk fetch: all criteria for subscribed spots
     const allCriteria = await db
       .select()
       .from(alertCriteria)
@@ -95,32 +113,23 @@ export async function GET(request: Request) {
       allUserCriteria.map((c) => [`${c.userId}:${c.spotId}`, c]),
     );
 
-    // Bulk fetch: all recent alert history for enabled users
     const allHistory = await db
       .select()
       .from(alertHistory)
       .where(inArray(alertHistory.userId, enabledUserIds));
     const prefsMap = new Map(enabledPrefs.map((p) => [p.userId, p]));
 
-    // Fetch forecasts for unique spots (deduplicated)
-    const forecastCache = new Map<
+    const forecastBySpot = new Map<
       number,
-      Awaited<ReturnType<typeof fetchWeatherForecast>> & {
-        marine: Awaited<ReturnType<typeof fetchMarineForecast>>;
-      }
+      Awaited<ReturnType<typeof getSpotForecast>>
     >();
-
     await Promise.all(
-      [...uniqueSpots.values()].map(async (spot) => {
+      uniqueSpotIds.map(async (spotId) => {
         try {
-          const [weather, marine] = await Promise.all([
-            fetchWeatherForecast(spot.latitude, spot.longitude),
-            fetchMarineForecast(spot.latitude, spot.longitude),
-          ]);
-          forecastCache.set(spot.id, { ...weather, marine });
+          forecastBySpot.set(spotId, await getSpotForecast(spotId));
         } catch (error) {
           logger.error(
-            { err: error, spotId: spot.id },
+            { err: error, spotId },
             "Failed to fetch forecast for spot",
           );
           Sentry.captureException(error);
@@ -130,10 +139,10 @@ export async function GET(request: Request) {
 
     const results = [];
 
-    // Process each user-spot subscription
     for (const sub of allSubscriptions) {
       const prefs = prefsMap.get(sub.userId);
-      if (!prefs) continue;
+      const account = verifiedById.get(sub.userId);
+      if (!prefs || !account?.email) continue;
 
       const criteria = resolveCriteria(
         sub.spot.id,
@@ -142,71 +151,82 @@ export async function GET(request: Request) {
         criteriaBySpot.get(sub.spot.id),
       );
 
-      const forecast = forecastCache.get(sub.spot.id);
+      const forecast = forecastBySpot.get(sub.spot.id);
       if (!forecast) continue;
 
-      const hours = mergeForecasts(forecast, forecast.marine);
+      const nowCivil = spotLocalNow(forecast.utcOffsetSeconds);
       const evaluation = evaluateSpot(
-        hours,
+        forecast.hours,
         criteria,
-        forecast.daily?.sunrise,
-        forecast.daily?.sunset,
-        spotLocalNow(forecast.utc_offset_seconds),
+        forecast.sunrise,
+        forecast.sunset,
+        nowCivil,
       );
 
-      if (evaluation.goNoGo === "go" && evaluation.rideableWindows.length > 0) {
-        // Check recent alert history (from bulk-fetched data)
-        const recentAlerts = allHistory.filter((h) => {
-          if (h.spotId !== sub.spot.id || h.userId !== prefs.userId)
-            return false;
-          const hoursSince =
-            (Date.now() - h.sentAt.getTime()) / (1000 * 60 * 60);
-          return hoursSince < prefs.checkIntervalHours;
-        });
+      const upcoming = upcomingGoWindows(evaluation.rideableWindows, nowCivil);
+      const sentTypes = new Set(
+        allHistory
+          .filter(
+            (h) => h.spotId === sub.spot.id && h.userId === prefs.userId,
+          )
+          .map((h) => h.alertType),
+      );
+      const toSend = unsentGoWindows(upcoming, sentTypes);
 
-        if (recentAlerts.length > 0) continue;
-
-        const appUrl = getAppUrl();
-        const spotPath = sub.spot.slug
-          ? `/spots/${sub.spot.slug}`
-          : `/spots/${sub.spot.id}`;
-        const result = await sendAlert({
-          spotName: sub.spot.name,
-          windows: evaluation.rideableWindows,
-          email: prefs.email!,
-          spotUrl: `${appUrl}${spotPath}`,
-          windSpeedUnit: parseDisplayUnits(
-            prefs.windSpeedUnit,
-            prefs.temperatureUnit,
-          ).windSpeedUnit,
-        });
-
-        await db.insert(alertHistory).values({
-          spotId: sub.spot.id,
-          userId: prefs.userId,
-          sentAt: new Date(),
-          alertType: "go",
-          forecastSummary: JSON.stringify({
-            score: evaluation.overallScore,
-            windows: evaluation.rideableWindows.length,
-            bestWindow: evaluation.bestWindow,
-          }),
-        });
-
-        results.push({
-          user: prefs.userId,
-          spot: sub.spot.name,
-          sent: true,
-          result,
-        });
-      } else {
+      if (toSend.length === 0) {
         results.push({
           user: prefs.userId,
           spot: sub.spot.name,
           sent: false,
           goNoGo: evaluation.goNoGo,
         });
+        continue;
       }
+
+      const appUrl = getAppUrl();
+      const spotPath = sub.spot.slug
+        ? `/spots/${sub.spot.slug}`
+        : `/spots/${sub.spot.id}`;
+      const result = await sendAlert({
+        spotName: sub.spot.name,
+        windows: toSend,
+        email: account.email,
+        userId: account.id,
+        spotUrl: `${appUrl}${spotPath}`,
+        windSpeedUnit: parseDisplayUnits(
+          prefs.windSpeedUnit,
+          prefs.temperatureUnit,
+        ).windSpeedUnit,
+      });
+
+      const sentAt = new Date();
+      const types = uniqueWindowAlertTypes(toSend);
+      for (const alertType of types) {
+        const inserted = {
+          spotId: sub.spot.id,
+          userId: prefs.userId,
+          sentAt,
+          alertType,
+          forecastSummary: JSON.stringify({
+            score: evaluation.overallScore,
+            windows: toSend.map((w) => w.start),
+            bestWindow: evaluation.bestWindow,
+          }),
+        };
+        await db.insert(alertHistory).values(inserted);
+        allHistory.push({
+          id: 0,
+          ...inserted,
+        });
+      }
+
+      results.push({
+        user: prefs.userId,
+        spot: sub.spot.name,
+        sent: true,
+        windows: toSend.map((w) => w.start),
+        result,
+      });
     }
 
     const durationMs = Date.now() - startTime;

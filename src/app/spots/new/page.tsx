@@ -1,17 +1,15 @@
 import { NewSpotForm } from "@/components/new-spot-form";
 import { UnitsProvider } from "@/components/units-provider";
-import { getDisplayUnits } from "@/lib/actions/settings";
-import { getUserWindProfile } from "@/lib/actions/spots";
-import { getSession } from "@/lib/auth-session";
+import { getDisplayUnits } from "@/lib/data/settings";
+import { getUserWindProfile } from "@/lib/data/spots";
+import { requireSession } from "@/lib/auth-session";
 
 export default async function NewSpotPage() {
-  const [units, session] = await Promise.all([
+  const [units, { user }] = await Promise.all([
     getDisplayUnits(),
-    getSession(),
+    requireSession(),
   ]);
-  const defaultWind = session?.user
-    ? await getUserWindProfile(session.user.id)
-    : null;
+  const defaultWind = await getUserWindProfile(user.id);
 
   return (
     <UnitsProvider units={units}>

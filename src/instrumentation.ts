@@ -1,5 +1,8 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
+    const { validateEnv } = await import("@/lib/env");
+    validateEnv();
+
     // Initialize Sentry for server-side error tracking
     await import("../sentry.server.config");
 

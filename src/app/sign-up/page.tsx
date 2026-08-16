@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
@@ -17,12 +16,12 @@ import {
 } from "@/components/ui/card";
 
 export default function SignUpPage() {
-  const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [checkInbox, setCheckInbox] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -41,8 +40,8 @@ export default function SignUpPage() {
       return;
     }
 
-    router.push("/");
-    router.refresh();
+    setCheckInbox(true);
+    setLoading(false);
   }
 
   return (
@@ -54,6 +53,17 @@ export default function SignUpPage() {
             Create an account to start tracking your wing foil spots.
           </CardDescription>
         </CardHeader>
+        {checkInbox ? (
+          <CardContent className="space-y-4">
+            <p className="text-sm">
+              Check your inbox at {email} and click the verification link
+              before signing in.
+            </p>
+            <Link href="/sign-in" className="text-sm text-primary underline">
+              Back to sign in
+            </Link>
+          </CardContent>
+        ) : (
         <form onSubmit={handleSubmit}>
           <CardContent className="flex flex-col gap-4">
             {error && (
@@ -106,6 +116,7 @@ export default function SignUpPage() {
             </p>
           </CardFooter>
         </form>
+        )}
       </Card>
     </div>
   );

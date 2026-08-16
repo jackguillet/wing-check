@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
+import { getSessionFromHeaders } from "@/lib/auth-session";
 
 export async function GET(request: Request) {
+  const session = await getSessionFromHeaders(request.headers);
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const q = searchParams.get("q")?.trim();
   if (!q || q.length < 2) {
