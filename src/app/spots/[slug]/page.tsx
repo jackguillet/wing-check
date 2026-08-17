@@ -475,26 +475,6 @@ export default async function SpotDetailPage({
           />
         ) : null}
 
-        {observation ? (
-          <ObservationCard
-            observation={observation}
-            model={
-              forecast
-                ? forecastHourAt(
-                    forecast.hours,
-                    spotLocalNow(
-                      forecast.utcOffsetSeconds,
-                      new Date(observation.observedAtUnix * 1000),
-                    ),
-                  )
-                : null
-            }
-            timezone={forecast?.timezone ?? "UTC"}
-            series={metarSeries}
-            bias={metarBias}
-          />
-        ) : null}
-
         {forecast?.stale && (
           <div className="flex items-start gap-2 rounded-md border border-yellow-500/50 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-800 dark:text-yellow-200">
             <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
@@ -566,6 +546,26 @@ export default async function SpotDetailPage({
             utcOffsetSeconds={forecast.utcOffsetSeconds}
           />
         )}
+
+        {observation ? (
+          <ObservationCard
+            observation={observation}
+            model={
+              forecast
+                ? forecastHourAt(
+                    forecast.hours,
+                    spotLocalNow(
+                      forecast.utcOffsetSeconds,
+                      new Date(observation.observedAtUnix * 1000),
+                    ),
+                  )
+                : null
+            }
+            timezone={forecast?.timezone ?? "UTC"}
+            series={metarSeries}
+            bias={metarBias}
+          />
+        ) : null}
 
         {forecast && (
           <p className="text-xs text-muted-foreground text-right">
