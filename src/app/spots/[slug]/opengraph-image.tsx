@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 import { getVisibleSpotBySlug } from "@/lib/data/spots";
 import { getCachedForecastsBySpotIds } from "@/lib/data/forecasts";
 import { getResolvedCriteriaDetails } from "@/lib/data/spots";
-import { evaluateSpot } from "@/lib/alerts/evaluator";
+import { evaluateSpot, sessionSummary } from "@/lib/alerts/evaluator";
 import { spotLocalNow } from "@/lib/weather/civil-time";
 
 export const runtime = "nodejs";
@@ -19,14 +19,14 @@ export default async function Image({
   const spot = await getVisibleSpotBySlug(slug, null);
   if (!spot) {
     return new ImageResponse(
-      <Card title="Wing Check" subtitle="Spot not found" score={null} />,
+      <Card title="Wing Check" subtitle="Spot not found" detail={null} />,
       size,
     );
   }
 
   const cached = (await getCachedForecastsBySpotIds([spot.id])).get(spot.id);
   let verdict = "Forecast";
-  let score: number | null = null;
+  let detail: string | null = null;
   if (cached) {
     const { criteria } = await getResolvedCriteriaDetails(spot.id, null);
     const evaluation = evaluateSpot(
@@ -38,12 +38,18 @@ export default async function Image({
       null,
       cached.tides,
     );
-    verdict = evaluation.goNoGo.toUpperCase();
-    score = evaluation.overallScore;
+    const today = evaluation.dayEvaluations.find(
+      (d) => d.date === evaluation.todayDate,
+    );
+    verdict = sessionSummary(today?.bestWindow ?? null);
+    const window = today?.bestWindow ?? null;
+    detail = window
+      ? `${window.start.slice(11, 16)}–${window.end.slice(11, 16)}`
+      : null;
   }
 
   return new ImageResponse(
-    <Card title={spot.name} subtitle={`${verdict} · Wing Check`} score={score} />,
+    <Card title={spot.name} subtitle={`${verdict} · Wing Check`} detail={detail} />,
     size,
   );
 }
@@ -51,11 +57,11 @@ export default async function Image({
 function Card({
   title,
   subtitle,
-  score,
+  detail,
 }: {
   title: string;
   subtitle: string;
-  score: number | null;
+  detail: string | null;
 }) {
   return (
     <div
@@ -77,7 +83,7 @@ function Card({
         <div style={{ fontSize: 36, opacity: 0.85 }}>{subtitle}</div>
       </div>
       <div style={{ fontSize: 48, fontWeight: 600 }}>
-        {score != null ? `${score}/100` : "wing-check.vercel.app"}
+        {detail ?? "wing-check.vercel.app"}
       </div>
     </div>
   );

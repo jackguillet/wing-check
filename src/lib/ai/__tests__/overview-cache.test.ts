@@ -41,7 +41,7 @@ describe("pickCachedOverview", () => {
 });
 
 describe("fallbackOverviewText", () => {
-  it("states NO-GO when there is no window", () => {
+  it("states no session when there is no window", () => {
     const text = fallbackOverviewText({
       spot: {
         name: "Kanaha Beach",
@@ -67,15 +67,15 @@ describe("fallbackOverviewText", () => {
         },
       ],
       evaluation: {
-        goNoGo: "no-go",
-        overallScore: 0,
+        verdict: "none",
+        session: "none",
         rideableWindows: [],
         suggestedWindows: [],
       },
     });
     expect(text).toMatch(/Kanaha Beach/);
     expect(text).toMatch(/2-5 kt/);
-    expect(text).toMatch(/NO-GO \(0\/100\)/);
+    expect(text).toMatch(/Bottom line:\*\* No session/);
     expect(text).not.toMatch(/Go time/i);
   });
 });

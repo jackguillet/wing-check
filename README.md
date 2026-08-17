@@ -68,12 +68,13 @@ Each forecast hour is scored on four dimensions:
 
 Tide phase, swell quality, and wave amplification are shown on the spot page and **are not in the grade**.
 
-Consecutive **remaining** daylight hours scoring 50+ form **rideable windows**. Hours that have already ended do not count. The best remaining window's average determines the day:
-- **GO** (≥70): A remaining window looks great
-- **MARGINAL**: A remaining window, but not ideal
-- **NO-GO**: No remaining window
+Consecutive **remaining** daylight hours that are at least Light form a rideable run. The day is graded by the **best session inside that run**, not the all-day average — three prime hours beat a full day of barely rideable.
+- **Prime**: remaining window is on
+- **Solid**: remaining window is properly rideable
+- **Light**: people will be out, below the spot's classic band
+- **No session**: nothing rideable left in daylight
 
-Overall GO/NO-GO is **today in the spot's timezone**, not the first date in the series.
+The grade is **today in the spot's timezone**, not the first date in the series.
 
 ## Deploy to Vercel
 

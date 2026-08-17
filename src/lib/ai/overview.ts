@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { db } from "@/lib/db";
 import { spotOverviews } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { evaluateSpot } from "@/lib/alerts/evaluator";
+import { evaluateSpot, verdictLabel } from "@/lib/alerts/evaluator";
 import type { ForecastHour } from "@/lib/weather/types";
 import {
   degreesToCardinal,
@@ -148,8 +148,10 @@ export function buildForecastSummary(
     },
     days,
     evaluation: {
-      goNoGo: evaluation.goNoGo,
-      overallScore: evaluation.overallScore,
+      verdict: evaluation.verdict,
+      session: evaluation.bestWindow
+        ? `${evaluation.verdict} ${evaluation.bestWindow.hours}h`
+        : evaluation.verdict,
       rideableWindows: windows,
       suggestedWindows: suggested,
     },
@@ -194,10 +196,10 @@ async function generateSpotOverview(
 Use only the dates and numbers in the forecast data. Do not invent another month or season.
 Write a single short paragraph (50-80 words max) summarizing today's conditions:
 wind range, direction, best window, recommended wing size if given, and swell if relevant.
-If suggestedWindows is present, mention that a wing they do not own would make the day GO.
+If suggestedWindows is present, mention that a wing they do not own would open a better session.
 Don't explain basic
 concepts or restate the rider's criteria — they already know what they need.
-End with a bold **Bottom line:** one-sentence go/no-go verdict.`,
+End with a bold **Bottom line:** Prime, Solid, Light, or No session plus the window length. Do not use a 0–100 score.`,
       messages: [
         {
           role: "user",
@@ -244,26 +246,20 @@ export function fallbackOverviewText(
   summary: ReturnType<typeof buildForecastSummary>,
 ): string {
   const ev = summary.evaluation;
-  const verdict =
-    ev.goNoGo === "go"
-      ? "GO"
-      : ev.goNoGo === "marginal"
-        ? "MARGINAL"
-        : "NO-GO";
   const today = summary.days[0];
   const wind = today
     ? `${today.windRange} ${today.dominantDirection}`
     : "no daylight hours loaded";
-  const best = [...ev.rideableWindows].sort((a, b) => b.score - a.score)[0];
+  const best = ev.rideableWindows[0];
   const window = best
-    ? `Best remaining window ${best.start}–${best.end}, ${best.avgWind}, score ${best.score}/100.`
-    : "No remaining rideable window.";
+    ? `Best remaining session ${best.start}–${best.end}, ${best.avgWind}, ${best.hours}h.`
+    : "No remaining rideable session.";
   const suggested = ev.suggestedWindows[0];
   const maybe =
     !best && suggested?.wing
       ? ` A ${suggested.wing} you do not own would open a window.`
       : "";
-  return `${summary.spot.name}: ${wind}. ${window}${maybe} **Bottom line:** ${verdict} (${ev.overallScore}/100).`;
+  return `${summary.spot.name}: ${wind}. ${window}${maybe} **Bottom line:** ${verdictLabel(ev.verdict)}.`;
 }
 
 function syntheticOverview(

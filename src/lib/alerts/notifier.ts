@@ -1,4 +1,8 @@
-import type { RideableWindow } from "./evaluator";
+import {
+  type RideableWindow,
+  verdictFromWindow,
+  verdictLabel,
+} from "./evaluator";
 import { degreesToCardinal } from "@/lib/weather/types";
 import {
   formatCivilClock,
@@ -42,7 +46,7 @@ export async function sendAlert({
         w.recommendedWing != null
           ? `, ${formatWingSize(w.recommendedWing)}`
           : "";
-      return `${start} – ${end}: ${formatWind(w.avgWind, windSpeedUnit)} avg (gusts ${formatWind(w.avgGusts, windSpeedUnit)}), ${degreesToCardinal(w.dominantDirection)}${wing}, score ${w.avgScore}/100`;
+      return `${start} – ${end}: ${formatWind(w.avgWind, windSpeedUnit)} avg (gusts ${formatWind(w.avgGusts, windSpeedUnit)}), ${degreesToCardinal(w.dominantDirection)}${wing}, ${verdictLabel(verdictFromWindow(w))} · ${w.hours}h`;
     })
     .join("\n");
 
