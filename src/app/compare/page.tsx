@@ -9,12 +9,12 @@ import {
 import { getCachedForecastsBySpotIds } from "@/lib/data/forecasts";
 import { getPreferences, getWingsForUser } from "@/lib/data/settings";
 import { riderScheduleFromPrefs } from "@/lib/criteria";
-import { evaluateSpot, defaultCriteria } from "@/lib/alerts/evaluator";
+import { defaultCriteria, evaluateSpot } from "@/lib/alerts/evaluator";
 import { formatWingSize, formatWouldBeGo, quiverPair } from "@/lib/wings";
 import { spotLocalNow } from "@/lib/weather/civil-time";
 import { parseCompareSlugs } from "@/lib/spots/compare";
 import { ComparePicker } from "@/components/compare-picker";
-import { Badge } from "@/components/ui/badge";
+import { VerdictBadge } from "@/components/verdict-badge";
 
 export const dynamic = "force-dynamic";
 
@@ -27,14 +27,6 @@ export async function generateMetadata({
   const slugs = parseCompareSlugs(spots);
   if (slugs.length < 2) return { title: "Compare spots · Wing Check" };
   return { title: `Compare ${slugs.length} spots · Wing Check` };
-}
-
-function GoBadge({ status }: { status: "go" | "marginal" | "no-go" }) {
-  if (status === "go")
-    return <Badge className="bg-green-600 text-white">GO</Badge>;
-  if (status === "marginal")
-    return <Badge className="bg-yellow-500 text-black">MARGINAL</Badge>;
-  return <Badge variant="outline">NO-GO</Badge>;
 }
 
 export default async function ComparePage({
@@ -103,7 +95,7 @@ export default async function ComparePage({
       <div>
         <h1 className="text-3xl font-bold">Compare spots</h1>
         <p className="text-muted-foreground mt-2">
-          Pick two or three pins. Scores use your kit when you are signed in.
+          Pick two or three pins. Sessions use your kit when you are signed in.
         </p>
       </div>
 
@@ -151,8 +143,10 @@ export default async function ComparePage({
                     return (
                       <td key={col.spot.id} className="p-3">
                         <div className="flex items-center gap-2">
-                          <GoBadge status={day.goNoGo} />
-                          <span className="font-medium">{day.score}/100</span>
+                          <VerdictBadge verdict={day.verdict} />
+                          {w ? (
+                            <span className="font-medium">{w.hours}h</span>
+                          ) : null}
                         </div>
                         {w ? (
                           <p className="text-xs text-muted-foreground mt-1">

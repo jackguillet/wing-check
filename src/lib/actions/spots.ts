@@ -83,6 +83,7 @@ export async function createSpot(
       slug,
       latitude: data.latitude,
       longitude: data.longitude,
+      mapRadiusKm: data.mapRadiusKm,
       noaaStationId,
       notes: data.notes || null,
       userId: user.id,
@@ -107,18 +108,6 @@ export async function createSpot(
     spotId: inserted.id,
     isFavorite: true,
     alertsEnabled: true,
-  });
-
-  await db.insert(userAlertCriteria).values({
-    userId: user.id,
-    spotId: inserted.id,
-    minWindSpeed: data.minWindSpeed,
-    maxWindSpeed: data.maxWindSpeed,
-    maxGustFactor: data.maxGustFactor,
-    preferredDirections: data.preferredDirections,
-    directionTolerance: data.directionTolerance,
-    minConsecutiveHours: data.minConsecutiveHours,
-    maxWaveHeight: data.maxWaveHeight ?? null,
   });
 
   revalidatePath("/");
@@ -270,6 +259,7 @@ export async function updateSpot(
       name: data.name,
       latitude: data.latitude,
       longitude: data.longitude,
+      mapRadiusKm: data.mapRadiusKm,
       noaaStationId,
       notes: data.notes.trim() || null,
     })

@@ -1,6 +1,7 @@
 "use client";
 
 import type { DayEvaluation } from "@/lib/alerts/evaluator";
+import { verdictLabel } from "@/lib/alerts/evaluator";
 import {
   addCivilDays,
   formatCivilWeekdayShort,
@@ -8,11 +9,11 @@ import {
 import { useForecastControls } from "@/components/forecast-controls";
 import { formatWingSize } from "@/lib/wings";
 
-const goNoGoColors = {
-  go: "bg-green-600/10 border-green-600 text-green-700 dark:text-green-400",
-  marginal:
-    "bg-yellow-500/10 border-yellow-500 text-yellow-700 dark:text-yellow-400",
-  "no-go": "bg-red-500/10 border-red-500 text-red-700 dark:text-red-400",
+const verdictColors = {
+  prime: "bg-green-600/10 border-green-600 text-green-700 dark:text-green-400",
+  solid: "bg-emerald-600/10 border-emerald-600 text-emerald-700 dark:text-emerald-400",
+  light: "bg-amber-500/10 border-amber-500 text-amber-800 dark:text-amber-400",
+  none: "bg-muted/40 border-muted-foreground/30 text-muted-foreground",
 };
 
 function dayLabel(dateStr: string, todayDate: string | null): string {
@@ -33,7 +34,7 @@ export function SevenDayStrip({
   return (
     <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
       {display.map((day) => {
-        const color = goNoGoColors[day.goNoGo];
+        const color = verdictColors[day.verdict];
         const isToday = todayDate != null && day.date === todayDate;
         const selected = selectedDate === day.date;
         const window = day.bestWindow;
@@ -54,14 +55,13 @@ export function SevenDayStrip({
             <p className="text-xs font-medium opacity-70">
               {dayLabel(day.date, todayDate)}
             </p>
-            <p className="font-bold uppercase text-xs">{day.goNoGo}</p>
-            <p className="font-bold text-lg leading-tight">
-              {day.score}
-              <span className="text-xs font-medium opacity-70">/100</span>
+            <p className="font-bold text-sm leading-tight">
+              {verdictLabel(day.verdict)}
             </p>
             {window ? (
               <p className="text-[10px] opacity-80 mt-1">
-                {window.start.slice(11, 16)}–{window.end.slice(11, 16)}
+                {window.hours}h · {window.start.slice(11, 16)}–
+                {window.end.slice(11, 16)}
                 {window.recommendedWing != null
                   ? ` · ${formatWingSize(window.recommendedWing)}`
                   : ""}
@@ -71,7 +71,7 @@ export function SevenDayStrip({
                 Need {formatWingSize(day.suggestedWindow.recommendedWing)}
               </p>
             ) : (
-              <p className="text-[10px] opacity-60 mt-1">No window</p>
+              <p className="text-[10px] opacity-60 mt-1">No session</p>
             )}
             {lowConfidence ? (
               <p className="text-[10px] opacity-70 mt-1">Lower confidence</p>

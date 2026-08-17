@@ -95,7 +95,12 @@ export function NewSpotForm({
 
       <Card>
         <CardHeader>
-          <CardTitle>Wind Preferences</CardTitle>
+          <CardTitle>Catalog wind (optional)</CardTitle>
+          <p className="text-sm text-muted-foreground font-normal">
+            Saved as this pin&apos;s catalog default. Your kit and quiver
+            still score it unless you later save a custom window on the
+            spot.
+          </p>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -166,12 +171,13 @@ export function NewSpotForm({
           <Separator />
 
           <div className="space-y-2">
-            <Label>Preferred Wind Directions</Label>
+            <Label>Rideable directions at this spot</Label>
             <DirectionPicker
               defaultValue={wind.preferredDirections ?? "[]"}
             />
             <p className="text-xs text-muted-foreground">
-              If you pick dirs, hours outside the tolerance cannot GO.
+              Which way the wind has to blow here — not your global kit.
+              Hours outside the tolerance cannot GO.
             </p>
           </div>
           <div className="space-y-2">

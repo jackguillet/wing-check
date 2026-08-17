@@ -16,6 +16,7 @@ interface ForecastMapProps {
   spotId: number;
   lat: number;
   lng: number;
+  mapRadiusKm?: number | null;
   hours: ForecastHour[];
   sunrise: string[];
   sunset: string[];
@@ -68,6 +69,7 @@ export function ForecastMap({
   spotId,
   lat,
   lng,
+  mapRadiusKm,
   hours,
   sunrise,
   sunset,
@@ -130,7 +132,7 @@ export function ForecastMap({
   useEffect(() => {
     const img = new Image();
     img.crossOrigin = "anonymous";
-    img.src = `/api/satellite/${spotId}?v=${lat},${lng}`;
+    img.src = `/api/satellite/${spotId}?v=${lat},${lng},${mapRadiusKm ?? ""}`;
     img.onload = () => {
       imgRef.current = img;
       setImageLoaded(true);
@@ -138,7 +140,7 @@ export function ForecastMap({
     img.onerror = () => {
       setImageError(true);
     };
-  }, [spotId, lat, lng]);
+  }, [spotId, lat, lng, mapRadiusKm]);
 
   // Draw canvas
   const draw = useCallback(() => {

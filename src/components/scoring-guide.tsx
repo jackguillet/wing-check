@@ -17,46 +17,40 @@ export function ScoringGuide() {
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="gap-1.5">
           <HelpCircle className="h-4 w-4" />
-          How scoring works
+          How sessions are graded
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>How the 0–100 score works</DialogTitle>
+          <DialogTitle>How sessions are graded</DialogTitle>
           <DialogDescription>
-            Each daylight hour is scored against your kit. If you saved a
-            quiver, wind is scored against the best wing you own — a light
-            day can still be GO. If a size you do not own would make the
-            day GO, we say so. Consecutive hours at 50+ become a rideable
-            window. The day badge is the best remaining window.
+            We grade the best remaining daylight session, not the whole day
+            average. Three prime hours beat eight barely-rideable ones.
           </DialogDescription>
         </DialogHeader>
         <ul className="text-sm space-y-2">
           <li>
-            <span className="font-medium">Wind 0–40</span> — hard gate
-            outside your min/max (or outside every wing in your quiver);
-            peaks at the midpoint of the matching wing.
+            <span className="font-medium">Prime</span> — a remaining window
+            that is on. Bring that wing.
           </li>
           <li>
-            <span className="font-medium">Gusts 0–25</span> — hard gate only
-            above 50 kt; steadier wind scores higher.
+            <span className="font-medium">Solid</span> — a remaining window
+            that is properly rideable, just not the sweet spot.
           </li>
           <li>
-            <span className="font-medium">Direction 0–25</span> — closer to
-            your preferred dirs scores higher. If you set dirs, outside
-            tolerance is a hard zero (cannot GO).
+            <span className="font-medium">Light</span> — people will be out
+            (often foiling), but it is below this spot&apos;s classic band.
+            Not a hard no.
           </li>
           <li>
-            <span className="font-medium">Waves 0–10</span> — over your max
-            (or missing data) scores 0 of 10. Not a hard zero.
+            <span className="font-medium">No session</span> — nothing
+            rideable left in daylight. Storm, offshore, or truly too light.
           </li>
         </ul>
         <p className="text-sm text-muted-foreground">
-          Heavy rain, violent showers, and fog take up to 10 points off.
-          Tide, swell quality, and wave amplification are shown for
-          planning and are not in the grade. GO is a remaining window
-          averaging 70+. MARGINAL is a remaining window below that. NO-GO
-          means nothing rideable is left today.
+          If you saved a quiver, each hour is scored against the best wing
+          you own. A size you do not own is suggested only — it will not
+          flip the grade. Alerts still fire on Solid or Prime windows.
         </p>
       </DialogContent>
     </Dialog>

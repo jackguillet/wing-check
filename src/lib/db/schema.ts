@@ -102,6 +102,7 @@ export const spots = sqliteTable(
     slug: text("slug"),
     latitude: real("latitude").notNull(),
     longitude: real("longitude").notNull(),
+    mapRadiusKm: real("map_radius_km").notNull().default(3),
     noaaStationId: text("noaa_station_id"),
     notes: text("notes"),
     visibility: text("visibility", { enum: ["public", "private"] })

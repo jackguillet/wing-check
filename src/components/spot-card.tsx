@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import type { ClientSpot } from "@/lib/spots/visibility";
 import {
   nextRideableWindow,
+  sessionSummary,
+  verdictLabel,
   type SpotEvaluation,
 } from "@/lib/alerts/evaluator";
 import { Heart } from "lucide-react";
@@ -18,6 +19,7 @@ import {
   formatCivilClock,
   formatCivilWeekdayShort,
 } from "@/lib/weather/civil-time";
+import { VerdictBadge, verdictDot } from "@/components/verdict-badge";
 
 interface SpotCardProps {
   spot: ClientSpot;
@@ -26,31 +28,6 @@ interface SpotCardProps {
   stale?: boolean;
   distanceKm?: number;
 }
-
-function GoNoGoBadge({ status }: { status: "go" | "marginal" | "no-go" }) {
-  switch (status) {
-    case "go":
-      return <Badge className="bg-green-600 text-white text-sm px-3">GO</Badge>;
-    case "marginal":
-      return (
-        <Badge className="bg-yellow-500 text-black text-sm px-3">
-          MARGINAL
-        </Badge>
-      );
-    case "no-go":
-      return (
-        <Badge variant="outline" className="text-muted-foreground text-sm px-3">
-          NO-GO
-        </Badge>
-      );
-  }
-}
-
-const statusDot: Record<string, string> = {
-  go: "bg-green-500",
-  marginal: "bg-yellow-500",
-  "no-go": "bg-red-500",
-};
 
 function dayLabel(dateStr: string, todayDate: string | null): string {
   if (todayDate && dateStr === todayDate) return "Today";
@@ -87,7 +64,7 @@ export function SpotCard({
         className="transition-colors hover:bg-accent/50"
         title={
           evaluation
-            ? `Today ${evaluation.overallScore}/100 — best remaining daylight window vs your kit. GO is 70+.`
+            ? `Today ${sessionSummary(evaluation.bestWindow)} — best remaining daylight session vs your kit.`
             : undefined
         }
       >
@@ -101,7 +78,7 @@ export function SpotCard({
             )}
             {spot.name}
           </CardTitle>
-          {evaluation && <GoNoGoBadge status={evaluation.goNoGo} />}
+          {evaluation && <VerdictBadge verdict={evaluation.verdict} />}
         </CardHeader>
         <CardContent>
           {days.length > 0 ? (
@@ -113,22 +90,29 @@ export function SpotCard({
                   </p>
                   <div className="flex items-center justify-center gap-1.5">
                     <span
-                      className={`inline-block h-2 w-2 rounded-full ${statusDot[day.goNoGo]}`}
+                      className={`inline-block h-2 w-2 rounded-full ${verdictDot[day.verdict]}`}
                       aria-hidden
                     />
                     <span className="font-medium">
-                      {day.score}
-                      <span className="text-muted-foreground text-xs">/100</span>
+                      {verdictLabel(day.verdict)}
                     </span>
                   </div>
-                  <p className="sr-only">{day.goNoGo}</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {day.bestWindow
+                      ? `${day.bestWindow.hours}h`
+                      : day.suggestedWindow?.recommendedWing != null
+                        ? formatWouldBeGo(day.suggestedWindow.recommendedWing)
+                        : "—"}
+                  </p>
                 </div>
               ))}
             </div>
           ) : evaluation ? (
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Today</span>
-              <span className="font-medium">{evaluation.overallScore}/100</span>
+              <span className="font-medium">
+                {sessionSummary(evaluation.bestWindow)}
+              </span>
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">Forecast unavailable</p>
@@ -166,7 +150,7 @@ export function SpotCard({
             !nextWindow &&
             !evaluation.suggestedWindows[0] && (
             <p className="text-sm text-muted-foreground mt-3">
-              No rideable window ahead
+              No session ahead
             </p>
           )}
 

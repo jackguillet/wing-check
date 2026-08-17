@@ -13,6 +13,7 @@ export function mockSpot(overrides: Partial<Spot> = {}): Spot {
     slug: "test-spot",
     latitude: 37.7749,
     longitude: -122.4194,
+    mapRadiusKm: 3,
     noaaStationId: "9414290",
     notes: null,
     visibility: "public",

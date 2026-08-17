@@ -14,7 +14,12 @@ import type { ForecastHour, TidePoint } from "@/lib/weather/types";
 import { degreesToCardinal } from "@/lib/weather/types";
 import { computeConditionsInsight } from "@/lib/weather/conditions";
 import type { AlertCriteria } from "@/lib/db/schema";
-import type { HourScore, RideableWindow } from "@/lib/alerts/evaluator";
+import {
+  verdictFromWindow,
+  verdictLabel,
+  type HourScore,
+  type RideableWindow,
+} from "@/lib/alerts/evaluator";
 import { CriteriaForm } from "@/components/criteria-form";
 import { useUnits } from "@/components/units-provider";
 import { formatWind } from "@/lib/units";
@@ -43,6 +48,7 @@ interface ForecastSectionProps {
   spotId: number;
   lat: number;
   lng: number;
+  mapRadiusKm?: number | null;
   isOwner: boolean;
   canEditCriteria?: boolean;
   criteriaSource?: CriteriaSource;
@@ -120,6 +126,7 @@ export function ForecastSection({
   spotId,
   lat,
   lng,
+  mapRadiusKm,
   isOwner,
   canEditCriteria = isOwner,
   criteriaSource,
@@ -207,6 +214,7 @@ export function ForecastSection({
             spotId={spotId}
             lat={lat}
             lng={lng}
+            mapRadiusKm={mapRadiusKm}
             hours={filteredHours}
             sunrise={sunrise}
             sunset={sunset}
@@ -283,12 +291,14 @@ export function ForecastSection({
                       </div>
                       <Badge
                         className={
-                          w.avgScore >= 70
+                          verdictFromWindow(w) === "prime"
                             ? "bg-green-600 text-white"
-                            : "bg-yellow-500 text-black"
+                            : verdictFromWindow(w) === "solid"
+                              ? "bg-emerald-600 text-white"
+                              : "bg-amber-500 text-black"
                         }
                       >
-                        {w.avgScore}/100
+                        {verdictLabel(verdictFromWindow(w))}
                       </Badge>
                     </div>
                   );
@@ -302,6 +312,7 @@ export function ForecastSection({
           spotId={spotId}
           lat={lat}
           lng={lng}
+          mapRadiusKm={mapRadiusKm}
           hours={filteredHours}
           sunrise={sunrise}
           sunset={sunset}
@@ -334,7 +345,7 @@ export function ForecastSection({
                     </p>
                   </div>
                   <Badge className="bg-green-600 text-white">
-                    {w.avgScore}/100
+                    Would be Solid
                   </Badge>
                 </div>
               ))}

@@ -5,6 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { MapPin, Search } from "lucide-react";
+import {
+  DEFAULT_MAP_RADIUS_KM,
+  MAP_RADIUS_PRESETS,
+  MAX_MAP_RADIUS_KM,
+  MIN_MAP_RADIUS_KM,
+} from "@/lib/geo";
 import "leaflet/dist/leaflet.css";
 
 interface GeocodeResult {
@@ -16,6 +22,7 @@ interface GeocodeResult {
 interface SpotLocationPickerProps {
   defaultLatitude?: number;
   defaultLongitude?: number;
+  defaultRadiusKm?: number;
   latitudeError?: string;
   longitudeError?: string;
 }
@@ -26,12 +33,19 @@ const DEFAULT_ZOOM = 2;
 export function SpotLocationPicker({
   defaultLatitude,
   defaultLongitude,
+  defaultRadiusKm,
   latitudeError,
   longitudeError,
 }: SpotLocationPickerProps) {
   const mapEl = useRef<HTMLDivElement>(null);
   const mapRef = useRef<import("leaflet").Map | null>(null);
   const markerRef = useRef<import("leaflet").CircleMarker | null>(null);
+  const circleRef = useRef<import("leaflet").Circle | null>(null);
+  const [radiusKm, setRadiusKm] = useState(
+    defaultRadiusKm ?? DEFAULT_MAP_RADIUS_KM,
+  );
+  const radiusRef = useRef(radiusKm);
+  radiusRef.current = radiusKm;
 
   const [latitude, setLatitude] = useState(
     defaultLatitude != null ? String(defaultLatitude) : "",
@@ -45,25 +59,43 @@ export function SpotLocationPicker({
   const [locating, setLocating] = useState(false);
   const [searchError, setSearchError] = useState("");
 
-  function applyCoords(lat: number, lng: number, zoom = 12) {
+  function applyCoords(lat: number, lng: number) {
     setLatitude(lat.toFixed(5));
     setLongitude(lng.toFixed(5));
+    void syncOverlay(lat, lng, radiusRef.current);
+  }
+
+  async function syncOverlay(lat: number, lng: number, km: number) {
     const map = mapRef.current;
     if (!map) return;
-    map.setView([lat, lng], zoom);
+    const L = (await import("leaflet")).default;
+    if (!mapRef.current) return;
     if (markerRef.current) {
       markerRef.current.setLatLng([lat, lng]);
-      return;
-    }
-    void import("leaflet").then(({ default: L }) => {
-      if (!mapRef.current || markerRef.current) return;
+    } else {
       markerRef.current = L.circleMarker([lat, lng], {
         radius: 8,
         color: "#2563eb",
         fillColor: "#3b82f6",
         fillOpacity: 0.9,
         weight: 2,
-      }).addTo(mapRef.current);
+      }).addTo(map);
+    }
+    if (circleRef.current) {
+      circleRef.current.setLatLng([lat, lng]);
+      circleRef.current.setRadius(km * 1000);
+    } else {
+      circleRef.current = L.circle([lat, lng], {
+        radius: km * 1000,
+        color: "#2563eb",
+        fillColor: "#3b82f6",
+        fillOpacity: 0.12,
+        weight: 2,
+      }).addTo(map);
+    }
+    map.fitBounds(circleRef.current.getBounds(), {
+      padding: [24, 24],
+      maxZoom: 16,
     });
   }
 
@@ -93,36 +125,38 @@ export function SpotLocationPicker({
         maxZoom: 18,
       }).addTo(map);
 
-      const marker =
-        defaultLatitude != null && defaultLongitude != null
-          ? L.circleMarker([defaultLatitude, defaultLongitude], {
-              radius: 8,
-              color: "#2563eb",
-              fillColor: "#3b82f6",
-              fillOpacity: 0.9,
-              weight: 2,
-            }).addTo(map)
-          : null;
-
-      map.on("click", (event: import("leaflet").LeafletMouseEvent) => {
-        const { lat, lng } = event.latlng;
-        setLatitude(lat.toFixed(5));
-        setLongitude(lng.toFixed(5));
-        if (markerRef.current) {
-          markerRef.current.setLatLng([lat, lng]);
-        } else {
-          markerRef.current = L.circleMarker([lat, lng], {
+      const startRadius = defaultRadiusKm ?? DEFAULT_MAP_RADIUS_KM;
+      const hasPin = defaultLatitude != null && defaultLongitude != null;
+      const marker = hasPin
+        ? L.circleMarker([defaultLatitude, defaultLongitude], {
             radius: 8,
             color: "#2563eb",
             fillColor: "#3b82f6",
             fillOpacity: 0.9,
             weight: 2,
-          }).addTo(map);
-        }
+          }).addTo(map)
+        : null;
+      const circle = hasPin
+        ? L.circle([defaultLatitude, defaultLongitude], {
+            radius: startRadius * 1000,
+            color: "#2563eb",
+            fillColor: "#3b82f6",
+            fillOpacity: 0.12,
+            weight: 2,
+          }).addTo(map)
+        : null;
+      if (circle) {
+        map.fitBounds(circle.getBounds(), { padding: [24, 24], maxZoom: 16 });
+      }
+
+      map.on("click", (event: import("leaflet").LeafletMouseEvent) => {
+        const { lat, lng } = event.latlng;
+        applyCoords(lat, lng);
       });
 
       mapRef.current = map;
       markerRef.current = marker;
+      circleRef.current = circle;
     })();
 
     return () => {
@@ -130,8 +164,9 @@ export function SpotLocationPicker({
       mapRef.current?.remove();
       mapRef.current = null;
       markerRef.current = null;
+      circleRef.current = null;
     };
-  }, [defaultLatitude, defaultLongitude]);
+  }, [defaultLatitude, defaultLongitude, defaultRadiusKm]);
 
   async function handleSearch(e?: React.SyntheticEvent) {
     e?.preventDefault();
@@ -153,22 +188,7 @@ export function SpotLocationPicker({
   }
 
   function pickResult(result: GeocodeResult) {
-    applyCoords(result.latitude, result.longitude, 13);
-    if (!markerRef.current && mapRef.current) {
-      void import("leaflet").then(({ default: L }) => {
-        if (!mapRef.current) return;
-        markerRef.current = L.circleMarker(
-          [result.latitude, result.longitude],
-          {
-            radius: 8,
-            color: "#2563eb",
-            fillColor: "#3b82f6",
-            fillOpacity: 0.9,
-            weight: 2,
-          },
-        ).addTo(mapRef.current);
-      });
-    }
+    applyCoords(result.latitude, result.longitude);
     setResults([]);
     setQuery(result.label);
   }
@@ -182,22 +202,7 @@ export function SpotLocationPicker({
     setSearchError("");
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        applyCoords(pos.coords.latitude, pos.coords.longitude, 12);
-        if (!markerRef.current && mapRef.current) {
-          void import("leaflet").then(({ default: L }) => {
-            if (!mapRef.current) return;
-            markerRef.current = L.circleMarker(
-              [pos.coords.latitude, pos.coords.longitude],
-              {
-                radius: 8,
-                color: "#2563eb",
-                fillColor: "#3b82f6",
-                fillOpacity: 0.9,
-                weight: 2,
-              },
-            ).addTo(mapRef.current);
-          });
-        }
+        applyCoords(pos.coords.latitude, pos.coords.longitude);
         setLocating(false);
       },
       () => {
@@ -268,15 +273,66 @@ export function SpotLocationPicker({
         </ul>
       )}
 
+      <p className="text-xs text-muted-foreground">
+        Click the map to drop a pin, then size the circle to the water you ride.
+      </p>
       <div
         ref={mapEl}
         className="h-64 w-full rounded-md border z-0"
         role="application"
         aria-label="Click the map to set the spot location"
       />
-      <p className="text-xs text-muted-foreground">
-        Click the map to drop a pin, or enter coordinates below.
-      </p>
+      <input type="hidden" name="mapRadiusKm" value={radiusKm} />
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor="mapRadius">Winging area</Label>
+          <span className="text-sm tabular-nums text-muted-foreground">
+            {radiusKm < 10 ? radiusKm.toFixed(1) : Math.round(radiusKm)} km
+          </span>
+        </div>
+        <input
+          id="mapRadius"
+          type="range"
+          min={MIN_MAP_RADIUS_KM}
+          max={MAX_MAP_RADIUS_KM}
+          step={0.1}
+          value={radiusKm}
+          onChange={(e) => {
+            const km = Number(e.target.value);
+            setRadiusKm(km);
+            const lat = Number(latitude);
+            const lng = Number(longitude);
+            if (Number.isFinite(lat) && Number.isFinite(lng)) {
+              void syncOverlay(lat, lng, km);
+            }
+          }}
+          className="w-full accent-primary"
+          aria-label="Winging area radius in kilometers"
+        />
+        <div className="flex flex-wrap gap-2">
+          {MAP_RADIUS_PRESETS.map((preset) => (
+            <Button
+              key={preset.label}
+              type="button"
+              size="sm"
+              variant={radiusKm === preset.km ? "secondary" : "outline"}
+              onClick={() => {
+                setRadiusKm(preset.km);
+                const lat = Number(latitude);
+                const lng = Number(longitude);
+                if (Number.isFinite(lat) && Number.isFinite(lng)) {
+                  void syncOverlay(lat, lng, preset.km);
+                }
+              }}
+            >
+              {preset.label}
+            </Button>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Frames the satellite wind map. Forecast and tides stay on the pin.
+        </p>
+      </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">

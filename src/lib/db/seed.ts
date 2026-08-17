@@ -341,6 +341,13 @@ async function seed() {
   }
   console.log(`Updated criteria for ${updatedCriteriaCount} existing system spots.`);
 
+  const clearedOverviews = await db.delete(schema.spotOverviews).returning({
+    id: schema.spotOverviews.id,
+  });
+  console.log(
+    `Cleared ${clearedOverviews.length} cached overviews so they match the new bands.`,
+  );
+
   // ── Backfill NOAA station IDs for spots missing them ──
   const spotsWithoutStation = await db
     .select({ id: schema.spots.id, name: schema.spots.name, latitude: schema.spots.latitude, longitude: schema.spots.longitude })

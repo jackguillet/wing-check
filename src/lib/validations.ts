@@ -1,5 +1,10 @@
 import { z } from "zod";
 import { isValidDirectionList } from "@/lib/directions";
+import {
+  DEFAULT_MAP_RADIUS_KM,
+  MAX_MAP_RADIUS_KM,
+  MIN_MAP_RADIUS_KM,
+} from "@/lib/geo";
 import { MAX_WING_SIZE_M2, MIN_WING_SIZE_M2 } from "@/lib/wings";
 
 const preferredDirectionsField = z
@@ -38,6 +43,12 @@ export const createSpotSchema = z
       .number()
       .min(-180)
       .max(180, "Longitude must be between -180 and 180"),
+    mapRadiusKm: z.coerce
+      .number()
+      .min(MIN_MAP_RADIUS_KM)
+      .max(MAX_MAP_RADIUS_KM)
+      .optional()
+      .default(DEFAULT_MAP_RADIUS_KM),
     noaaStationId: z.string().optional().default(""),
     notes: z.string().max(500, "Notes too long").optional().default(""),
     preferredDirections: preferredDirectionsField,
@@ -124,6 +135,12 @@ export const updateSpotSchema = z.object({
     .number()
     .min(-180)
     .max(180, "Longitude must be between -180 and 180"),
+  mapRadiusKm: z.coerce
+    .number()
+    .min(MIN_MAP_RADIUS_KM)
+    .max(MAX_MAP_RADIUS_KM)
+    .optional()
+    .default(DEFAULT_MAP_RADIUS_KM),
   noaaStationId: z.string().max(20).optional().default(""),
   notes: spotNotesSchema,
 });

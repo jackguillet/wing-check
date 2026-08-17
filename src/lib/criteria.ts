@@ -88,8 +88,6 @@ export type KitWindFields = Pick<
   | "minWindSpeed"
   | "maxWindSpeed"
   | "maxGustFactor"
-  | "preferredDirections"
-  | "directionTolerance"
   | "minConsecutiveHours"
   | "maxWaveHeight"
 >;
@@ -99,15 +97,25 @@ export function kitsMatch(a: KitWindFields, b: KitWindFields): boolean {
     a.minWindSpeed === b.minWindSpeed &&
     a.maxWindSpeed === b.maxWindSpeed &&
     a.maxGustFactor === b.maxGustFactor &&
-    a.preferredDirections === b.preferredDirections &&
-    a.directionTolerance === b.directionTolerance &&
     a.minConsecutiveHours === b.minConsecutiveHours &&
     a.maxWaveHeight === b.maxWaveHeight
   );
 }
 
+function withPlaceDirections(
+  rider: CriteriaFields,
+  place: CriteriaFields,
+): CriteriaFields {
+  return {
+    ...rider,
+    preferredDirections: place.preferredDirections,
+    directionTolerance: place.directionTolerance,
+  };
+}
+
 /**
- * Spot override → rider default kit → catalog default → app default.
+ * Rider wind (min/max, gusts, hours, waves): override → user kit → catalog → app.
+ * Directions belong to the location: override → catalog → app. Never the user kit.
  */
 export function resolveCriteria(
   spotId: number,
@@ -115,10 +123,9 @@ export function resolveCriteria(
   userDefault: CriteriaFields | null | undefined,
   spotCriteria: CriteriaFields | null | undefined,
 ): AlertCriteria {
-  return asAlertCriteria(
-    spotId,
-    spotOverride ?? userDefault ?? spotCriteria ?? null,
-  );
+  const rider = spotOverride ?? userDefault ?? spotCriteria ?? defaultCriteria;
+  const place = spotOverride ?? spotCriteria ?? defaultCriteria;
+  return asAlertCriteria(spotId, withPlaceDirections(rider, place));
 }
 
 export function resolveCriteriaWithSource(
@@ -170,10 +177,8 @@ export function windProfileFromPrefs(prefs: {
     minWindSpeed: prefs.minWindSpeed,
     maxWindSpeed: prefs.maxWindSpeed,
     maxGustFactor: prefs.maxGustFactor ?? defaultCriteria.maxGustFactor,
-    preferredDirections:
-      prefs.preferredDirections ?? defaultCriteria.preferredDirections,
-    directionTolerance:
-      prefs.directionTolerance ?? defaultCriteria.directionTolerance,
+    preferredDirections: defaultCriteria.preferredDirections,
+    directionTolerance: defaultCriteria.directionTolerance,
     minConsecutiveHours:
       prefs.minConsecutiveHours ?? defaultCriteria.minConsecutiveHours,
     maxWaveHeight: prefs.maxWaveHeight,

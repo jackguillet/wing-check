@@ -27,7 +27,7 @@ import {
 import { forecastHourAt } from "@/lib/weather/match-hour";
 import { ObservationCard } from "@/components/observation-card";
 import { getSession } from "@/lib/auth-session";
-import { evaluateSpot } from "@/lib/alerts/evaluator";
+import { evaluateSpot, sessionSummary } from "@/lib/alerts/evaluator";
 import { spotLocalNow } from "@/lib/weather/civil-time";
 import { criteriaKitLabel, riderScheduleFromPrefs } from "@/lib/criteria";
 import { HONEST_TIDE_MAX_KM } from "@/lib/weather/noaa-stations";
@@ -86,7 +86,7 @@ export async function generateMetadata({
   if (!cached) {
     return {
       title: `${spot.name} · Wing Check`,
-      description: `Wind forecast and go/no-go score for ${spot.name}.`,
+      description: `Wind forecast and session grade for ${spot.name}.`,
     };
   }
   const { criteria, source } = await getResolvedCriteriaDetails(spot.id, viewerId);
@@ -108,10 +108,13 @@ export async function generateMetadata({
     scoringQuiver,
     missingQuiverBands,
   );
-  const verdict = evaluation.goNoGo.toUpperCase();
+  const today = evaluation.dayEvaluations.find(
+    (d) => d.date === evaluation.todayDate,
+  );
+  const label = sessionSummary(today?.bestWindow ?? null);
   return {
-    title: `${spot.name} · ${verdict} ${evaluation.overallScore} · Wing Check`,
-    description: `${verdict} ${evaluation.overallScore}/100 today at ${spot.name}.`,
+    title: `${spot.name} · ${label} · Wing Check`,
+    description: `${label} today at ${spot.name}.`,
   };
 }
 
@@ -469,6 +472,7 @@ export default async function SpotDetailPage({
             name={spot.name}
             latitude={spot.latitude}
             longitude={spot.longitude}
+            mapRadiusKm={spot.mapRadiusKm}
             noaaStationId={spot.noaaStationId}
             notes={spot.notes}
           />
@@ -557,6 +561,7 @@ export default async function SpotDetailPage({
             spotId={spot.id}
             lat={spot.latitude}
             lng={spot.longitude}
+            mapRadiusKm={spot.mapRadiusKm}
             isOwner={isOwner}
             canEditCriteria={isAuthenticated}
             criteriaSource={source}
