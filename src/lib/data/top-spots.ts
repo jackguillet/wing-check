@@ -11,7 +11,7 @@ export const CATALOG_BANDS = {
   strongTrade: { minWindSpeed: 14, maxWindSpeed: 26 },
   thermal: { minWindSpeed: 14, maxWindSpeed: 25 },
   strongThermal: { minWindSpeed: 16, maxWindSpeed: 28 },
-  gorge: { minWindSpeed: 18, maxWindSpeed: 32 },
+  gorge: { minWindSpeed: 14, maxWindSpeed: 30 },
 } as const;
 
 export interface TopSpot {

@@ -74,10 +74,74 @@ export function bestUpcomingWindowScore(
   return best;
 }
 
+export type SessionVerdict = "prime" | "solid" | "light" | "none";
+
+export const LIGHT_WINDOW_THRESHOLD = 40;
+export const SOLID_SCORE = 70;
+export const PRIME_SCORE = 80;
+
+export function verdictFromWindow(
+  window: RideableWindow | null,
+): SessionVerdict {
+  if (!window) return "none";
+  if (window.avgScore >= PRIME_SCORE) return "prime";
+  if (window.avgScore >= SOLID_SCORE) return "solid";
+  return "light";
+}
+
+export function verdictLabel(verdict: SessionVerdict): string {
+  switch (verdict) {
+    case "prime":
+      return "Prime";
+    case "solid":
+      return "Solid";
+    case "light":
+      return "Light";
+    case "none":
+      return "No session";
+  }
+}
+
+export function goNoGoFromVerdict(
+  verdict: SessionVerdict,
+): "go" | "marginal" | "no-go" {
+  if (verdict === "prime" || verdict === "solid") return "go";
+  if (verdict === "light") return "marginal";
+  return "no-go";
+}
+
+function verdictTier(verdict: SessionVerdict): number {
+  switch (verdict) {
+    case "prime":
+      return 3;
+    case "solid":
+      return 2;
+    case "light":
+      return 1;
+    case "none":
+      return 0;
+  }
+}
+
+/** Prime beats Solid beats Light; longer wins inside a tier. */
+export function betterSession(a: RideableWindow, b: RideableWindow): boolean {
+  const ta = verdictTier(verdictFromWindow(a));
+  const tb = verdictTier(verdictFromWindow(b));
+  if (ta !== tb) return ta > tb;
+  if (a.hours !== b.hours) return a.hours > b.hours;
+  return a.avgScore > b.avgScore;
+}
+
+export function sessionSummary(window: RideableWindow | null): string {
+  if (!window) return verdictLabel("none");
+  return `${verdictLabel(verdictFromWindow(window))} · ${window.hours}h`;
+}
+
 export interface DayEvaluation {
   date: string;              // "2026-02-14"
   score: number;
   goNoGo: "go" | "marginal" | "no-go";
+  verdict: SessionVerdict;
   rideableWindows: RideableWindow[];
   bestWindow: RideableWindow | null;
   /** Best GO window a missing wing would open. Null when the day is already GO. */
@@ -94,6 +158,7 @@ export interface SpotEvaluation {
   /** Spot-local YYYY-MM-DD used as "today". */
   todayDate: string | null;
   suggestedWindows: RideableWindow[];
+  verdict: SessionVerdict;
 }
 
 function angleDifference(a: number, b: number): number {
@@ -239,6 +304,30 @@ function windReason(
 
 const SUGGEST_MIN_SCORE = 70;
 const SUGGEST_MIN_DELTA = 15;
+const SOFT_MIN_FACTOR = 0.75;
+const SOFT_MIN_FLOOR_KT = 8;
+const LIGHT_SCORE_CAP = 49;
+
+function softBandCandidates(
+  bands: ScoreBand[],
+  speed: number,
+): ScoreBand[] {
+  const out: ScoreBand[] = [];
+  for (const band of bands) {
+    const softMin = Math.max(
+      SOFT_MIN_FLOOR_KT,
+      band.minWindSpeed * SOFT_MIN_FACTOR,
+    );
+    if (speed >= softMin && speed < band.minWindSpeed) {
+      out.push({
+        sizeM2: band.sizeM2,
+        minWindSpeed: softMin,
+        maxWindSpeed: band.minWindSpeed,
+      });
+    }
+  }
+  return out;
+}
 
 type ScoreBand = {
   sizeM2: number | null;
@@ -394,7 +483,47 @@ function scoreHour(
   const owned = quiver && quiver.length > 0 ? quiver : [];
   const canSuggest = gustOk && weatherOk && !directionHard;
 
+  const hasQuiver = owned.length > 0;
+
   if (!windOk || !gustOk || !weatherOk || directionHard) {
+    // Soft floor is for the spot's catalog band (people foil below "classic"
+    // gorge min). A quiver wing that is simply too small stays a miss.
+    if (!windOk && gustOk && weatherOk && !directionHard && !hasQuiver) {
+      const soft = bestAgainstBands(
+        hour,
+        criteria,
+        preferredDirs,
+        directionOk,
+        waveOk,
+        softBandCandidates(bands, hour.windSpeed),
+      );
+      if (soft) {
+        const suggestion = canSuggest
+          ? pickSuggestion(
+              hour,
+              criteria,
+              preferredDirs,
+              directionOk,
+              waveOk,
+              owned,
+              missing,
+              Math.min(LIGHT_SCORE_CAP, soft.score),
+            )
+          : { suggestedWing: null, suggestedScore: null };
+        return {
+          time: hour.time,
+          score: Math.min(LIGHT_SCORE_CAP, soft.score),
+          windOk: true,
+          gustOk,
+          directionOk,
+          waveOk,
+          weatherOk,
+          reason: "Light",
+          recommendedWing: soft.sizeM2,
+          ...suggestion,
+        };
+      }
+    }
     const suggestion = canSuggest
       ? pickSuggestion(
           hour,
@@ -461,6 +590,101 @@ function isDaytime(
   return isDaylightCivil(time, sunrise, sunset);
 }
 
+function buildWindow(
+  hourScores: HourScore[],
+  hours: ForecastHour[],
+  start: number,
+  endExclusive: number,
+): RideableWindow {
+  const windowHours = endExclusive - start;
+  const windowScores = hourScores.slice(start, endExclusive);
+  const windowForecast = hours.slice(start, endExclusive);
+  const avgScore =
+    windowScores.reduce((s, h) => s + h.score, 0) / windowHours;
+  const avgWind =
+    windowForecast.reduce((s, h) => s + h.windSpeed, 0) / windowHours;
+  const avgGusts =
+    windowForecast.reduce((s, h) => s + h.windGusts, 0) / windowHours;
+  const sinSum = windowForecast.reduce(
+    (s, h) => s + Math.sin((h.windDirection * Math.PI) / 180),
+    0,
+  );
+  const cosSum = windowForecast.reduce(
+    (s, h) => s + Math.cos((h.windDirection * Math.PI) / 180),
+    0,
+  );
+  const dominantDirection =
+    ((Math.atan2(sinSum, cosSum) * 180) / Math.PI + 360) % 360;
+
+  return {
+    start: hourScores[start].time,
+    end: addCivilHours(hourScores[endExclusive - 1].time, 1),
+    hours: windowHours,
+    avgScore: Math.round(avgScore),
+    avgWind: Math.round(avgWind * 10) / 10,
+    avgGusts: Math.round(avgGusts * 10) / 10,
+    dominantDirection: Math.round(dominantDirection),
+    recommendedWing: dominantWing(windowScores.map((s) => s.recommendedWing)),
+  };
+}
+
+/** Inside a rideable run, keep the best same-quality stretch — not a diluted mix. */
+function bestSessionInRun(
+  hourScores: HourScore[],
+  hours: ForecastHour[],
+  runStart: number,
+  runEnd: number,
+  minHours: number,
+): RideableWindow {
+  const tiers = [PRIME_SCORE, SOLID_SCORE, LIGHT_WINDOW_THRESHOLD];
+  let best: RideableWindow | null = null;
+  for (const minScore of tiers) {
+    let i = runStart;
+    while (i < runEnd) {
+      if (hourScores[i].score < minScore) {
+        i += 1;
+        continue;
+      }
+      let j = i + 1;
+      while (j < runEnd && hourScores[j].score >= minScore) j += 1;
+      if (j - i >= minHours) {
+        const candidate = buildWindow(hourScores, hours, i, j);
+        if (!best || betterSession(candidate, best)) best = candidate;
+      }
+      i = j;
+    }
+  }
+  return best ?? buildWindow(hourScores, hours, runStart, runEnd);
+}
+
+function sessionsInRun(
+  hourScores: HourScore[],
+  hours: ForecastHour[],
+  runStart: number,
+  runEnd: number,
+  minHours: number,
+): RideableWindow[] {
+  const best = bestSessionInRun(
+    hourScores,
+    hours,
+    runStart,
+    runEnd,
+    minHours,
+  );
+  const startIdx = hourScores.findIndex((h) => h.time === best.start);
+  const endIdx = startIdx + best.hours;
+  const out: RideableWindow[] = [best];
+  if (startIdx - runStart >= minHours) {
+    out.push(
+      ...sessionsInRun(hourScores, hours, runStart, startIdx, minHours),
+    );
+  }
+  if (runEnd - endIdx >= minHours) {
+    out.push(...sessionsInRun(hourScores, hours, endIdx, runEnd, minHours));
+  }
+  return out.sort((a, b) => a.start.localeCompare(b.start));
+}
+
 function findRideableWindows(
   hourScores: HourScore[],
   hours: ForecastHour[],
@@ -496,39 +720,15 @@ function findRideableWindows(
     } else if (!isGood && windowStart !== -1) {
       const windowHours = i - windowStart;
       if (windowHours >= minConsecutiveHours) {
-        const windowScores = hourScores.slice(windowStart, i);
-        const windowForecast = hours.slice(windowStart, i);
-        const avgScore =
-          windowScores.reduce((s, h) => s + h.score, 0) / windowHours;
-        const avgWind =
-          windowForecast.reduce((s, h) => s + h.windSpeed, 0) / windowHours;
-        const avgGusts =
-          windowForecast.reduce((s, h) => s + h.windGusts, 0) / windowHours;
-
-        // Find dominant direction (circular mean)
-        const sinSum = windowForecast.reduce(
-          (s, h) => s + Math.sin((h.windDirection * Math.PI) / 180),
-          0
-        );
-        const cosSum = windowForecast.reduce(
-          (s, h) => s + Math.cos((h.windDirection * Math.PI) / 180),
-          0
-        );
-        const dominantDirection =
-          ((Math.atan2(sinSum, cosSum) * 180) / Math.PI + 360) % 360;
-
-        windows.push({
-          start: hourScores[windowStart].time,
-          end: addCivilHours(hourScores[i - 1].time, 1),
-          hours: windowHours,
-          avgScore: Math.round(avgScore),
-          avgWind: Math.round(avgWind * 10) / 10,
-          avgGusts: Math.round(avgGusts * 10) / 10,
-          dominantDirection: Math.round(dominantDirection),
-          recommendedWing: dominantWing(
-            windowScores.map((s) => s.recommendedWing),
+        windows.push(
+          ...sessionsInRun(
+            hourScores,
+            hours,
+            windowStart,
+            i,
+            minConsecutiveHours,
           ),
-        });
+        );
       }
       windowStart = -1;
     }
@@ -593,7 +793,7 @@ export function evaluateSpot(
     hourScores,
     hours,
     criteria.minConsecutiveHours,
-    50,
+    LIGHT_WINDOW_THRESHOLD,
     sunrise,
     sunset,
     nowCivil,
@@ -620,7 +820,7 @@ export function evaluateSpot(
       group.scores,
       group.forecast,
       criteria.minConsecutiveHours,
-      50,
+      LIGHT_WINDOW_THRESHOLD,
       sunrise,
       sunset,
       nowCivil,
@@ -628,7 +828,7 @@ export function evaluateSpot(
       tides,
     );
     const dayBest = dayWindows.length > 0
-      ? dayWindows.reduce((best, w) => w.avgScore > best.avgScore ? w : best)
+      ? dayWindows.reduce((best, w) => (betterSession(w, best) ? w : best))
       : null;
     // When `nowCivil` is set, a used-up morning is no-go — not this morning's 90.
     // Without it (tests / full-series eval) keep the max-hour fallback.
@@ -639,12 +839,8 @@ export function evaluateSpot(
         : group.scores.length > 0
           ? Math.max(...group.scores.map((h) => h.score))
           : 0;
-    const dayGoNoGo: "go" | "marginal" | "no-go" =
-      dayBest && dayBest.avgScore >= 70
-        ? "go"
-        : dayBest || (!nowCivil && dayScore >= 40)
-          ? "marginal"
-          : "no-go";
+    const verdict = verdictFromWindow(dayBest);
+    const dayGoNoGo = goNoGoFromVerdict(verdict);
     const suggestedWindow =
       dayGoNoGo === "go"
         ? null
@@ -663,6 +859,7 @@ export function evaluateSpot(
       date,
       score: dayScore,
       goNoGo: dayGoNoGo,
+      verdict,
       rideableWindows: dayWindows,
       bestWindow: dayBest,
       suggestedWindow,
@@ -680,7 +877,7 @@ export function evaluateSpot(
   const limitedBestWindow =
     limitedWindows.length > 0
       ? limitedWindows.reduce((best, w) =>
-          w.avgScore > best.avgScore ? w : best
+          betterSession(w, best) ? w : best,
         )
       : null;
 
@@ -692,6 +889,7 @@ export function evaluateSpot(
     : limitedDayEvals[0];
   const overallScore = todayEval ? todayEval.score : 0;
   const goNoGo: "go" | "marginal" | "no-go" = todayEval ? todayEval.goNoGo : "no-go";
+  const verdict: SessionVerdict = todayEval ? todayEval.verdict : "none";
 
   const suggestedWindows = limitedDayEvals
     .map((d) => d.suggestedWindow)
@@ -706,6 +904,7 @@ export function evaluateSpot(
     dayEvaluations: limitedDayEvals,
     todayDate,
     suggestedWindows,
+    verdict,
   };
 }
 

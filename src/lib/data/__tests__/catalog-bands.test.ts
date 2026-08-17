@@ -12,6 +12,13 @@ describe("catalog bands", () => {
     );
   });
 
+  it("gives Hood River a gorge band that treats 12 kt as light, not a hard miss", () => {
+    const hood = TOP_SPOTS.find((s) => s.name === "Hood River");
+    expect(hood?.alertCriteria?.minWindSpeed).toBe(CATALOG_BANDS.gorge.minWindSpeed);
+    expect(hood?.alertCriteria?.minWindSpeed).toBe(14);
+    expect(hood?.alertCriteria?.maxWindSpeed).toBe(35);
+  });
+
   it("sets an explicit min and max on every catalog pin", () => {
     for (const spot of TOP_SPOTS) {
       expect(spot.alertCriteria?.minWindSpeed, spot.name).toBeGreaterThan(0);

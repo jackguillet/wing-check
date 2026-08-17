@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { evaluateSpot, nextRideableWindow, bestUpcomingWindowScore, type HourScore, type RideableWindow, type DayEvaluation } from "../evaluator";
+import { evaluateSpot, nextRideableWindow, bestUpcomingWindowScore, verdictFromWindow, type HourScore, type RideableWindow, type DayEvaluation } from "../evaluator";
 import type { ForecastHour } from "@/lib/weather/types";
 import type { AlertCriteria } from "@/lib/db/schema";
 import { bandForWing, missingQuiver, resolveQuiver } from "@/lib/wings";
@@ -630,6 +630,8 @@ describe("bestUpcomingWindowScore", () => {
       bestWindow: null,
       dayEvaluations: [],
       todayDate: "2026-08-16",
+      suggestedWindows: [],
+      verdict: "light" as const,
     };
 
     expect(bestUpcomingWindowScore(evaluation, 72)).toBe(88);
@@ -646,6 +648,8 @@ describe("bestUpcomingWindowScore", () => {
       bestWindow: null,
       dayEvaluations: [],
       todayDate: "2026-08-16",
+      suggestedWindows: [],
+      verdict: "none" as const,
     };
 
     expect(bestUpcomingWindowScore(evaluation, 72)).toBe(0);
@@ -837,5 +841,78 @@ describe("quiver scoring", () => {
     );
     expect(result.hourScores.every((s) => s.reason === "Offshore")).toBe(true);
     expect(result.goNoGo).toBe("no-go");
+  });
+});
+
+describe("session verdict and light floor", () => {
+  const gorge: AlertCriteria = {
+    ...defaultCriteria,
+    minWindSpeed: 14,
+    maxWindSpeed: 30,
+    preferredDirections: "[270, 280, 290]",
+    maxWaveHeight: null,
+  };
+
+  it("treats 12 kt west at Hood River as a light session, not a hard no-go", () => {
+    const hours = makeHours(4, {
+      windSpeed: 12,
+      windGusts: 18,
+      windDirection: 290,
+    });
+    const result = evaluateSpot(hours, gorge);
+    expect(result.hourScores.every((s) => s.score > 0)).toBe(true);
+    expect(result.hourScores.every((s) => s.score <= 49)).toBe(true);
+    expect(result.verdict).toBe("light");
+    expect(result.goNoGo).toBe("marginal");
+    expect(result.bestWindow?.hours).toBe(4);
+  });
+
+  it("still zeros a truly light hour", () => {
+    const hours = makeHours(3, {
+      windSpeed: 6,
+      windGusts: 8,
+      windDirection: 290,
+    });
+    const result = evaluateSpot(hours, gorge);
+    expect(result.hourScores.every((s) => s.score === 0)).toBe(true);
+    expect(result.verdict).toBe("none");
+  });
+
+  it("prefers 3 prime hours over a longer barely-rideable stretch", () => {
+    const hours = [
+      ...makeHours(5, { windSpeed: 15, windGusts: 18, windDirection: 290 }).map(
+        (h, i) => ({
+          ...h,
+          time: `2026-08-16T${String(10 + i).padStart(2, "0")}:00`,
+        }),
+      ),
+      makeHour({
+        time: "2026-08-16T16:00",
+        windSpeed: 22,
+        windGusts: 26,
+        windDirection: 280,
+      }),
+      makeHour({
+        time: "2026-08-16T17:00",
+        windSpeed: 22,
+        windGusts: 26,
+        windDirection: 280,
+      }),
+      makeHour({
+        time: "2026-08-16T18:00",
+        windSpeed: 21,
+        windGusts: 25,
+        windDirection: 280,
+      }),
+    ];
+    const result = evaluateSpot(hours, gorge);
+    expect(result.verdict).toBe("prime");
+    expect(result.bestWindow?.start).toBe("2026-08-16T16:00");
+    expect(result.bestWindow!.hours).toBe(3);
+    expect(result.bestWindow!.avgScore).toBeGreaterThan(80);
+    expect(result.rideableWindows.length).toBe(2);
+    expect(result.rideableWindows[0].start).toBe("2026-08-16T10:00");
+    expect(result.rideableWindows[0].hours).toBe(5);
+    expect(verdictFromWindow(result.rideableWindows[0])).toBe("light");
   });
 });

@@ -209,4 +209,5 @@ const emptyEval: SpotEvaluation = {
   dayEvaluations: [],
   todayDate: null,
   suggestedWindows: [],
+  verdict: "none",
 };
